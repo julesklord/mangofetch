@@ -248,7 +248,7 @@ scratch/
 .trunk/
 
 # TEMPORARY - flatpak folder
-flatpak/
+flatpak
 
 # WORKSPACE
 omniget.code-workspace
