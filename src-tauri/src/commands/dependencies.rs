@@ -36,16 +36,23 @@ pub async fn check_ytdlp_available() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn install_dependency(name: String) -> Result<String, String> {
+pub async fn install_dependency(
+    app_handle: tauri::AppHandle,
+    name: String,
+) -> Result<String, String> {
+    let reporter = crate::core::reporters::TauriReporter::new(app_handle);
+use omniget_core::core::traits::DownloadReporter;
+    let reporter_opt = Some(&reporter as &dyn DownloadReporter);
+
     match name.as_str() {
         "yt-dlp" => {
-            crate::core::ytdlp::ensure_ytdlp()
+            crate::core::ytdlp::ensure_ytdlp(reporter_opt)
                 .await
                 .map_err(|e| e.to_string())?;
             crate::core::ytdlp::reset_ytdlp_cache();
         }
         "FFmpeg" => {
-            dependencies::ensure_ffmpeg()
+            dependencies::ensure_ffmpeg(reporter_opt)
                 .await
                 .map_err(|e| e.to_string())?;
             crate::core::ytdlp::reset_ffmpeg_location_cache();

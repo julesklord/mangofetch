@@ -1,6 +1,7 @@
 use serde::Serialize;
 
-use crate::core::queue::{self, emit_queue_state_from_state, QueueItemInfo};
+use omniget_core::core::manager::queue;
+use omniget_core::models::queue::{QueueItemInfo, QueueStatus};
 use crate::core::url_parser;
 use crate::platforms::Platform;
 use crate::storage::config;
@@ -93,7 +94,7 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
 #[tauri::command]
 pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
     let _timer_start = std::time::Instant::now();
-    let ytdlp_path = ytdlp::ensure_ytdlp()
+    let ytdlp_path = ytdlp::ensure_ytdlp(None)
         .await
         .map_err(|e| format!("yt-dlp unavailable: {}", e))?;
 
@@ -122,15 +123,13 @@ pub async fn prefetch_media_info(
         None => return Err("No downloader available".to_string()),
     };
 
-    let ytdlp_path = ytdlp::find_ytdlp_cached().await;
-
     tokio::spawn(async move {
+        let reporter = std::sync::Arc::new(crate::core::reporters::TauriReporter::new(app.clone())) as std::sync::Arc<dyn omniget_core::core::traits::DownloadReporter>;
         queue::prefetch_info_with_emit(
             &url,
             &*downloader,
             &platform_name,
-            ytdlp_path.as_deref(),
-            Some(app),
+            Some(reporter),
         )
         .await;
     });
@@ -230,16 +229,18 @@ pub async fn download_from_url(
         }
         q.get_state()
     };
-    emit_queue_state_from_state(&app, state_to_emit);
+    {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, state_to_emit);
+    }
 
     let q_clone = download_queue.clone();
-    let app_clone = app.clone();
     tokio::spawn(async move {
         let ids_to_start = {
             let q = q_clone.lock().await;
             q.items
                 .iter()
-                .filter(|i| i.status == queue::QueueStatus::Active)
+                .filter(|i| i.status == QueueStatus::Active)
                 .filter(|i| i.id == download_id)
                 .map(|i| i.id)
                 .collect::<Vec<_>>()
@@ -254,10 +255,9 @@ pub async fn download_from_url(
             if i > 0 && stagger > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(stagger)).await;
             }
-            let a = app_clone.clone();
             let qc = q_clone.clone();
             tokio::spawn(async move {
-                queue::spawn_download(a, qc, nid).await;
+                queue::spawn_download(qc, nid).await;
             });
         }
     });
@@ -271,7 +271,7 @@ pub async fn download_from_url(
 
 #[tauri::command]
 pub async fn cancel_generic_download(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
@@ -292,8 +292,11 @@ pub async fn cancel_generic_download(
         }
     }
     if let Some(s) = state_to_emit {
-        emit_queue_state_from_state(&app, s);
-        queue::try_start_next(app, state.download_queue.clone()).await;
+        {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, s);
+    }
+        queue::try_start_next(state.download_queue.clone()).await;
         Ok("Download cancelled".to_string())
     } else {
         Err("No active download for this ID".to_string())
@@ -302,7 +305,7 @@ pub async fn cancel_generic_download(
 
 #[tauri::command]
 pub async fn pause_download(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
@@ -327,8 +330,11 @@ pub async fn pause_download(
         }
     }
     if let Some(s) = state_to_emit {
-        emit_queue_state_from_state(&app, s);
-        queue::try_start_next(app, state.download_queue.clone()).await;
+        {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, s);
+    }
+        queue::try_start_next(state.download_queue.clone()).await;
         Ok("Download paused".to_string())
     } else {
         Err("Download cannot be paused".to_string())
@@ -337,7 +343,7 @@ pub async fn pause_download(
 
 #[tauri::command]
 pub async fn resume_download(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
@@ -362,8 +368,11 @@ pub async fn resume_download(
         }
     }
     if let Some(s) = state_to_emit {
-        emit_queue_state_from_state(&app, s);
-        queue::try_start_next(app, state.download_queue.clone()).await;
+        {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, s);
+    }
+        queue::try_start_next(state.download_queue.clone()).await;
         Ok("Download resumed".to_string())
     } else {
         Err("Download cannot be resumed".to_string())
@@ -372,7 +381,7 @@ pub async fn resume_download(
 
 #[tauri::command]
 pub async fn retry_download(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
@@ -385,8 +394,11 @@ pub async fn retry_download(
         }
     };
     if let Some(s) = state_to_emit {
-        emit_queue_state_from_state(&app, s);
-        queue::try_start_next(app, state.download_queue.clone()).await;
+        {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, s);
+    }
+        queue::try_start_next(state.download_queue.clone()).await;
         Ok("Download re-queued".to_string())
     } else {
         Err("Download cannot be retried".to_string())
@@ -395,7 +407,7 @@ pub async fn retry_download(
 
 #[tauri::command]
 pub async fn remove_download(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
@@ -415,8 +427,11 @@ pub async fn remove_download(
     }
     if let Some(s) = state_to_emit {
         crate::core::download_log::clear(download_id);
-        emit_queue_state_from_state(&app, s);
-        queue::try_start_next(app, state.download_queue.clone()).await;
+        {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, s);
+    }
+        queue::try_start_next(state.download_queue.clone()).await;
         Ok("Download removed".to_string())
     } else {
         Err("Download not found".to_string())
@@ -503,7 +518,7 @@ pub async fn get_queue_state(
 
 #[tauri::command]
 pub async fn update_max_concurrent(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     max: u32,
 ) -> Result<String, String> {
@@ -515,14 +530,17 @@ pub async fn update_max_concurrent(
         q.max_concurrent = max;
         q.get_state()
     };
-    emit_queue_state_from_state(&app, state_to_emit);
-    queue::try_start_next(app, state.download_queue.clone()).await;
+    {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, state_to_emit);
+    }
+    queue::try_start_next(state.download_queue.clone()).await;
     Ok(format!("Max concurrent set to {}", max))
 }
 
 #[tauri::command]
 pub async fn clear_finished_downloads(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
     let (state_to_emit, finished_ids) = {
@@ -533,8 +551,8 @@ pub async fn clear_finished_downloads(
             .filter(|i| {
                 matches!(
                     i.status,
-                    crate::core::queue::QueueStatus::Complete { .. }
-                        | crate::core::queue::QueueStatus::Error { .. }
+                    QueueStatus::Complete { .. }
+                        | QueueStatus::Error { .. }
                 )
             })
             .map(|i| i.id)
@@ -545,7 +563,10 @@ pub async fn clear_finished_downloads(
     for id in finished_ids {
         crate::core::download_log::clear(id);
     }
-    emit_queue_state_from_state(&app, state_to_emit);
+    {
+        let reporter = state.download_queue.lock().await.reporter.clone();
+        queue::emit_queue_state_from_state(&reporter, state_to_emit);
+    }
     Ok("Finished downloads cleared".to_string())
 }
 

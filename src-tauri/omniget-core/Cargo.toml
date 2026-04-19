@@ -10,6 +10,7 @@ name = "omniget_core"
 default = ["desktop"]
 desktop = []
 mobile = []
+manager = []
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -24,6 +25,8 @@ aes = "0.8"
 cbc = "0.1"
 anyhow = "1"
 tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"

@@ -244,7 +244,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             return Ok(build_direct_media_info(url, media_type));
         }
 
-        let ytdlp_path = ytdlp::ensure_ytdlp()
+        let ytdlp_path = ytdlp::ensure_ytdlp(None)
             .await
             .map_err(|e| anyhow!("yt-dlp unavailable: {}", e))?;
 
@@ -414,7 +414,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
         let ytdlp_path = if let Some(ref p) = opts.ytdlp_path {
             p.clone()
         } else {
-            ytdlp::ensure_ytdlp().await?
+            ytdlp::ensure_ytdlp(None).await?
         };
 
         let quality_height = Self::extract_quality_height(&selected.label);

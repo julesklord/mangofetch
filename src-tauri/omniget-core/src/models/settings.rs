@@ -213,3 +213,46 @@ impl Default for AppSettings {
         }
     }
 }
+
+impl AppSettings {
+    pub fn load_from_disk() -> Self {
+        let data_dir = match crate::core::paths::app_data_dir() {
+            Some(d) => d,
+            None => return Self::default(),
+        };
+        let store_path = data_dir.join("settings.json");
+        let content = match std::fs::read_to_string(&store_path) {
+            Ok(c) => c,
+            Err(_) => return Self::default(),
+        };
+        let json: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => return Self::default(),
+        };
+        match json.get("app_settings") {
+            Some(val) => serde_json::from_value::<Self>(val.clone()).unwrap_or_default(),
+            None => Self::default(),
+        }
+    }
+
+    pub fn save_to_disk(&self) -> anyhow::Result<()> {
+        let data_dir = crate::core::paths::app_data_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not find app data dir"))?;
+        let store_path = data_dir.join("settings.json");
+
+        let mut json = if store_path.exists() {
+            let content = std::fs::read_to_string(&store_path)?;
+            serde_json::from_str::<serde_json::Value>(&content).unwrap_or(serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+
+        if let Some(obj) = json.as_object_mut() {
+            obj.insert("app_settings".to_string(), serde_json::to_value(self)?);
+        }
+
+        let serialized = serde_json::to_string_pretty(&json)?;
+        std::fs::write(store_path, serialized)?;
+        Ok(())
+    }
+}

@@ -18,6 +18,6 @@ pub use omniget_core::core::ytdlp;
 pub mod download_log;
 pub mod events;
 pub mod path_limits;
-pub mod queue;
 pub mod recovery;
+pub mod reporters;
 pub mod url_parser;

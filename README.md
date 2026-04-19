@@ -1,181 +1,73 @@
-<p align="center">
-  <img src="static/loop.png" alt="Loop, the OmniGet mascot" width="120" />
-</p>
+# omniget-cli
 
-<p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/github/v/release/tonhowtf/omniget?style=for-the-badge&label=release" alt="Latest Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=for-the-badge" alt="License GPL-3.0" /></a>
-  <a href="https://github.com/tonhowtf/omniget/stargazers"><img src="https://img.shields.io/github/stars/tonhowtf/omniget?style=for-the-badge" alt="Stars" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases"><img src="https://img.shields.io/github/downloads/tonhowtf/omniget/total?style=for-the-badge&label=downloads" alt="Downloads" /></a>
-</p>
+`omniget-cli` is the command-line companion to the original OmniGet desktop project. This repository is focused on the CLI port and shared download core, while the upstream desktop application remains available at https://github.com/tonhowtf/omniget.
 
-<h1 align="center">OmniGet</h1>
+## What is `omniget-cli`?
 
-<h3 align="center">Paste a link. Get your file.</h3>
+`omniget-cli` brings the same intelligent download engine to your terminal. It is designed for automation, scripting, and advanced workflows that need a lightweight command-line interface.
 
-OmniGet downloads videos, courses, and files from the internet. Paste a link from YouTube, Instagram, TikTok, or any of [1000+ supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md). It figures out what you want and downloads it. Free and open source.
+## Why this repo exists
 
-<p align="center">
-  <img src="assets/screenshot.png" alt="OmniGet downloading a YouTube video" width="800" />
-  <br>
-  <sub>Paste a link. Pick a quality. Download.</sub>
-</p>
+- Primary focus: `omniget-cli`
+- Shared core: `src-tauri/omniget-core`
+- Original upstream desktop app: https://github.com/tonhowtf/omniget
 
-## Download
+## Features
 
-<p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Windows-blue.svg?style=for-the-badge&logo=windows" alt="Download for Windows" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-macOS-black.svg?style=for-the-badge&logo=apple" alt="Download for macOS" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" /></a>
-</p>
+- Download videos, audio, and course content from 1000+ sites supported by yt-dlp.
+- Support course platforms through the shared plugin architecture.
+- Reuse the same engine for FFmpeg, dependency discovery, and yt-dlp integration.
+- Designed for automation, batch processing, and server environments.
 
-Also available as a Flatpak on Linux and a portable `.exe` on Windows.
+## Getting started
 
-## What can it download?
+Display CLI help:
 
-**Videos** from YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, and Bilibili.
+```bash
+cargo run -p omniget-cli -- --help
+```
 
-**Courses** from Hotmart, Udemy, Kiwify, Teachable, and [6 more platforms](#course-platforms). Log in once, download all lessons, attachments, and descriptions.
+Example download command:
 
-**Torrents.** Drag a `.torrent` file or paste a magnet link. Built-in client, no extra software needed.
+```bash
+cargo run -p omniget-cli -- download https://www.youtube.com/watch?v=... 
+```
 
-**Files between devices.** Send a file to another computer using a 4-word share code. Works across different networks.
+## Supported content
 
-**Anything else.** If a site is [supported by yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), OmniGet can download from it. That covers over 1000 sites.
+`omniget-cli` is intended to support:
 
-No setup required beyond the app itself. OmniGet handles [yt-dlp](https://github.com/yt-dlp/yt-dlp) (the engine that supports 1000+ sites) and FFmpeg (used to merge video and audio) automatically, stays up to date on its own, and comes with 11 color themes and 8 languages.
+- Videos from YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, and Bilibili
+- Course platforms such as Hotmart, Udemy, Kiwify, Teachable, and more
+- Torrents and magnet links
+- Any website supported by yt-dlp
 
-The app also includes Loop, a mascot that reacts to your downloads in real time. The themes include Catppuccin, Dracula, and NyxVamp variants.
+## Building from source
 
-### Media Platforms
-
-| Platform | Content |
-|----------|---------|
-| YouTube | Videos, Shorts, Playlists, Search |
-| Instagram | Posts, Reels, Stories |
-| TikTok | Videos, Photos |
-| Twitter / X | Videos, GIFs |
-| Reddit | Videos, Images |
-| Twitch | Clips |
-| Pinterest | Images, Videos |
-| Vimeo | Videos |
-| Bluesky | Images, Videos |
-| Bilibili (哔哩哔哩) | Videos, Series |
-| Telegram | Photos, Videos, Files (via plugin) |
-| Torrent / Magnet | Any `.torrent` file or magnet link |
-
-<details>
-<summary><strong>Chinese platforms</strong> (supported via yt-dlp)</summary>
-
-| Platform | Content |
-|----------|---------|
-| Douyin (抖音) | Videos |
-| Xiaohongshu (小红书) | Videos, Images |
-| Kuaishou (快手) | Videos |
-| Youku (优酷) | Videos |
-| Tencent Video (腾讯视频) | Videos |
-| iQiyi (爱奇艺) | Videos |
-| Mango TV (芒果TV) | Videos |
-
-These platforms may require a Chinese IP address.
-
-</details>
-
-<details>
-<summary><strong>Course platforms</strong></summary>
-
-| Platform | Auth | Region |
-|----------|------|--------|
-| Hotmart | Email + Password | BR / Global |
-| Udemy | Email + Browser Login | Global |
-| Kiwify | Email + Password / Access Token | BR |
-| Gumroad | Email + Password / Access Token | Global |
-| Teachable | Access Token | Global |
-| Kajabi | Access Token | Global |
-| Skool | Email + Password / Access Token | Global |
-| Wondrium / Great Courses | Email + Password / Access Token | US |
-| Thinkific | Browser Login | Global |
-| Rocketseat | Access Token | BR |
-
-</details>
-
-## How it works
-
-1. **Paste a link** into the omnibox. Or drag a file, or search YouTube right there.
-2. OmniGet figures out the platform and shows you a preview with quality options.
-3. Hit download. Progress, speed, and ETA update as it goes.
-
-For courses: log in to the platform, browse your library, pick what you want, and download it all at once.
-
-## Copy. Press. Done.
-
-Copy a video link from anywhere. Discord, Twitter, a group chat. Press **Ctrl+Shift+D** (or **Cmd+Shift+D** on macOS). That's it.
-
-OmniGet grabs the URL from your clipboard and downloads it in the background. You don't even need to open the app. Change the hotkey in **Settings > Downloads > Hotkey**.
-
-## Browser Extension
-
-Install the [Chrome extension](browser-extension/chrome/README.md) to skip the copy-paste step. When you're on a page with a video, click the OmniGet icon. It sends the link and login info the app needs to start downloading.
-
-The extension also detects video streams on any website, even ones OmniGet doesn't officially support. If your browser can play it, OmniGet can probably download it.
-
-## Plugins
-
-OmniGet starts simple. Extra features are available as plugins you can install from the built-in marketplace:
-
-- **Courses.** Download full courses from 10 education platforms.
-- **Telegram.** Browse chats and download media.
-- **Convert.** Convert between video and audio formats.
-
-Want to build one? Check out the [Plugin SDK](src-tauri/omniget-plugin-sdk/).
-
-## Building from Source (for developers)
-
-**Prerequisites:** [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 18+, [pnpm](https://pnpm.io/)
+**Prerequisites:** [Rust](https://rustup.rs/) 1.70+, [Node.js](https://nodejs.org/) 18+, [pnpm](https://pnpm.io/)
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
 cd omniget
-pnpm install
-pnpm tauri dev
+cargo build -p omniget-cli --release
 ```
 
-<details>
-<summary>Linux dependencies</summary>
+The CLI binary is built from `src-tauri/omniget-cli` and reuses the shared core library in `src-tauri/omniget-core`.
 
-```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-```
+## Original project
 
-</details>
+This CLI port references the original OmniGet desktop project by tonhowtf. The original desktop app is available at https://github.com/tonhowtf/omniget.
 
-Production build: `pnpm tauri build`
+## Learn more
 
-<details>
-<summary><strong>Windows SmartScreen / macOS Gatekeeper</strong></summary>
-
-**Windows:** SmartScreen may warn you on first run. Click **More info**, then **Run anyway**. This is normal for open-source apps without a paid code signing certificate.
-
-**macOS:** If Gatekeeper blocks the app, run in Terminal:
-
-```bash
-xattr -cr /Applications/omniget.app
-codesign --force --deep --sign - /Applications/omniget.app
-```
-
-</details>
+- CLI overview: [docs/cli-overview.md](docs/cli-overview.md)
+- Brand guidelines: [docs/brand-guidelines.md](docs/brand-guidelines.md)
 
 ## Contributing
 
-Found a bug or want a feature? [Open an issue](https://github.com/tonhowtf/omniget/issues). Pull requests are welcome.
+Found a bug or want a feature? Open an issue or submit a pull request.
 
-## Notice to Platform Owners
-
-If you represent a listed platform and have concerns, reach out at **tonhowtf@gmail.com** from a company email. We'll remove the platform right away.
-
-## Legal
-
-OmniGet is meant for personal use. Please respect copyright and each platform's terms of service. You're responsible for what you download.
+For brand and messaging guidance, see [docs/brand-guidelines.md](docs/brand-guidelines.md).
 
 ## License
 

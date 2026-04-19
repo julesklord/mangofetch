@@ -22,7 +22,7 @@ impl Default for BlueskyDownloader {
 
 impl BlueskyDownloader {
     async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
         let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
         crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)
     }
@@ -249,7 +249,7 @@ impl PlatformDownloader for BlueskyDownloader {
     ) -> anyhow::Result<DownloadResult> {
         if let Some(quality) = info.available_qualities.first() {
             if quality.format == "ytdlp" {
-                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
                 return crate::core::ytdlp::download_video(
                     &ytdlp_path,
                     &quality.url,

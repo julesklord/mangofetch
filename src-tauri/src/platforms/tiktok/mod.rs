@@ -294,7 +294,7 @@ impl TikTokDownloader {
     }
 
     async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
         let extra_flags = vec![
             "--referer".to_string(),
             "https://www.tiktok.com/".to_string(),
@@ -505,7 +505,7 @@ impl PlatformDownloader for TikTokDownloader {
     ) -> anyhow::Result<DownloadResult> {
         if let Some(quality) = info.available_qualities.first() {
             if quality.format == "ytdlp" {
-                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
                 return crate::core::ytdlp::download_video(
                     &ytdlp_path,
                     &quality.url,

@@ -240,3 +240,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Local dev scratch files
+scratch/
+
+# Trunk linter
+.trunk/

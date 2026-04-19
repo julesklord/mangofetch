@@ -6,9 +6,13 @@ use std::sync::{Arc, OnceLock};
 static EMIT_COUNT: AtomicU64 = AtomicU64::new(0);
 
 use serde::Serialize;
-use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+
+use crate::core::traits::SharedReporter;
+use crate::models::media::MediaInfo;
+use crate::models::queue::{QueueItemInfo, QueueStatus};
+use crate::platforms::traits::PlatformDownloader;
 
 fn shared_http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -18,11 +22,6 @@ fn shared_http_client() -> &'static reqwest::Client {
             .unwrap_or_default()
     })
 }
-
-use crate::core::ffmpeg::{self, MetadataEmbed};
-use crate::models::media::MediaInfo;
-use crate::platforms::traits::PlatformDownloader;
-use crate::storage::config;
 
 struct CachedInfo {
     info: MediaInfo,
@@ -54,34 +53,6 @@ pub struct MediaPreviewEvent {
     pub duration_seconds: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(tag = "type", content = "data")]
-pub enum QueueStatus {
-    Queued,
-    Active,
-    Paused,
-    Seeding,
-    Complete { success: bool },
-    Error { message: String },
-}
-
-#[derive(Clone, Serialize)]
-pub struct QueueItemInfo {
-    pub id: u64,
-    pub url: String,
-    pub platform: String,
-    pub title: String,
-    pub status: QueueStatus,
-    pub percent: f64,
-    pub speed_bytes_per_sec: f64,
-    pub downloaded_bytes: u64,
-    pub total_bytes: Option<u64>,
-    pub file_path: Option<String>,
-    pub file_size_bytes: Option<u64>,
-    pub file_count: Option<u32>,
-    pub thumbnail_url: Option<String>,
-}
-
 pub struct QueueItem {
     pub id: u64,
     pub url: String,
@@ -109,6 +80,7 @@ pub struct QueueItem {
     pub ytdlp_path: Option<PathBuf>,
     pub from_hotkey: bool,
     pub torrent_id: Option<usize>,
+    pub phase: String,
 }
 
 impl QueueItem {
@@ -123,6 +95,7 @@ impl QueueItem {
             speed_bytes_per_sec: self.speed_bytes_per_sec,
             downloaded_bytes: self.downloaded_bytes,
             total_bytes: self.total_bytes,
+            phase: self.phase.clone(),
             file_path: self.file_path.clone(),
             file_size_bytes: self.file_size_bytes,
             file_count: self.file_count,
@@ -138,15 +111,36 @@ pub struct DownloadQueue {
     pub items: Vec<QueueItem>,
     pub max_concurrent: u32,
     pub stagger_delay_ms: u64,
+    pub reporter: Option<SharedReporter>,
 }
 
 impl DownloadQueue {
-    pub fn new(max_concurrent: u32) -> Self {
+    pub fn new(max_concurrent: u32, reporter: Option<SharedReporter>) -> Self {
         Self {
             items: Vec::new(),
             max_concurrent,
             stagger_delay_ms: 150,
+            reporter,
         }
+    }
+
+    pub fn set_reporter(&mut self, reporter: SharedReporter) {
+        self.reporter = Some(reporter);
+    }
+
+    fn sync_recovery(&self, item: &QueueItem) {
+        crate::core::manager::recovery::persist(crate::core::manager::recovery::RecoveryItem {
+            id: item.id,
+            url: item.url.clone(),
+            title: item.title.clone(),
+            platform: item.platform.clone(),
+            output_dir: item.output_dir.clone(),
+            status: item.status.clone(),
+            download_mode: item.download_mode.clone(),
+            quality: item.quality.clone(),
+            format_id: item.format_id.clone(),
+            referer: item.referer.clone(),
+        });
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -198,19 +192,10 @@ impl DownloadQueue {
             ytdlp_path,
             from_hotkey,
             torrent_id: None,
+            phase: "Queued".to_string(),
         };
-        crate::core::recovery::persist(crate::core::recovery::RecoveryItem {
-            id: item.id,
-            url: item.url.clone(),
-            title: item.title.clone(),
-            platform: item.platform.clone(),
-            output_dir: item.output_dir.clone(),
-            download_mode: item.download_mode.clone(),
-            quality: item.quality.clone(),
-            format_id: item.format_id.clone(),
-            referer: item.referer.clone(),
-        });
         self.items.push(item);
+        self.sync_recovery(self.items.last().unwrap());
     }
 
     pub fn active_count(&self) -> u32 {
@@ -231,9 +216,12 @@ impl DownloadQueue {
     }
 
     pub fn mark_active(&mut self, id: u64) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+        let item = self.items.iter_mut().find(|i| i.id == id);
+        if let Some(item) = item {
             item.status = QueueStatus::Active;
             item.cancel_token = CancellationToken::new();
+            let item_ref = item as *const QueueItem;
+            self.sync_recovery(unsafe { &*item_ref });
         }
     }
 
@@ -245,7 +233,8 @@ impl DownloadQueue {
         file_path: Option<String>,
         file_size_bytes: Option<u64>,
     ) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+        let item = self.items.iter_mut().find(|i| i.id == id);
+        if let Some(item) = item {
             if success {
                 item.status = QueueStatus::Complete { success: true };
                 item.percent = 100.0;
@@ -257,7 +246,8 @@ impl DownloadQueue {
             item.file_path = file_path;
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
-            crate::core::recovery::remove(id);
+            let item_ref = item as *const QueueItem;
+            self.sync_recovery(unsafe { &*item_ref });
         }
     }
 
@@ -268,14 +258,16 @@ impl DownloadQueue {
         file_size_bytes: Option<u64>,
         torrent_id: Option<usize>,
     ) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+        let item = self.items.iter_mut().find(|i| i.id == id);
+        if let Some(item) = item {
             item.status = QueueStatus::Seeding;
             item.percent = 100.0;
             item.file_path = file_path;
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
             item.torrent_id = torrent_id;
-            crate::core::recovery::remove(id);
+            let item_ref = item as *const QueueItem;
+            self.sync_recovery(unsafe { &*item_ref });
         }
     }
 
@@ -309,6 +301,8 @@ impl DownloadQueue {
                 }
                 item.status = QueueStatus::Paused;
                 item.speed_bytes_per_sec = 0.0;
+                let item_ref = item as *const QueueItem;
+                self.sync_recovery(unsafe { &*item_ref });
                 return true;
             }
         }
@@ -316,7 +310,8 @@ impl DownloadQueue {
     }
 
     pub fn resume(&mut self, id: u64) -> bool {
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+        let item = self.items.iter_mut().find(|i| i.id == id);
+        if let Some(item) = item {
             if item.status == QueueStatus::Paused {
                 if item.platform == "magnet" {
                     item.status = QueueStatus::Active;
@@ -324,17 +319,18 @@ impl DownloadQueue {
                     item.status = QueueStatus::Queued;
                     item.cancel_token = CancellationToken::new();
                 }
+                let item_ref = item as *const QueueItem;
+                self.sync_recovery(unsafe { &*item_ref });
                 return true;
             }
         }
         false
     }
 
-    /// Cancel an item. Returns the torrent_id if the item needs torrent cleanup (caller should delete from session).
     pub fn cancel(&mut self, id: u64) -> (bool, Option<usize>) {
         let result = self.cancel_inner(id);
         if result.0 {
-            crate::core::recovery::remove(id);
+            crate::core::manager::recovery::remove(id);
         }
         result
     }
@@ -348,6 +344,8 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
+                    let item_ref = item as *const QueueItem;
+                    self.sync_recovery(unsafe { &*item_ref });
                     return (true, None);
                 }
                 QueueStatus::Seeding => {
@@ -356,12 +354,11 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
+                    let item_ref = item as *const QueueItem;
+                    self.sync_recovery(unsafe { &*item_ref });
                     return (true, tid);
                 }
                 QueueStatus::Paused => {
-                    // For magnet downloads, the cancel_token was not cancelled during pause,
-                    // so we must cancel it now to stop the background download loop.
-                    // Also return the torrent_id for session cleanup.
                     item.cancel_token.cancel();
                     let tid = if item.platform == "magnet" {
                         item.torrent_id
@@ -372,12 +369,16 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
+                    let item_ref = item as *const QueueItem;
+                    self.sync_recovery(unsafe { &*item_ref });
                     return (true, tid);
                 }
                 QueueStatus::Queued => {
                     item.status = QueueStatus::Error {
                         message: "Cancelled".to_string(),
                     };
+                    let item_ref = item as *const QueueItem;
+                    self.sync_recovery(unsafe { &*item_ref });
                     return (true, None);
                 }
                 _ => {}
@@ -396,17 +397,18 @@ impl DownloadQueue {
                 item.downloaded_bytes = 0;
                 item.file_path = None;
                 item.file_size_bytes = None;
+                let item_ref = item as *const QueueItem;
+                self.sync_recovery(unsafe { &*item_ref });
                 return true;
             }
         }
         false
     }
 
-    /// Remove an item. Returns the torrent_id if the item needs torrent cleanup (caller should delete from session).
     pub fn remove(&mut self, id: u64) -> Option<Option<usize>> {
         let result = self.remove_inner(id);
         if result.is_some() {
-            crate::core::recovery::remove(id);
+            crate::core::manager::recovery::remove(id);
         }
         result
     }
@@ -417,7 +419,6 @@ impl DownloadQueue {
             if item.status == QueueStatus::Active {
                 item.cancel_token.cancel();
             }
-            // For paused magnet items, the cancel_token was not cancelled during pause
             if item.status == QueueStatus::Paused && item.platform == "magnet" {
                 item.cancel_token.cancel();
             }
@@ -438,11 +439,16 @@ impl DownloadQueue {
         let to_remove: Vec<u64> = self
             .items
             .iter()
-            .filter(|i| matches!(i.status, QueueStatus::Complete { .. } | QueueStatus::Error { .. }))
+            .filter(|i| {
+                matches!(
+                    i.status,
+                    QueueStatus::Complete { .. } | QueueStatus::Error { .. }
+                )
+            })
             .map(|i| i.id)
             .collect();
         for id in &to_remove {
-            crate::core::recovery::remove(*id);
+            crate::core::manager::recovery::remove(*id);
         }
         self.items.retain(|i| {
             !matches!(
@@ -494,78 +500,31 @@ impl ProgressThrottle {
     }
 }
 
-#[derive(Clone, Serialize)]
-pub struct QueueItemProgress {
-    pub id: u64,
-    pub title: String,
-    pub platform: String,
-    pub percent: f64,
-    pub speed_bytes_per_sec: f64,
-    pub downloaded_bytes: u64,
-    pub total_bytes: Option<u64>,
-    pub phase: String,
-}
-
-pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemInfo>) {
+pub fn emit_queue_state_from_state(reporter: &Option<SharedReporter>, state: Vec<QueueItemInfo>) {
     let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
-    if n.is_multiple_of(10) {
+    if n % 10 == 0 {
         tracing::debug!("[perf] emit_queue_state called {} times", n);
     }
-    let _ = app.emit("queue-state-update", &state);
-    let total = crate::tray::compute_total_active(app);
-    crate::tray::update_active_count(app, total);
-
-    let active_items: Vec<_> = state
-        .iter()
-        .filter(|i| i.status == QueueStatus::Active)
-        .collect();
-    let avg_percent = if !active_items.is_empty() {
-        let sum: f64 = active_items.iter().map(|i| i.percent).sum();
-        sum / active_items.len() as f64 / 100.0
-    } else {
-        0.0
-    };
-    crate::tray::update_taskbar_badge(app, total, avg_percent);
-
-    if let Some(window) = app.get_webview_window("main") {
-        let title = if total > 0 {
-            format!("({}) omniget", total)
-        } else {
-            "omniget".into()
-        };
-        let _ = window.set_title(&title);
+    if let Some(reporter) = reporter {
+        reporter.on_queue_update(state);
     }
 }
 
-pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
+pub fn emit_queue_state(queue: &DownloadQueue) {
     let state = queue.get_state();
-    emit_queue_state_from_state(app, state);
+    emit_queue_state_from_state(&queue.reporter, state);
 }
 
 /// RAII guard that ensures an Active queue item never leaks a slot.
-///
-/// If the download future panics or is dropped before reaching `mark_complete`
-/// / `mark_seeding`, the Drop impl spawns a task that transitions the item to
-/// Error("Download interrupted") and calls `try_start_next`, unblocking the
-/// queue.
-///
-/// When the download reaches a terminal state through the normal paths, the
-/// guard sees the item is no longer Active and does nothing (idempotent).
 struct ActiveJobSlot {
-    app: tauri::AppHandle,
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
     item_id: u64,
     armed: bool,
 }
 
 impl ActiveJobSlot {
-    fn new(
-        app: tauri::AppHandle,
-        queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
-        item_id: u64,
-    ) -> Self {
+    fn new(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, item_id: u64) -> Self {
         Self {
-            app,
             queue,
             item_id,
             armed: true,
@@ -582,7 +541,6 @@ impl Drop for ActiveJobSlot {
         if !self.armed {
             return;
         }
-        let app = self.app.clone();
         let queue = self.queue.clone();
         let item_id = self.item_id;
         tokio::spawn(async move {
@@ -610,21 +568,21 @@ impl Drop for ActiveJobSlot {
                 );
                 q.get_state()
             };
-            emit_queue_state_from_state(&app, state);
-            try_start_next(app, queue).await;
+            let reporter = { queue.lock().await.reporter.clone() };
+            emit_queue_state_from_state(&reporter, state);
+            tokio::spawn(try_start_next(queue));
         });
     }
 }
 
 pub fn spawn_download(
-    app: tauri::AppHandle,
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
     item_id: u64,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
     Box::pin(async move {
         let _timer_start = std::time::Instant::now();
-        let slot = ActiveJobSlot::new(app.clone(), queue.clone(), item_id);
-        spawn_download_inner(app, queue, item_id).await;
+        let slot = ActiveJobSlot::new(queue.clone(), item_id);
+        tokio::spawn(spawn_download_inner(queue.clone(), item_id));
         slot.disarm();
         tracing::debug!(
             "[perf] spawn_download {} took {:?}",
@@ -634,26 +592,26 @@ pub fn spawn_download(
     })
 }
 
-async fn spawn_download_inner(
-    app: tauri::AppHandle,
-    queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
-    item_id: u64,
-) {
+async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, item_id: u64) {
     tracing::info!("[queue] download {} started", item_id);
 
-    let _ = app.emit(
-        "queue-item-progress",
-        &QueueItemProgress {
-            id: item_id,
-            title: "".to_string(),
-            platform: "".to_string(),
-            percent: 0.0,
-            speed_bytes_per_sec: 0.0,
-            downloaded_bytes: 0,
-            total_bytes: None,
-            phase: "preparing".to_string(),
-        },
-    );
+    let reporter = { queue.lock().await.reporter.clone() };
+
+    if let Some(r) = &reporter {
+        r.on_progress(
+            item_id,
+            crate::core::events::QueueItemProgress {
+                id: item_id,
+                title: "".to_string(),
+                platform: "".to_string(),
+                percent: 0.0,
+                speed_bytes_per_sec: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                phase: "preparing".to_string(),
+            },
+        );
+    }
 
     let (
         url,
@@ -711,23 +669,25 @@ async fn spawn_download_inner(
                 "[perf] spawn_download_inner {}: media_info is None, fetching info",
                 item_id
             );
-            let _ = app.emit(
-                "queue-item-progress",
-                &QueueItemProgress {
-                    id: item_id,
-                    title: url.clone(),
-                    platform: platform_name.clone(),
-                    percent: 0.0,
-                    speed_bytes_per_sec: 0.0,
-                    downloaded_bytes: 0,
-                    total_bytes: None,
-                    phase: "fetching_info".to_string(),
-                },
-            );
+            if let Some(r) = &reporter {
+                r.on_progress(
+                    item_id,
+                    crate::core::events::QueueItemProgress {
+                        id: item_id,
+                        title: url.clone(),
+                        platform: platform_name.clone(),
+                        percent: 0.0,
+                        speed_bytes_per_sec: 0.0,
+                        downloaded_bytes: 0,
+                        total_bytes: None,
+                        phase: "fetching_info".to_string(),
+                    },
+                );
+            }
 
             let info_result = tokio::time::timeout(
                 std::time::Duration::from_secs(60),
-                fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()),
+                fetch_and_cache_info(&url, &*downloader, &platform_name),
             )
             .await;
 
@@ -739,8 +699,8 @@ async fn spawn_download_inner(
                         q.mark_complete(item_id, false, Some(e.to_string()), None, None);
                         q.get_state()
                     };
-                    emit_queue_state_from_state(&app, state);
-                    try_start_next(app, queue).await;
+                    emit_queue_state_from_state(&reporter, state);
+                    tokio::spawn(try_start_next(queue));
                     return;
                 }
                 Err(_) => {
@@ -756,8 +716,8 @@ async fn spawn_download_inner(
                         );
                         q.get_state()
                     };
-                    emit_queue_state_from_state(&app, state);
-                    try_start_next(app, queue).await;
+                    emit_queue_state_from_state(&reporter, state);
+                    tokio::spawn(try_start_next(queue));
                     return;
                 }
             }
@@ -771,7 +731,7 @@ async fn spawn_download_inner(
 
     let mut info = info;
     if is_generic_title(&info.title) {
-        let pokemon = omniget_core::core::pokemon_names::random_pokemon_name();
+        let pokemon = crate::core::pokemon_names::random_pokemon_name();
         info.title = format!("video_{}", pokemon);
     }
 
@@ -792,23 +752,25 @@ async fn spawn_download_inner(
         }
         q.get_state()
     };
-    emit_queue_state_from_state(&app, state);
+    emit_queue_state_from_state(&reporter, state);
 
-    let _ = app.emit(
-        "queue-item-progress",
-        &QueueItemProgress {
-            id: item_id,
-            title: info.title.clone(),
-            platform: platform_name.clone(),
-            percent: 0.5,
-            speed_bytes_per_sec: 0.0,
-            downloaded_bytes: 0,
-            total_bytes: info.file_size_bytes,
-            phase: "starting".to_string(),
-        },
-    );
+    if let Some(r) = &reporter {
+        r.on_progress(
+            item_id,
+            crate::core::events::QueueItemProgress {
+                id: item_id,
+                title: info.title.clone(),
+                platform: platform_name.clone(),
+                percent: 0.5,
+                speed_bytes_per_sec: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: info.file_size_bytes,
+                phase: "starting".to_string(),
+            },
+        );
+    }
 
-    let settings = config::load_settings(&app);
+    let settings = crate::models::settings::AppSettings::load_from_disk();
     let tmpl = settings.download.filename_template.clone();
     let mut final_output_dir = std::path::PathBuf::from(&output_dir);
     if settings.download.organize_by_platform {
@@ -839,7 +801,7 @@ async fn spawn_download_inner(
     let item_platform = platform_name.clone();
     let (tx, mut rx) = mpsc::channel::<f64>(32);
 
-    let app_progress = app.clone();
+    let reporter_progress = reporter.clone();
     let queue_progress = queue.clone();
     let torrent_id_slot_progress = torrent_id_slot.clone();
     let progress_forwarder = tokio::spawn(async move {
@@ -894,27 +856,29 @@ async fn spawn_download_inner(
                 );
             }
 
-            let _ = app_progress.emit(
-                "queue-item-progress",
-                &QueueItemProgress {
-                    id: item_id,
-                    title: item_title.clone(),
-                    platform: item_platform.clone(),
-                    percent: clamped,
-                    speed_bytes_per_sec: current_speed,
-                    downloaded_bytes,
-                    total_bytes,
-                    phase: phase.to_string(),
-                },
-            );
+            if let Some(r) = &reporter_progress {
+                r.on_progress(
+                    item_id,
+                    crate::core::events::QueueItemProgress {
+                        id: item_id,
+                        title: item_title.clone(),
+                        platform: item_platform.clone(),
+                        percent: clamped,
+                        speed_bytes_per_sec: current_speed,
+                        downloaded_bytes,
+                        total_bytes,
+                        phase: phase.to_string(),
+                    },
+                );
+            }
         }
     });
 
     if let Some(ua) = opts.user_agent.clone() {
-        omniget_core::core::ytdlp::register_ext_user_agent(url.clone(), ua);
+        crate::core::ytdlp::register_ext_user_agent(url.clone(), ua);
     }
     if let Some(hdrs) = opts.extra_headers.clone() {
-        omniget_core::core::ytdlp::register_ext_headers(url.clone(), hdrs);
+        crate::core::ytdlp::register_ext_headers(url.clone(), hdrs);
     }
 
     let dl_start = std::time::Instant::now();
@@ -926,11 +890,11 @@ async fn spawn_download_inner(
             }
         }
     };
-    let result = omniget_core::core::log_hook::CURRENT_DOWNLOAD_ID
+    let result = crate::core::log_hook::CURRENT_DOWNLOAD_ID
         .scope(item_id, dl_future)
         .await;
-    omniget_core::core::ytdlp::clear_ext_user_agent(&url);
-    omniget_core::core::ytdlp::clear_ext_headers(&url);
+    crate::core::ytdlp::clear_ext_user_agent(&url);
+    crate::core::ytdlp::clear_ext_headers(&url);
     tracing::info!(
         "[queue] download {} completed in {:?}",
         item_id,
@@ -953,8 +917,8 @@ async fn spawn_download_inner(
             let q = queue.lock().await;
             q.get_state()
         };
-        emit_queue_state_from_state(&app, state);
-        try_start_next(app, queue).await;
+        emit_queue_state_from_state(&reporter, state);
+        tokio::spawn(try_start_next(queue));
         return;
     }
 
@@ -962,15 +926,15 @@ async fn spawn_download_inner(
         Ok(dl) => {
             if settings.download.embed_metadata
                 && platform_name != "magnet"
-                && ffmpeg::is_ffmpeg_available().await
+                && crate::core::ffmpeg::is_ffmpeg_available().await
             {
-                let metadata = MetadataEmbed {
+                let metadata = crate::core::ffmpeg::MetadataEmbed {
                     title: Some(info.title.clone()),
                     artist: Some(info.author.clone()),
                     thumbnail_url: info.thumbnail_url.clone(),
                     ..Default::default()
                 };
-                if let Err(e) = ffmpeg::embed_metadata(
+                if let Err(e) = crate::core::ffmpeg::embed_metadata(
                     &dl.file_path,
                     &metadata,
                     settings.download.embed_thumbnail,
@@ -987,12 +951,9 @@ async fn spawn_download_inner(
                 {
                     match crate::core::clipboard::copy_file_to_clipboard(&dl.file_path).await {
                         Ok(()) => {
-                            let _ = app.emit(
-                                "file-copied-to-clipboard",
-                                serde_json::json!({
-                                    "path": dl.file_path.to_string_lossy(),
-                                }),
-                            );
+                            tracing::info!("[clipboard] file copied: {:?}", dl.file_path);
+                            // Notified via general event if needed, or by reporter
+                            // If needed: if let Some(r) = &reporter { r.on_complete(...) }
                         }
                         Err(e) => {
                             tracing::warn!("[clipboard] failed to copy file: {}", e);
@@ -1021,11 +982,18 @@ async fn spawn_download_inner(
                 }
                 q.get_state()
             };
-            emit_queue_state_from_state(&app, state);
+            if let Some(r) = &reporter {
+                r.on_complete(
+                    item_id,
+                    Some(dl.file_path.to_string_lossy().to_string()),
+                    Some(dl.file_size_bytes),
+                );
+            }
+            emit_queue_state_from_state(&reporter, state);
         }
         Err(e) => {
             let raw_err = e.to_string();
-            let (category, hint) = omniget_core::core::errors::classify_download_error(&raw_err);
+            let (category, hint) = crate::core::errors::classify_download_error(&raw_err);
             let user_msg = if category != "unknown" {
                 format!("{} ({})", hint, raw_err)
             } else {
@@ -1039,21 +1007,23 @@ async fn spawn_download_inner(
             );
             let state = {
                 let mut q = queue.lock().await;
-                q.mark_complete(item_id, false, Some(user_msg), None, None);
+                q.mark_complete(item_id, false, Some(user_msg.clone()), None, None);
                 q.get_state()
             };
-            emit_queue_state_from_state(&app, state);
+            if let Some(r) = &reporter {
+                r.on_error(item_id, user_msg);
+            }
+            emit_queue_state_from_state(&reporter, state);
         }
     }
 
-    try_start_next(app, queue).await;
+    tokio::spawn(try_start_next(queue));
 }
 
-async fn fetch_and_cache_info(
+pub async fn fetch_and_cache_info(
     url: &str,
     downloader: &dyn PlatformDownloader,
     platform: &str,
-    ytdlp_path: Option<&std::path::Path>,
 ) -> anyhow::Result<MediaInfo> {
     {
         let cache = info_cache().lock().await;
@@ -1087,20 +1057,7 @@ async fn fetch_and_cache_info(
     }
 
     tracing::debug!("[perf] fetch_and_cache_info: fetching for {}", platform);
-    let info = if let Some(ytdlp) = ytdlp_path {
-        match platform {
-            "youtube" => {
-                crate::platforms::youtube::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
-            }
-            "generic" => {
-                let json = crate::core::ytdlp::get_video_info(ytdlp, url, &[]).await?;
-                crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)?
-            }
-            _ => downloader.get_media_info(url).await?,
-        }
-    } else {
-        downloader.get_media_info(url).await?
-    };
+    let info = downloader.get_media_info(url).await?;
 
     let mut cache = info_cache().lock().await;
     cache.insert(
@@ -1124,40 +1081,33 @@ pub async fn try_get_cached_info(url: &str) -> Option<MediaInfo> {
         .map(|entry| entry.info.clone())
 }
 
-pub async fn prefetch_info(
-    url: &str,
-    downloader: &dyn PlatformDownloader,
-    platform: &str,
-    ytdlp_path: Option<&std::path::Path>,
-) {
-    prefetch_info_with_emit(url, downloader, platform, ytdlp_path, None).await;
+pub async fn prefetch_info(url: &str, downloader: &dyn PlatformDownloader, platform: &str) {
+    prefetch_info_with_emit(url, downloader, platform, None).await;
 }
 
 pub async fn prefetch_info_with_emit(
     url: &str,
     downloader: &dyn PlatformDownloader,
     platform: &str,
-    ytdlp_path: Option<&std::path::Path>,
-    app: Option<tauri::AppHandle>,
+    reporter: Option<SharedReporter>,
 ) {
     let _timer_start = std::time::Instant::now();
     tracing::debug!("[perf] prefetch_info: started");
-    match fetch_and_cache_info(url, downloader, platform, ytdlp_path).await {
+    match fetch_and_cache_info(url, downloader, platform).await {
         Ok(info) => {
             tracing::debug!(
                 "[perf] prefetch_info: completed in {:?} — {}",
                 _timer_start.elapsed(),
                 info.title
             );
-            if let Some(app) = app {
-                let preview = MediaPreviewEvent {
-                    url: url.to_string(),
-                    title: info.title.clone(),
-                    author: info.author.clone(),
-                    thumbnail_url: info.thumbnail_url.clone(),
-                    duration_seconds: info.duration_seconds,
-                };
-                let _ = app.emit("media-info-preview", preview);
+            if let Some(r) = reporter {
+                r.on_media_preview(
+                    url.to_string(),
+                    info.title.clone(),
+                    info.author.clone(),
+                    info.thumbnail_url.clone(),
+                    info.duration_seconds,
+                );
             }
         }
         Err(e) => tracing::warn!(
@@ -1168,9 +1118,9 @@ pub async fn prefetch_info_with_emit(
     }
 }
 
-pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
+pub async fn try_start_next(queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
     let _timer_start = std::time::Instant::now();
-    let (next_ids, stagger, state_to_emit) = {
+    let (next_ids, stagger, state_to_emit, reporter) = {
         let mut q = queue.lock().await;
         let ids = q.next_queued_ids();
         for nid in &ids {
@@ -1181,28 +1131,30 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
         } else {
             None
         };
-        (ids, q.stagger_delay_ms, state)
+        (ids, q.stagger_delay_ms, state, q.reporter.clone())
     };
 
     if let Some(state) = state_to_emit {
-        emit_queue_state_from_state(&app, state);
+        emit_queue_state_from_state(&reporter, state);
     }
 
     let batch_size = next_ids.len();
     for (i, nid) in next_ids.into_iter().enumerate() {
-        let _ = app.emit(
-            "queue-item-progress",
-            &QueueItemProgress {
-                id: nid,
-                title: String::new(),
-                platform: String::new(),
-                percent: 0.0,
-                speed_bytes_per_sec: 0.0,
-                downloaded_bytes: 0,
-                total_bytes: None,
-                phase: "queued_starting".to_string(),
-            },
-        );
+        if let Some(r) = &reporter {
+            r.on_progress(
+                nid,
+                crate::core::events::QueueItemProgress {
+                    id: nid,
+                    title: String::new(),
+                    platform: String::new(),
+                    percent: 0.0,
+                    speed_bytes_per_sec: 0.0,
+                    downloaded_bytes: 0,
+                    total_bytes: None,
+                    phase: "queued_starting".to_string(),
+                },
+            );
+        }
 
         if i > 0 {
             let item_platform = {
@@ -1223,10 +1175,9 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
                 tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
             }
         }
-        let app_c = app.clone();
         let queue_c = queue.clone();
         tokio::spawn(async move {
-            spawn_download(app_c, queue_c, nid).await;
+            tokio::spawn(spawn_download(queue_c, nid));
         });
     }
     tracing::debug!("[perf] try_start_next took {:?}", _timer_start.elapsed());

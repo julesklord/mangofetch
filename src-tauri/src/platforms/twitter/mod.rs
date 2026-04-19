@@ -721,7 +721,7 @@ impl PlatformDownloader for TwitterDownloader {
     ) -> anyhow::Result<DownloadResult> {
         if let Some(quality) = info.available_qualities.first() {
             if quality.format == "ytdlp" {
-                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
                 let mut extra_flags = Vec::new();
                 if let Some(cookie) = Self::manual_cookie_string() {
                     extra_flags.push("--add-headers".to_string());
@@ -810,7 +810,7 @@ impl PlatformDownloader for TwitterDownloader {
 
 impl TwitterDownloader {
     async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
         let mut extra_flags = vec![
             "--referer".to_string(),
             "https://x.com/".to_string(),

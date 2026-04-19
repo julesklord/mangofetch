@@ -471,7 +471,7 @@ impl InstagramDownloader {
     }
 
     async fn fallback_ytdlp(&self, url: &str, post_id: &str) -> anyhow::Result<MediaInfo> {
-        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
         let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
         let mut info =
             crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)?;
@@ -584,7 +584,7 @@ impl InstagramDownloader {
         opts: &DownloadOptions,
         progress: mpsc::Sender<f64>,
     ) -> anyhow::Result<DownloadResult> {
-        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp(None).await?;
         crate::core::ytdlp::download_video(
             &ytdlp_path,
             post_url,

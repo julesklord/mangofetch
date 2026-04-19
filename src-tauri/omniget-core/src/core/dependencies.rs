@@ -1,5 +1,53 @@
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Stdio;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedDependencies {
+    pub ytdlp: Option<PathBuf>,
+    pub ffmpeg: Option<PathBuf>,
+}
+
+pub async fn ensure_dependencies(
+    force: bool,
+    reporter: Option<crate::core::traits::SharedReporter>,
+) -> Result<ResolvedDependencies> {
+    let rep_ref = reporter.as_ref().map(|r| r.as_ref());
+
+    if let Some(r) = rep_ref {
+        r.on_system_progress("Checking dependencies", 0.0, "Starting...");
+    }
+
+    if force {
+        tracing::info!("Force updating dependencies...");
+        // Reset caches to ensure we don't return old paths
+        crate::core::ytdlp::reset_ytdlp_cache();
+        crate::core::ytdlp::reset_ffmpeg_location_cache();
+        crate::core::ytdlp::reset_js_runtime_cache();
+
+        // Re-download yt-dlp
+        let ytdlp = crate::core::ytdlp::force_update_ytdlp(rep_ref).await.ok();
+
+        // Re-download ffmpeg
+        let ffmpeg = download_ffmpeg(rep_ref).await.ok();
+
+        if let Some(r) = rep_ref {
+            r.on_system_progress("Update complete", 100.0, "Ready");
+        }
+
+        return Ok(ResolvedDependencies { ytdlp, ffmpeg });
+    }
+
+    let ytdlp = crate::core::ytdlp::ensure_ytdlp(rep_ref).await.ok();
+    let ffmpeg = ensure_ffmpeg(rep_ref).await.ok();
+
+    if let Some(r) = rep_ref {
+        r.on_system_progress("Dependencies ready", 100.0, "Ready");
+    }
+
+    Ok(ResolvedDependencies { ytdlp, ffmpeg })
+}
 
 use anyhow::anyhow;
 
@@ -193,13 +241,15 @@ pub async fn check_version(tool: &str) -> Option<String> {
     result
 }
 
-pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
+pub async fn ensure_ffmpeg(
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+) -> anyhow::Result<PathBuf> {
     // Always ensure the managed binary exists — the standalone yt-dlp.exe
     // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
         let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
         if managed.as_ref().map_or(true, |p| !p.exists()) {
-            if let Ok(path) = download_ffmpeg().await {
+            if let Ok(path) = download_ffmpeg(reporter).await {
                 crate::core::ytdlp::reset_ffmpeg_location_cache();
                 return Ok(path);
             }
@@ -212,12 +262,14 @@ pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
     if is_flatpak() {
         return Err(anyhow!("FFmpeg not found in Flatpak sandbox"));
     }
-    let path = download_ffmpeg().await?;
+    let path = download_ffmpeg(reporter).await?;
     crate::core::ytdlp::reset_ffmpeg_location_cache();
     Ok(path)
 }
 
-async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
+async fn download_ffmpeg(
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
 
@@ -227,23 +279,16 @@ async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
 
     let downloads = ffmpeg_download_urls();
 
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(300))
-        .build()?;
-
     for (url, archive_type) in downloads {
         tracing::info!("Downloading FFmpeg component from {}", url);
-        let response = client.get(url).send().await?;
-        if !response.status().is_success() {
-            return Err(anyhow!(
-                "Failed to download FFmpeg from {}: HTTP {}",
-                url,
-                response.status()
-            ));
-        }
+        let bytes = crate::core::http_client::download_with_progress(url, |percent| {
+            if let Some(r) = reporter {
+                r.on_system_progress("ffmpeg", percent, "Downloading FFmpeg...");
+            }
+        })
+        .await?;
 
         let temp_path = bin_dir.join(".ffmpeg_download.tmp");
-        let bytes = response.bytes().await?;
         let data = bytes.to_vec();
         let temp_clone = temp_path.clone();
         tokio::task::spawn_blocking(move || std::fs::write(&temp_clone, &data))
@@ -475,7 +520,9 @@ async fn extract_tar_xz_ffmpeg(
 /// Ensures a JavaScript runtime is available for yt-dlp's YouTube nsig
 /// challenge solver. Checks for any existing runtime first (Node.js, Deno,
 /// Bun), then auto-downloads Deno if none is found.
-pub async fn ensure_js_runtime() -> Option<PathBuf> {
+pub async fn ensure_js_runtime(
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+) -> Option<PathBuf> {
     // Check system-installed runtimes first.
     for tool in &["deno", "node", "bun"] {
         if let Some(path) = find_tool(tool).await {
@@ -491,19 +538,15 @@ pub async fn ensure_js_runtime() -> Option<PathBuf> {
             r"C:\Program Files (x86)\nodejs\node.exe",
         ];
         for path in &candidates {
-            let p = PathBuf::from(path);
+            let p = std::path::PathBuf::from(path);
             if p.exists() {
                 return Some(p);
             }
         }
     }
 
-    // No runtime found — download Deno (recommended by yt-dlp, fast, single binary).
-    match download_deno().await {
-        Ok(path) => {
-            crate::core::ytdlp::reset_js_runtime_cache();
-            Some(path)
-        }
+    match download_deno(reporter).await {
+        Ok(path) => Some(path),
         Err(e) => {
             tracing::warn!("Failed to download Deno JS runtime: {}", e);
             None
@@ -511,7 +554,9 @@ pub async fn ensure_js_runtime() -> Option<PathBuf> {
     }
 }
 
-async fn download_deno() -> anyhow::Result<PathBuf> {
+async fn download_deno(
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
 
@@ -538,19 +583,12 @@ async fn download_deno() -> anyhow::Result<PathBuf> {
 
     tracing::info!("Downloading Deno JS runtime from {}", url);
 
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(300))
-        .build()?;
-
-    let response = client.get(url).send().await?;
-    if !response.status().is_success() {
-        return Err(anyhow!(
-            "Failed to download Deno: HTTP {}",
-            response.status()
-        ));
-    }
-
-    let bytes = response.bytes().await?;
+    let bytes = crate::core::http_client::download_with_progress(url, |percent| {
+        if let Some(r) = reporter {
+            r.on_system_progress("deno", percent, "Downloading Deno...");
+        }
+    })
+    .await?;
     let data = bytes.to_vec();
     let bin_dir_clone = bin_dir.clone();
     let deno_name_clone = deno_name.clone();
@@ -606,7 +644,9 @@ async fn download_deno() -> anyhow::Result<PathBuf> {
     Ok(deno_target)
 }
 
-pub async fn ensure_aria2c() -> Option<PathBuf> {
+pub async fn ensure_aria2c(
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+) -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);
     }
@@ -614,7 +654,7 @@ pub async fn ensure_aria2c() -> Option<PathBuf> {
     // Auto-download only on Windows
     #[cfg(target_os = "windows")]
     {
-        match download_aria2c().await {
+        match download_aria2c(reporter).await {
             Ok(path) => return Some(path),
             Err(e) => {
                 tracing::warn!("Failed to download aria2c: {}", e);
@@ -626,7 +666,9 @@ pub async fn ensure_aria2c() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-async fn download_aria2c() -> anyhow::Result<PathBuf> {
+async fn download_aria2c(
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
 
@@ -635,19 +677,12 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
 
     let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
 
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(120))
-        .build()?;
-
-    let response = client.get(url).send().await?;
-    if !response.status().is_success() {
-        return Err(anyhow!(
-            "Failed to download aria2c: HTTP {}",
-            response.status()
-        ));
-    }
-
-    let bytes = response.bytes().await?;
+    let bytes = crate::core::http_client::download_with_progress(url, |percent| {
+        if let Some(r) = reporter {
+            r.on_system_progress("aria2c", percent, "Downloading aria2c...");
+        }
+    })
+    .await?;
 
     let data = bytes.to_vec();
     let bin_dir_clone = bin_dir.clone();

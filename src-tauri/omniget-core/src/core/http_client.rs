@@ -70,10 +70,7 @@ pub fn apply_global_proxy(builder: reqwest::ClientBuilder) -> reqwest::ClientBui
     apply_proxy(builder, &proxy)
 }
 
-pub fn inject_ua_header(
-    headers: &mut reqwest::header::HeaderMap,
-    opts_ua: Option<&str>,
-) {
+pub fn inject_ua_header(headers: &mut reqwest::header::HeaderMap, opts_ua: Option<&str>) {
     if let Some(ua) = opts_ua {
         if let Ok(v) = reqwest::header::HeaderValue::from_str(ua) {
             headers.insert(reqwest::header::USER_AGENT, v);
@@ -87,4 +84,38 @@ pub fn ua_header_map(opts_ua: Option<&str>) -> Option<reqwest::header::HeaderMap
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(reqwest::header::USER_AGENT, value);
     Some(headers)
+}
+
+pub async fn download_with_progress<F>(url: &str, mut on_progress: F) -> anyhow::Result<Vec<u8>>
+where
+    F: FnMut(f32) + Send,
+{
+    let client = apply_global_proxy(reqwest::Client::builder())
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+
+    let response = client.get(url).send().await?;
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("HTTP error: {}", response.status()));
+    }
+
+    let total_size = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+    let mut buffer = Vec::with_capacity(total_size as usize);
+
+    use futures::StreamExt;
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result?;
+        buffer.extend_from_slice(&chunk);
+        downloaded += chunk.len() as u64;
+
+        if total_size > 0 {
+            let percent = (downloaded as f32 / total_size as f32) * 100.0;
+            on_progress(percent);
+        }
+    }
+
+    Ok(buffer)
 }

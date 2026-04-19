@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::core::queue::{self, emit_queue_state_from_state};
+use omniget_core::core::manager::queue;
 use crate::platforms::Platform;
 use crate::storage::config;
 use crate::AppState;
@@ -120,13 +120,11 @@ pub async fn queue_url_with_defaults(
         let url_clone = url.clone();
         let downloader_clone = downloader.clone();
         let platform_clone = platform_name.clone();
-        let ytdlp_clone = ytdlp_path.clone();
         tokio::spawn(async move {
             queue::prefetch_info(
                 &url_clone,
                 &*downloader_clone,
                 &platform_clone,
-                ytdlp_clone.as_deref(),
             )
             .await;
         });
@@ -251,17 +249,17 @@ pub async fn queue_url_with_defaults(
         }
         let state = q.get_state();
         drop(q);
-        emit_queue_state_from_state(app, state);
+        let reporter: Option<std::sync::Arc<dyn omniget_core::core::traits::DownloadReporter>> = Some(std::sync::Arc::new(crate::core::reporters::TauriReporter::new(app.clone())));
+        queue::emit_queue_state_from_state(&reporter, state);
     }
 
     let q_clone = download_queue.clone();
-    let app_clone = app.clone();
     tokio::spawn(async move {
         let ids_to_start = {
             let q = q_clone.lock().await;
             q.items
                 .iter()
-                .filter(|i| i.status == queue::QueueStatus::Active)
+                .filter(|i| i.status == omniget_core::models::queue::QueueStatus::Active)
                 .filter(|i| i.id == download_id)
                 .map(|i| i.id)
                 .collect::<Vec<_>>()
@@ -276,10 +274,9 @@ pub async fn queue_url_with_defaults(
             if i > 0 && stagger > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(stagger)).await;
             }
-            let app_handle = app_clone.clone();
             let queue_handle = q_clone.clone();
             tokio::spawn(async move {
-                queue::spawn_download(app_handle, queue_handle, nid).await;
+                queue::spawn_download(queue_handle, nid).await;
             });
         }
     });

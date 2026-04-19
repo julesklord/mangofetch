@@ -125,7 +125,7 @@ impl PlatformDownloader for VimeoDownloader {
     }
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        let ytdlp_path = ytdlp::ensure_ytdlp().await.map_err(|e| {
+        let ytdlp_path = ytdlp::ensure_ytdlp(None).await.map_err(|e| {
             anyhow!(
                 "Vimeo requer yt-dlp para funcionar. Falha ao obter yt-dlp: {}",
                 e
@@ -144,7 +144,7 @@ impl PlatformDownloader for VimeoDownloader {
     ) -> anyhow::Result<DownloadResult> {
         let _ = progress.send(0.0).await;
 
-        let ytdlp_path = ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = ytdlp::ensure_ytdlp(None).await?;
 
         let first = info
             .available_qualities

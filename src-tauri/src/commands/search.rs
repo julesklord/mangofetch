@@ -19,7 +19,7 @@ pub async fn search_videos(
     platform: String,
     max_results: u32,
 ) -> Result<Vec<SearchResult>, String> {
-    let ytdlp_path = ytdlp::ensure_ytdlp()
+    let ytdlp_path = ytdlp::ensure_ytdlp(None)
         .await
         .map_err(|e| format!("yt-dlp unavailable: {}", e))?;
 

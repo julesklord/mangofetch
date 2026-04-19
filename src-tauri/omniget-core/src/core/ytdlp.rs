@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::core::log_hook;
+use crate::core::traits::DownloadReporter;
 use crate::models::media::{DownloadResult, FormatInfo};
 
 type ExtCookiePathFn = Box<dyn Fn() -> PathBuf + Send + Sync>;
@@ -57,10 +58,7 @@ pub fn set_include_auto_subs_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
 }
 
 fn include_auto_subs_setting() -> bool {
-    INCLUDE_AUTO_SUBS_FN
-        .get()
-        .map(|f| f())
-        .unwrap_or(false)
+    INCLUDE_AUTO_SUBS_FN.get().map(|f| f()).unwrap_or(false)
 }
 
 pub fn set_translate_metadata_fn(f: impl Fn() -> Option<String> + Send + Sync + 'static) {
@@ -106,10 +104,7 @@ pub fn clear_ext_user_agent(url: &str) {
 }
 
 fn ext_user_agent_for_url(url: &str) -> Option<String> {
-    ext_ua_map()
-        .lock()
-        .ok()
-        .and_then(|m| m.get(url).cloned())
+    ext_ua_map().lock().ok().and_then(|m| m.get(url).cloned())
 }
 
 static EXT_HEADERS_MAP: OnceLock<Mutex<HashMap<String, HashMap<String, String>>>> = OnceLock::new();
@@ -149,7 +144,10 @@ fn cookies_from_browser_setting() -> String {
 }
 
 fn manual_cookie_header_setting() -> Option<String> {
-    let raw = MANUAL_COOKIE_HEADER_FN.get().map(|f| f()).unwrap_or_default();
+    let raw = MANUAL_COOKIE_HEADER_FN
+        .get()
+        .map(|f| f())
+        .unwrap_or_default();
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return None;
@@ -451,7 +449,21 @@ fn managed_ytdlp_path() -> Option<PathBuf> {
     Some(data.join("bin").join(bin_name))
 }
 
-pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
+pub async fn force_update_ytdlp(
+    reporter: Option<&dyn DownloadReporter>,
+) -> anyhow::Result<PathBuf> {
+    YTDLP_UPDATING.store(true, Ordering::SeqCst);
+    let result = download_ytdlp_binary(reporter).await;
+    YTDLP_UPDATING.store(false, Ordering::SeqCst);
+    if result.is_ok() {
+        if let Ok(mut cache) = YTDLP_PATH_CACHE.write() {
+            *cache = Some(result.as_ref().ok().cloned());
+        }
+    }
+    result
+}
+
+pub async fn ensure_ytdlp(reporter: Option<&dyn DownloadReporter>) -> anyhow::Result<PathBuf> {
     let _timer_start = std::time::Instant::now();
 
     // Always ensure the managed binary exists — it bundles yt-dlp-ejs and
@@ -460,7 +472,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         let managed = managed_ytdlp_path();
         if managed.as_ref().map_or(true, |p| !p.exists()) {
             tracing::info!("[ytdlp] managed binary missing, downloading...");
-            match download_ytdlp_binary().await {
+            match download_ytdlp_binary(reporter).await {
                 Ok(path) => {
                     reset_ytdlp_cache();
                     std::thread::Builder::new()
@@ -471,7 +483,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
                                 .build()
                                 .expect("js-runtime runtime");
                             rt.block_on(async {
-                                crate::core::dependencies::ensure_js_runtime().await;
+                                crate::core::dependencies::ensure_js_runtime(None).await;
                             });
                         })
                         .ok();
@@ -510,7 +522,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
                     .build()
                     .expect("js-runtime runtime");
                 rt.block_on(async {
-                    crate::core::dependencies::ensure_js_runtime().await;
+                    crate::core::dependencies::ensure_js_runtime(None).await;
                 });
             })
             .ok();
@@ -523,7 +535,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         return Err(anyhow!("yt-dlp not found in Flatpak sandbox"));
     }
 
-    let path = download_ytdlp_binary().await?;
+    let path = download_ytdlp_binary(reporter).await?;
     reset_ytdlp_cache();
     std::thread::Builder::new()
         .name("js-runtime-check".into())
@@ -533,7 +545,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
                 .build()
                 .expect("js-runtime runtime");
             rt.block_on(async {
-                crate::core::dependencies::ensure_js_runtime().await;
+                crate::core::dependencies::ensure_js_runtime(None).await;
             });
         })
         .ok();
@@ -541,7 +553,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
+async fn download_ytdlp_binary(reporter: Option<&dyn DownloadReporter>) -> anyhow::Result<PathBuf> {
     let target =
         managed_ytdlp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
 
@@ -559,20 +571,13 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     };
 
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(120))
-        .build()?;
+    let bytes = crate::core::http_client::download_with_progress(download_url, |percent| {
+        if let Some(r) = reporter {
+            r.on_system_progress("yt-dlp", percent, "Downloading yt-dlp...");
+        }
+    })
+    .await?;
 
-    let response = client.get(download_url).send().await?;
-
-    if !response.status().is_success() {
-        return Err(anyhow!(
-            "Failed to download yt-dlp: HTTP {}",
-            response.status()
-        ));
-    }
-
-    let bytes = response.bytes().await?;
     let target_clone = target.clone();
     tokio::task::spawn_blocking(move || std::fs::write(&target_clone, &bytes))
         .await
@@ -628,7 +633,7 @@ async fn check_ytdlp_freshness(path: &Path) {
                                 .build()
                                 .expect("ytdlp-update runtime");
                             rt.block_on(async {
-                                match download_ytdlp_binary().await {
+                                match download_ytdlp_binary(None).await {
                                     Ok(_) => tracing::info!("yt-dlp updated successfully"),
                                     Err(e) => tracing::warn!("Failed to update yt-dlp: {}", e),
                                 }
@@ -1189,7 +1194,7 @@ pub async fn download_video(
     let (ffmpeg_available, ffmpeg_location, aria2c_path) = tokio::join!(
         crate::core::ffmpeg::is_ffmpeg_available(),
         find_ffmpeg_location_cached(),
-        crate::core::dependencies::ensure_aria2c(),
+        crate::core::dependencies::ensure_aria2c(None),
     );
 
     let format_selector = if let Some(fid) = format_id {
@@ -1247,11 +1252,12 @@ pub async fn download_video(
         global_cookie_file()
     };
 
-    let ext_cookies = if cookie_file.is_none() && global_cookie_file.is_none() && !manual_cookie_enabled {
-        extension_cookie_file()
-    } else {
-        None
-    };
+    let ext_cookies =
+        if cookie_file.is_none() && global_cookie_file.is_none() && !manual_cookie_enabled {
+            extension_cookie_file()
+        } else {
+            None
+        };
 
     let effective_cookie_file = cookie_file
         .map(|p| p.to_path_buf())

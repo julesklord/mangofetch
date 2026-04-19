@@ -28,7 +28,7 @@ pub struct AppState {
     pub active_generic_downloads:
         Arc<tokio::sync::Mutex<HashMap<u64, (String, CancellationToken)>>>,
     pub registry: core::registry::PlatformRegistry,
-    pub download_queue: Arc<tokio::sync::Mutex<core::queue::DownloadQueue>>,
+    pub download_queue: Arc<tokio::sync::Mutex<omniget_core::core::manager::queue::DownloadQueue>>,
     pub torrent_session: Arc<tokio::sync::Mutex<Option<Arc<librqbit::Session>>>>,
     pub active_p2p_sends: ActiveP2pSends,
     pub frontend_ready: Arc<tokio::sync::Mutex<bool>>,
@@ -64,7 +64,7 @@ pub fn run() {
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         active_generic_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         registry,
-        download_queue: Arc::new(tokio::sync::Mutex::new(core::queue::DownloadQueue::new(2))),
+        download_queue: Arc::new(tokio::sync::Mutex::new(omniget_core::core::manager::queue::DownloadQueue::new(2, None))),
         torrent_session,
         active_p2p_sends: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         frontend_ready: Arc::new(tokio::sync::Mutex::new(false)),
@@ -188,6 +188,13 @@ pub fn run() {
             }
             core::recovery::init_from_disk();
             {
+                let app_handle = app.handle().clone();
+                let reporter_handle = app_handle.clone();
+                let state = app_handle.state::<AppState>();
+                let mut queue = state.download_queue.blocking_lock();
+                queue.set_reporter(Arc::new(core::reporters::TauriReporter::new(reporter_handle)));
+            }
+            {
                 let pending = core::recovery::list();
                 if !pending.is_empty() {
                     let app_handle = app.handle().clone();
@@ -252,7 +259,7 @@ pub fn run() {
                                 Err(e) => tracing::warn!("yt-dlp update check failed: {}", e),
                             }
                         }
-                        core::dependencies::ensure_js_runtime().await;
+                        core::dependencies::ensure_js_runtime(None).await;
                     });
                 })
                 .ok();

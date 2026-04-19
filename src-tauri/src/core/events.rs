@@ -1,4 +1,5 @@
-use omniget_core::core::events::{EventEmitter, QueueItemInfo, QueueItemProgress};
+use omniget_core::core::events::{EventEmitter, QueueItemProgress};
+use omniget_core::models::queue::{QueueItemInfo, QueueStatus};
 use tauri::Emitter;
 
 #[derive(Clone)]
@@ -17,7 +18,7 @@ impl EventEmitter for TauriEventEmitter {
         let _ = self.app.emit("queue-state-update", items);
         let active_count = items
             .iter()
-            .filter(|i| i.status == omniget_core::core::events::QueueStatus::Active)
+            .filter(|i| i.status == QueueStatus::Active)
             .count() as u32;
         crate::tray::update_active_count(&self.app, active_count);
     }
