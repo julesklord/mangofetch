@@ -249,3 +249,6 @@ scratch/
 
 # TEMPORARY - flatpak folder
 flatpak/
+
+# WORKSPACE
+omniget.code-workspace
