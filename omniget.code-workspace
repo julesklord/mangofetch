@@ -1,10 +1,7 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {
-		"antigravityCopilot.proxy.thinkingTransformMode": "enhanced"
-	}
+    "folders": [
+        {
+            "path": "."
+        }
+    ]
 }

@@ -1,4 +1,5 @@
 mod reporter;
+mod output; // NEW: Import output formatters module
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -7,12 +8,18 @@ use omniget_core::models::queue::QueueStatus;
 use omniget_core::core::registry::PlatformRegistry;
 use omniget_core::models::settings::AppSettings;
 use omniget_core::core::manager::recovery;
-use crate::reporter::CLIReporter;
+use crate::reporter::{CLIReporter, CliTheme, BrutalistTheme};
+use crate::output::{format_info_card, format_queue_list, format_config_display, format_dependency_check, format_batch_summary, format_clean_summary};
 use std::sync::Arc;
+
+// ============================================================================
+// COMMAND LINE INTERFACE DEFINITIONS
+// ============================================================================
 
 #[derive(Parser)]
 #[command(name = "omniget-cli")]
 #[command(about = "OmniGet Command Line Interface", long_about = None)]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -20,6 +27,14 @@ struct Cli {
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
+
+    /// Theme: 'brutalist' (default), 'zen', or 'auto'
+    #[arg(long, default_value = "auto")]
+    theme: String,
+
+    /// Force ASCII-only output (no Unicode)
+    #[arg(long)]
+    ascii_only: bool,
 }
 
 #[derive(Subcommand)]
@@ -138,6 +153,10 @@ enum AboutTopic {
     Terms,
 }
 
+// ============================================================================
+// MAIN FUNCTION
+// ============================================================================
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -148,49 +167,83 @@ async fn main() -> Result<()> {
     // Initialize recovery from disk
     recovery::init_from_disk();
 
+    // Create theme based on CLI flag
+    let theme: Arc<dyn CliTheme> = if cli.ascii_only {
+        Arc::new(BrutalistTheme::new(false))
+    } else {
+        // Auto-detect Unicode support (Unix-like systems generally support it)
+        let supports_unicode = cfg!(unix) || cfg!(target_os = "macos");
+        Arc::new(BrutalistTheme::new(supports_unicode))
+    };
+
+    // Create reporter with theme
+    let reporter = Arc::new(CLIReporter::with_theme(theme.clone()));
+
     let mut registry = PlatformRegistry::new();
     register_platforms(&mut registry);
 
-    let reporter: omniget_core::core::traits::SharedReporter = Arc::new(CLIReporter::new());
     let queue = Arc::new(tokio::sync::Mutex::new(DownloadQueue::new(3, Some(reporter.clone()))));
+
+    // ========================================================================
+    // COMMAND DISPATCHER
+    // ========================================================================
 
     match cli.command {
         Commands::Download { url, output, quality, audio_only } => {
-            perform_download(&url, output, quality, audio_only, &registry, &queue, reporter.clone()).await?;
+            perform_download(&url, output, quality, audio_only, &registry, &queue, reporter.clone(), &theme).await?;
             wait_for_queue(&queue).await;
         },
+
         Commands::DownloadMultiple { file, output } => {
             let content = std::fs::read_to_string(&file)?;
-            let urls: Vec<String> = content.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+            let urls: Vec<String> = content
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
             
-            println!("Starting batch download of {} URLs...", urls.len());
-            for url in urls {
-                if let Err(e) = perform_download(&url, output.clone(), None, false, &registry, &queue, reporter.clone()).await {
-                    eprintln!("Error queueing {}: {}", url, e);
+            let total = urls.len();
+            let mut failed = 0;
+
+            println!("{}📥 Starting batch download of {} URLs{}...\n", theme.color_info(), total, theme.color_reset());
+
+            for (idx, url) in urls.iter().enumerate() {
+                println!("  [{}/{}] Queueing: {}", idx + 1, total, url);
+                if let Err(e) = perform_download(url, output.clone(), None, false, &registry, &queue, reporter.clone(), &theme).await {
+                    eprintln!("  {}✗ Error queueing: {}{}",theme.color_error(), e, theme.color_reset());
+                    failed += 1;
                 }
             }
+            
+            println!("{}", format_batch_summary(total, total - failed, failed, &theme));
             wait_for_queue(&queue).await;
         },
+
         Commands::Info { url } => {
-            let downloader = registry.find_platform(&url).ok_or_else(|| anyhow::anyhow!("No supported platform found for URL"))?;
+            let downloader = registry.find_platform(&url)
+                .ok_or_else(|| anyhow::anyhow!("No supported platform found for URL"))?;
             let platform_name = downloader.name().to_string();
 
-            println!("Fetching media info for: {}", url);
+            println!("{}🔍 Fetching media info...{}\n", theme.color_info(), theme.color_reset());
+            
             let info = omniget_core::core::manager::queue::fetch_and_cache_info(&url, &*downloader, &platform_name).await?;
             
-            println!("--- Media Info ---");
-            println!("Title:    {}", info.title);
-            println!("Author:   {}", info.author);
-            println!("Platform: {}", info.platform);
-            if let Some(duration) = info.duration_seconds {
-                println!("Duration: {:.1} seconds", duration);
-            }
-            println!("Type:     {:?}", info.media_type);
-            println!("------------------");
+            // Use formatted card output
+            let card = format_info_card(
+                &info.title,
+                &info.author,
+                &info.platform,
+                info.duration_seconds,
+                &format!("{:?}", info.media_type),
+                &theme,
+            );
+            println!("{}", card);
         },
+
         Commands::Send { file } => {
-            println!("P2P Send not yet implemented in CLI. File: {}", file);
+            println!("{}⚠ P2P Send not yet implemented in CLI. File: {}{}",theme.color_warning(), file, theme.color_reset());
         },
+
         Commands::List { active, queued, completed, failed } => {
             let items = recovery::list();
             let mut filtered = items;
@@ -202,79 +255,120 @@ async fn main() -> Result<()> {
                     (active && matches!(i.status, QueueStatus::Active)) ||
                     (queued && matches!(i.status, QueueStatus::Queued)) ||
                     (completed && matches!(i.status, QueueStatus::Complete { .. })) ||
-                    (failed && matches!(i.status, QueueStatus::Error { .. }))
+                    (failed && matches!(i.status, QueueStatus::Error { .. })) ||
+                    (active && matches!(i.status, QueueStatus::Seeding)) ||
+                    (queued && matches!(i.status, QueueStatus::Paused))
                 }).collect();
             }
 
-            if filtered.is_empty() {
-                println!("No downloads found matching the criteria.");
-            } else {
-                println!("{:<5} {:<30} {:<15} {:<10}", "ID", "Title", "Platform", "Status");
-                println!("{:-<60}", "");
-                for item in filtered {
-                    println!("{:<5} {:<30} {:<15} {:<10?}", item.id, item.title, item.platform, item.status);
-                }
-            }
+            // Convert to displayable format
+            let display_items: Vec<_> = filtered
+                .iter()
+                .map(|i| {
+                    let status_str = match &i.status {
+                        QueueStatus::Active => "Active".to_string(),
+                        QueueStatus::Queued => "Queued".to_string(),
+                        QueueStatus::Paused => "Paused".to_string(),
+                        QueueStatus::Seeding => "Seeding".to_string(),
+                        QueueStatus::Complete { .. } => "Complete".to_string(),
+                        QueueStatus::Error { message } => format!("Error: {}", message),
+                    };
+                    let title = if i.title.len() > 35 {
+                        format!("{}...", &i.title[..32])
+                    } else {
+                        i.title.clone()
+                    };
+                    (i.id, title, i.platform.clone(), status_str, String::new())
+                })
+                .collect();
+
+            println!("{}", format_queue_list(display_items, &theme));
         },
+
         Commands::Clean { finished, failed } => {
+            let items_before = recovery::list().len();
+            
             if finished || failed {
-                 println!("Selective cleaning not yet implemented, clearing all...");
+                eprintln!("{}ℹ Selective cleaning not yet implemented, clearing all...{}", theme.color_warning(), theme.color_reset());
             }
+            
             recovery::clear_all();
-            println!("Queue cleared.");
+            
+            println!("{}", format_clean_summary(items_before, None, &theme));
         },
+
         Commands::Config { action } => {
             let mut settings = AppSettings::load_from_disk();
             match action {
                 ConfigAction::Get { key } => {
                     let val = serde_json::to_value(&settings)?;
                     if let Some(v) = get_json_path(&val, &key) {
-                        println!("{} = {}", key, v);
+                        println!("{}{}{}  = {}", theme.color_accent(), key, theme.color_reset(), v);
                     } else {
-                        println!("Key not found: {}", key);
+                        println!("{}Key not found: {}{}",theme.color_warning(), key, theme.color_reset());
                     }
                 },
+
                 ConfigAction::Set { key, value } => {
                     let mut val = serde_json::to_value(&settings)?;
                     if set_json_path(&mut val, &key, &value) {
                         settings = serde_json::from_value(val)?;
                         settings.save_to_disk()?;
-                        println!("Set {} = {}", key, value);
+                        println!("{}✓ Set {}{}  = {}", theme.color_success(), key, theme.color_reset(), value);
                     } else {
-                        println!("Failed to set key: {}", key);
+                        println!("{}✗ Failed to set key: {}{}",theme.color_error(), key, theme.color_reset());
                     }
                 },
+
                 ConfigAction::List => {
-                    println!("{}", serde_json::to_string_pretty(&settings)?);
+                    let settings_json = serde_json::to_string_pretty(&settings)?;
+                    println!("{}", format_config_display(&settings_json, &theme));
                 },
             }
         },
+
         Commands::Check => {
-            println!("Checking system dependencies...");
+            println!("{}🔍 Checking system dependencies...{}\n", theme.color_info(), theme.color_reset());
+            
             match omniget_core::core::dependencies::ensure_dependencies(false, Some(reporter.clone())).await {
                 Ok(deps) => {
-                    println!("✅ yt-dlp: Found at {:?}", deps.ytdlp);
-                    println!("✅ FFmpeg: Found at {:?}", deps.ffmpeg);
+                    let yt_dlp_path = deps.ytdlp.as_ref().map(|p| p.to_string_lossy().to_string());
+                    let ffmpeg_path = deps.ffmpeg.as_ref().map(|p| p.to_string_lossy().to_string());
+                    
+                    println!("{}", format_dependency_check(
+                        yt_dlp_path.as_deref(),
+                        ffmpeg_path.as_deref(),
+                        &theme
+                    ));
                 },
-                Err(e) => println!("❌ Dependency check failed: {}", e),
+                Err(e) => println!("{}❌ Dependency check failed: {}{}",theme.color_error(), e, theme.color_reset()),
             }
         },
+
         Commands::Update => {
-            println!("Updating dependencies (yt-dlp, FFmpeg)...");
+            println!("{}⬆️  Updating dependencies (yt-dlp, FFmpeg)...{}\n", theme.color_accent(), theme.color_reset());
+            
             match omniget_core::core::dependencies::ensure_dependencies(true, Some(reporter.clone())).await {
                 Ok(deps) => {
-                    println!("✅ Update complete.");
-                    println!("   yt-dlp: {:?}", deps.ytdlp);
-                    println!("   FFmpeg: {:?}", deps.ffmpeg);
+                    let yt_dlp_path = deps.ytdlp.as_ref().map(|p| p.to_string_lossy().to_string());
+                    let ffmpeg_path = deps.ffmpeg.as_ref().map(|p| p.to_string_lossy().to_string());
+                    
+                    println!("{}✓ Update complete.{}\n", theme.color_success(), theme.color_reset());
+                    println!("{}", format_dependency_check(
+                        yt_dlp_path.as_deref(),
+                        ffmpeg_path.as_deref(),
+                        &theme
+                    ));
                 },
-                Err(e) => println!("❌ Update failed: {}", e),
+                Err(e) => println!("{}❌ Update failed: {}{}",theme.color_error(), e, theme.color_reset()),
             }
         },
+
         Commands::Logs { tail } => {
             let log_dir = omniget_core::core::paths::app_data_dir().map(|d| d.join("logs"));
             if let Some(dir) = log_dir {
                 if !dir.exists() {
-                    println!("No logs found.");
+                    println!("{}ℹ No logs found.{}",theme.color_info(), theme.color_reset());
                     return Ok(());
                 }
 
@@ -288,36 +382,59 @@ async fn main() -> Result<()> {
                 
                 if let Some(last_file) = files.last() {
                     let path = last_file.path();
-                    println!("Showing last {} lines from {}", tail, path.display());
+                    println!("{}📋 Last {} lines from:{}  {}\n", 
+                        theme.color_info(), tail, theme.color_reset(), path.display());
+                    
                     let content = std::fs::read_to_string(&path)?;
                     let lines: Vec<_> = content.lines().collect();
                     let start = lines.len().saturating_sub(tail);
+                    
                     for line in &lines[start..] {
-                        println!("{}", line);
+                        println!("  {}", line);
                     }
                 } else {
-                    println!("No log files found in {}", dir.display());
+                    println!("{}ℹ No log files found in: {}{}",
+                        theme.color_info(), dir.display(), theme.color_reset());
                 }
             } else {
-                println!("Could not determine log directory.");
+                println!("{}⚠ Could not determine log directory.{}",theme.color_warning(), theme.color_reset());
             }
         },
+
         Commands::About { topic } => {
             let topic = topic.unwrap_or(AboutTopic::Version);
             match topic {
                 AboutTopic::Version => {
-                    println!("OmniGet CLI v{}", env!("CARGO_PKG_VERSION"));
-                    println!("Build Edition: 2021");
+                    println!("{}🚀 OmniGet CLI{}", theme.color_accent(), theme.color_reset());
+                    println!("   Version: {}", env!("CARGO_PKG_VERSION"));
+                    println!("   Edition: 2021");
+                    println!("   License: GPL-3.0");
                 },
-                AboutTopic::Roadmap => println!("Roadmap: TUI integration, Plugin Manager, P2P support."),
-                AboutTopic::Changelog => println!("Changelog: v0.1.1-fix - Fixed build architecture and root workspace integration."),
-                AboutTopic::Terms => println!("Terms: Open source. Respect content creator rights."),
+                AboutTopic::Roadmap => {
+                    println!("{}📊 Roadmap{}:", theme.color_accent(), theme.color_reset());
+                    println!("   v0.2.0 - Interactive TUI mode (ratatui)");
+                    println!("   v0.3.0 - Plugin management");
+                    println!("   v0.4.0 - P2P file sharing");
+                },
+                AboutTopic::Changelog => {
+                    println!("{}📝 Changelog{}:", theme.color_accent(), theme.color_reset());
+                    println!("   v0.1.1-fix - Fixed build architecture");
+                    println!("   v0.1.0 - Initial release");
+                },
+                AboutTopic::Terms => {
+                    println!("{}⚖️  License: GPL-3.0{}",theme.color_info(), theme.color_reset());
+                    println!("   Respect content creator rights. Use responsibly.");
+                },
             }
         }
     }
 
     Ok(())
 }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 fn register_platforms(registry: &mut PlatformRegistry) {
     use omniget_lib::platforms::*;
@@ -344,9 +461,11 @@ async fn perform_download(
     audio_only: bool,
     registry: &PlatformRegistry,
     queue: &Arc<tokio::sync::Mutex<DownloadQueue>>,
-    reporter: omniget_core::core::traits::SharedReporter,
+    reporter: Arc<crate::reporter::CLIReporter>,
+    theme: &Arc<dyn CliTheme>,
 ) -> Result<()> {
-    let downloader = registry.find_platform(url).ok_or_else(|| anyhow::anyhow!("No supported platform found for URL"))?;
+    let downloader = registry.find_platform(url)
+        .ok_or_else(|| anyhow::anyhow!("No supported platform found for URL"))?;
     let platform_name = downloader.name().to_string();
 
     let output_dir = output.unwrap_or_else(|| {
@@ -366,9 +485,9 @@ async fn perform_download(
     ).await.ok();
 
     if let Some(ref info) = media_info {
-        println!("Queueing: {} [{}]", info.title, platform_name);
+        println!("{}✓ Queued:{} {} [{}]", theme.color_success(), theme.color_reset(), info.title, platform_name);
     } else {
-        println!("Queueing: {} [{}]", url, platform_name);
+        println!("{}✓ Queued:{} {} [{}]", theme.color_success(), theme.color_reset(), url, platform_name);
     }
 
     static ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -428,10 +547,9 @@ fn set_json_path(val: &mut serde_json::Value, path: &str, value: &str) -> bool {
     let parts: Vec<&str> = path.split('.').collect();
     for (i, part) in parts.iter().enumerate() {
         if i == parts.len() - 1 {
-            // Last part, set the value
             if let Some(obj) = curr.as_object_mut() {
-                // Try to parse value as JSON (for numbers, bools, etc)
-                let json_val = serde_json::from_str(value).unwrap_or(serde_json::Value::String(value.to_string()));
+                let json_val = serde_json::from_str(value)
+                    .unwrap_or(serde_json::Value::String(value.to_string()));
                 obj.insert(part.to_string(), json_val);
                 return true;
             }
