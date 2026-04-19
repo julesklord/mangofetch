@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="demo.gif" alt="omniget-cli demo" width="720" />
+  <img src="" alt="" width="720" />
 </p>
 
 ---
