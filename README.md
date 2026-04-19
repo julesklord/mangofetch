@@ -43,14 +43,23 @@ This repository contains the CLI binary and a shared core library (`omniget-core
 
 ## Installation
 
-### From source
+### 🚀 Quick Start (Precompiled Binaries)
+1. Go to the [Releases page](https://github.com/julesklord/omniget-cli/releases/latest).
+2. Download the binary matching your operating system (`.exe` for Windows, binary for Linux/macOS).
+3. (Optional) Rename it to `omniget-cli` and move it to a directory in your system's PATH to run it from anywhere.
 
+### 📦 Using with Winget (Windows)
+*Coming soon.* We are preparing the manifest for Microsoft Winget. Once submitted, you will be able to install OmniGet CLI simply by running:
+```powershell
+winget install omniget
+```
+
+### 🔨 From source
 ```bash
 git clone https://github.com/julesklord/omniget-cli.git
 cd omniget-cli
 cargo build --release
 ```
-
 The binary is output to `target/release/omniget-cli` (or `omniget-cli.exe` on Windows).
 
 ### Prerequisites
