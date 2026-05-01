@@ -6,7 +6,7 @@ Only the latest minor release receives security updates.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.4.x   | ✅        |
+| 1.x.x   | ✅       |
 | < 0.4   | ❌        |
 
 ## Reporting a Vulnerability

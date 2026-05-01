@@ -2025,7 +2025,7 @@ dependencies = [
 
 [[package]]
 name = "omniget-core"
-version = "0.2.16"
+version = "0.2.0"
 dependencies = [
  "aes",
  "anyhow",
@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "omniget-plugin-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
