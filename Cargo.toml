@@ -1,13 +1,9 @@
 [workspace]
 resolver = "2"
-members = [
-    "omniget-core",
-    "omniget-plugin-sdk",
-    "omniget-cli",
-]
+members = ["mangofetch-core", "mangofetch-plugin-sdk", "mangofetch-cli"]
 
 # This makes 'cargo run' from root execute the CLI by default
-default-members = ["omniget-cli"]
+default-members = ["mangofetch-cli"]
 
 [profile.dev]
 debug = 0

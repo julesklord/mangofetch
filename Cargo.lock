@@ -1810,6 +1810,72 @@ dependencies = [
 ]
 
 [[package]]
+name = "mangofetch-cli"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "dirs",
+ "futures",
+ "indicatif",
+ "mangofetch-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "mangofetch-core"
+version = "0.2.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "async-trait",
+ "base64",
+ "cbc",
+ "chrono",
+ "dirs",
+ "filetime",
+ "futures",
+ "librqbit",
+ "m3u8-rs",
+ "open",
+ "rand 0.8.6",
+ "regex",
+ "reqwest",
+ "sanitize-filename",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "unicode-normalization",
+ "url",
+ "urlencoding",
+ "uuid",
+ "which",
+ "xz2",
+ "zip",
+]
+
+[[package]]
+name = "mangofetch-plugin-sdk"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2004,72 +2070,6 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
-
-[[package]]
-name = "omniget-cli"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "dirs",
- "futures",
- "indicatif",
- "omniget-core",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "omniget-core"
-version = "0.2.0"
-dependencies = [
- "aes",
- "anyhow",
- "async-trait",
- "base64",
- "cbc",
- "chrono",
- "dirs",
- "filetime",
- "futures",
- "librqbit",
- "m3u8-rs",
- "open",
- "rand 0.8.6",
- "regex",
- "reqwest",
- "sanitize-filename",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "unicode-normalization",
- "url",
- "urlencoding",
- "uuid",
- "which",
- "xz2",
- "zip",
-]
-
-[[package]]
-name = "omniget-plugin-sdk"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "once_cell"

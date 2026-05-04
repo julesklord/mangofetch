@@ -1,114 +1,75 @@
-# OmniGet CLI Brand Guidelines
+# MangoFetch Brand Guidelines
 
 ## Purpose
 
-This document establishes the core brand identity, voice, and messaging for `omniget-cli`. It is intended to guide documentation, repository copy, and command-line branding while keeping a clear reference to the original OmniGet desktop project.
-
-## Project Scope
-
-- Primary product: `omniget-cli`
-- Repository focus: CLI port and shared download core
-- Original upstream: https://github.com/tonhowtf/omniget
+This document establishes the core brand identity, voice, and messaging for MangoFetch. It is intended to guide documentation, repository copy, and command-line branding.
 
 ## Product Name and Tagline
 
-- Product name: `omniget-cli`
-- Core tagline: **Command-line companion to OmniGet.**
-- Supporting phrase: **Use `omniget-cli` for scripted downloads, automation, and terminal workflows.**
+- Product name: **MangoFetch**
+- Core tagline: **High-performance, standalone download engine for the modern terminal.**
+- Supporting phrase: **Built in Rust for speed, reliability, and broad platform compatibility.**
 
 ## Brand Promise
 
-`omniget-cli` gives users a fast, reliable way to download media, course content, and torrents from the terminal without wrestling with GUIs.
+MangoFetch gives power users a fast, reliable, and brutalist way to download media and files from the terminal. It is optimized for low-latency execution and high-volume batch processing.
 
 Key promises:
-- Universal platform support through intelligent backend detection
-- Scriptable, automation-friendly workflows for CLI users
-- Open source transparency and trust
-- Consistent behavior across desktop and command-line environments
+- Universal platform support (1000+ sites)
+- Native performance (Rust core)
+- Scriptable, automation-friendly workflows
+- Transparent dependency lifecycle management
 
 ## Audience
 
 Primary audiences:
 - Developers and sysadmins who need automated download workflows
 - Power users who prefer terminal-first tools
-- Content creators using scriptable media capture
-- Learners saving courses for offline study
-- Operators managing downloads in CI or headless environments
+- Archivists performing high-volume batch processing
+- Operators managing downloads in headless environments
 
 ## Voice and Tone
 
-`omniget-cli` copy should feel:
-- Practical and direct
-- Confident without being aggressive
-- Helpful for developers and non-developers alike
-- Clear about what the CLI does and how to use it
+MangoFetch copy should feel:
+- **Practical and direct**: Monospace-first, minimal fluff.
+- **Brutalist**: Prioritizing function and speed over decorative UI.
+- **Reliable**: Technical details are precise and grounded in performance.
 
 Avoid:
-- Marketing fluff or vague claims
-- Overly casual slang that dilutes trust
-- Technical language that is not needed for a CLI audience
+- "Lite" or "Companion" messaging (MangoFetch is a standalone evolution).
+- Marketing fluff or vague claims.
+- Complex setups that distract from the "one command" experience.
 
 ## Messaging Pillars
 
-1. **Simplicity**
-   - "Run one command. Get the file."
-   - Focus on quick setup, clear syntax, and predictable behavior.
+1. **Native Performance**
+   - "Rust-powered speed."
+   - Focus on low resource usage and fast startup.
 
-2. **Automation**
-   - Built for scripts, batch downloads, and headless environments.
-   - Easy to integrate into CI, cron jobs, and automation pipelines.
+2. **Automation-First**
+   - Built for pipes, scripts, and headless servers.
+   - Clean JSON output and predictable CLI flags.
 
-3. **Trust**
-   - Uses open source tooling and transparent dependency handling.
-   - Clear messaging about what is downloaded and why.
+3. **Lifecycle Management**
+   - No manual setup for FFmpeg or yt-dlp.
+   - "Just run it; we handle the rest."
 
-4. **Interoperability**
-   - Shares the same core engine as original OmniGet.
-   - Works alongside desktop, browser, and plugin workflows.
+4. **Evolution**
+   - An independent evolution of the OmniGet project, refactored for the terminal.
 
-## Brand Assets
+## Visual Style
 
-- Mascot: Loop is a heritage asset from the original project; use sparingly in CLI documentation.
-- Logo: reference `static/loop.png` only when explaining the relationship to OmniGet.
-- Color tone: keep docs clean, readable, and terminal-friendly.
-- Typography: use monospace for examples and command snippets.
-
-## Visual Style Notes
-
-- Keep the documentation layout minimal and easy to scan.
-- Use terminal-style code blocks for examples.
-- Avoid heavy UI imagery; focus on commands, workflows, and outputs.
-- Reference Loop as a friendly brand tie-back, not the main CLI experience.
-
-## CLI Brand Relationship
-
-The CLI should feel like part of the OmniGet family:
-- Name it `omniget-cli`
-- Keep the same core brand promise: easy, reliable downloads
-- Use the same voice and tagline structure with a command-line focus
-- Document it as "OmniGet command line companion" rather than a separate product
-
-Example CLI description:
-
-> OmniGet CLI brings the same intelligent download engine to your terminal. Use `omniget-cli` for scripted downloads, batch workflows, and server automation.
+- **Theme**: Brutalist, high-contrast, terminal-friendly.
+- **Colors**: Deep oranges (Rust), clean whites, and terminal greens (Success).
+- **Typography**: Monospace (JetBrains Mono, Fira Code) for all technical examples.
 
 ## Documentation Guidelines
 
-- Primary documentation language: English
-- Keep headings short and scannable
-- Use the product tagline early in landing pages and docs
-- Use consistent terminology: "download", "link", "quality", "progress", "plugin"
-- Avoid inconsistent product names; always use `OmniGet` for the main app and `omniget-cli` for the command-line tool
+- Primary documentation language: English.
+- Keep headings short and scannable.
+- Use terminal-style code blocks for all examples.
+- Use consistent terminology: "download", "queue", "platform", "dependency".
 
-## Trademark and Legal
+## Relationship with OmniGet
 
-- The OmniGet name, logo, and Loop mascot are project trademarks.
-- Open source code is licensed under GPL-3.0, but the brand assets are not automatically covered by the code license.
-- Reinforce this in documentation where appropriate, especially in the README and project home page.
-
-## Next Steps
-
-- Define the visual style guide with brand colors and logo spacing
-- Create a CLI landing page or docs section under `README.md` or `docs/`
-- Add messaging guidelines for marketing copy, release notes, and social assets
-- Align product copy with the CLI porting plan and documentation structure
+MangoFetch is an independent evolution of the OmniGet project. While it shares technical lineage, it is its own brand with a specific focus on CLI performance and standalone reliability. Documentation should acknowledge this lineage in "History" or "About" sections but avoid calling it a "companion" or "version" of OmniGet.

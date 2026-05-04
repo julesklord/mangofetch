@@ -9,12 +9,16 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = process.argv[2];
 
 if (!arg) {
-  console.error("Usage: node scripts/bump-version.js <major|minor|patch|X.Y.Z[-suffix]>");
+  console.error(
+    "Usage: node scripts/bump-version.js <major|minor|patch|X.Y.Z[-suffix]>",
+  );
   process.exit(1);
 }
 
 function readCurrentVersion() {
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(root, "package.json"), "utf8"),
+  );
   return pkg.version;
 }
 
@@ -92,87 +96,39 @@ if (fs.existsSync(pkgLockPath)) {
   });
 }
 
-const cargoTomlPath = path.join(root, "src-tauri", "Cargo.toml");
-writeText(cargoTomlPath, (content) => {
-  const lines = content.split("\n");
-  let inPackage = false;
-  let replaced = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const sectionMatch = line.match(/^\[([^\]]+)\]\s*$/);
-    if (sectionMatch) {
-      inPackage = sectionMatch[1].trim() === "package";
-      continue;
-    }
-    if (inPackage && /^version\s*=\s*"[^"]+"/.test(line)) {
-      lines[i] = line.replace(/^version\s*=\s*"[^"]+"/, `version = "${version}"`);
-      replaced = true;
-      break;
-    }
-  }
-  if (!replaced) {
-    console.error("Failed to update version in Cargo.toml");
-    process.exit(1);
-  }
-  return lines.join("\n");
-});
-
-const cargoLockPath = path.join(root, "src-tauri", "Cargo.lock");
+const cargoLockPath = path.join(root, "Cargo.lock");
 if (fs.existsSync(cargoLockPath)) {
   writeText(cargoLockPath, (content) => {
-    return content.replace(
-      /(name = "omniget"\nversion = ")([^"]+)(")/,
-      (_, a, _b, c) => `${a}${version}${c}`
-    );
+    return content
+      .replace(
+        /(name = "mangofetch-cli"\nversion = ")([^"]+)(")/,
+        (_, a, _b, c) => `${a}${version}${c}`,
+      )
+      .replace(
+        /(name = "mangofetch-core"\nversion = ")([^"]+)(")/,
+        (_, a, _b, c) => `${a}${version}${c}`,
+      )
+      .replace(
+        /(name = "mangofetch-plugin-sdk"\nversion = ")([^"]+)(")/,
+        (_, a, _b, c) => `${a}${version}${c}`,
+      );
   });
 }
 
-const tauriConfPath = path.join(root, "src-tauri", "tauri.conf.json");
-writeJson(tauriConfPath, (conf) => {
-  conf.version = version;
-});
-
-const changelogStorePath = path.join(root, "src", "lib", "stores", "changelog-store.svelte.ts");
-if (fs.existsSync(changelogStorePath)) {
-  writeText(changelogStorePath, (content) =>
-    content.replace(
-      /(currentVersion\s*=\s*")[^"]+(";)/g,
-      (_, a, c) => `${a}${version}${c}`
-    )
-  );
+function updateCargoToml(pkgDir) {
+  const p = path.join(root, pkgDir, "Cargo.toml");
+  if (!fs.existsSync(p)) return;
+  writeText(p, (content) => {
+    return content.replace(/^version\s*=\s*"[^"]+"/m, `version = "${version}"`);
+  });
 }
 
-const aboutProjectPath = path.join(root, "src", "routes", "about", "project", "+page.svelte");
-if (fs.existsSync(aboutProjectPath)) {
-  writeText(aboutProjectPath, (content) =>
-    content.replace(
-      /(const\s+APP_VERSION\s*=\s*")[^"]+(";)/,
-      (_, a, c) => `${a}${version}${c}`
-    )
-  );
-}
+updateCargoToml("mangofetch-cli");
+updateCargoToml("mangofetch-core");
+updateCargoToml("mangofetch-plugin-sdk");
 
-if (changed.length === 0) {
-  console.error("No files changed — aborting.");
-  process.exit(1);
-}
-
-console.log("Updated files:");
-for (const file of changed) {
-  console.log(`  - ${file}`);
-}
-
-function hasBinary(name) {
-  const probe = process.platform === "win32" ? "where" : "which";
-  try {
-    execSync(`${probe} ${name}`, { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const metainfoAbs = path.join(root, "flatpak", "wtf.tonho.omniget.metainfo.xml");
+// Metainfo was removed or renamed, skipping for now as it's not in root
+// const metainfoAbs = path.join(root, "flatpak", "wtf.tonho.mangofetch.metainfo.xml");
 if (hasBinary("appstreamcli")) {
   try {
     execSync(`appstreamcli validate "${metainfoAbs}"`, { stdio: "inherit" });
@@ -182,7 +138,9 @@ if (hasBinary("appstreamcli")) {
     process.exit(1);
   }
 } else {
-  console.warn("appstreamcli not found in PATH — skipping metainfo validation.");
+  console.warn(
+    "appstreamcli not found in PATH — skipping metainfo validation.",
+  );
 }
 
 console.log(`v${version}`);

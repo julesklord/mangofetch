@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 jobs:
   publish-tauri:
@@ -13,16 +13,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'ubuntu-24.04-arm'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "ubuntu-24.04-arm"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -53,7 +53,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - uses: tauri-apps/tauri-action@v0
         id: tauri-build
@@ -61,11 +61,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          LDAI_UPDATE_INFORMATION: ${{ contains(matrix.platform, 'ubuntu') && 'gh-releases-zsync|tonhowtf|omniget|latest|*AppImage.zsync' || '' }}
+          LDAI_UPDATE_INFORMATION: ${{ contains(matrix.platform, 'ubuntu') && 'gh-releases-zsync|tonhowtf|mangofetch|latest|*AppImage.zsync' || '' }}
         with:
           tagName: v__VERSION__
-          releaseName: 'OmniGet v__VERSION__'
-          releaseBody: 'Download the installer for your platform below.'
+          releaseName: "MangoFetch v__VERSION__"
+          releaseBody: "Download the installer for your platform below."
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: false
@@ -92,8 +92,8 @@ jobs:
         run: |
           $TAG = "${{ github.ref_name }}"
           $VERSION = $TAG -replace '^v', ''
-          $EXE = "src-tauri/target/release/omniget.exe"
-          $DEST = "omniget_${VERSION}_x64-portable.exe"
+          $EXE = "src-tauri/target/release/mangofetch.exe"
+          $DEST = "mangofetch_${VERSION}_x64-portable.exe"
           if (Test-Path $EXE) {
             Copy-Item $EXE $DEST
             gh release upload $TAG $DEST --repo ${{ github.repository }} --clobber
@@ -117,7 +117,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          OUTPUT="omniget-chrome-extension-v${VERSION}.zip"
+          OUTPUT="mangofetch-chrome-extension-v${VERSION}.zip"
           node browser-extension/chrome/scripts/package.mjs --version "$VERSION" --output "$OUTPUT"
           gh release upload "$TAG" "$OUTPUT" --repo "${{ github.repository }}" --clobber
         env:

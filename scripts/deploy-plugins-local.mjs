@@ -11,31 +11,45 @@ const root = path.resolve(__dirname, "..");
 const parent = path.resolve(root, "..");
 
 const PLUGINS = [
-  { id: "courses", repo: "omniget-plugin-courses", crate: "omniget_plugin_courses" },
-  { id: "telegram", repo: "omniget-plugin-telegram", crate: "omniget_plugin_telegram" },
-  { id: "convert", repo: "omniget-plugin-convert", crate: "omniget_plugin_convert" },
+  {
+    id: "courses",
+    repo: "mangofetch-plugin-courses",
+    crate: "mangofetch_plugin_courses",
+  },
+  {
+    id: "telegram",
+    repo: "mangofetch-plugin-telegram",
+    crate: "mangofetch_plugin_telegram",
+  },
+  {
+    id: "convert",
+    repo: "mangofetch-plugin-convert",
+    crate: "mangofetch_plugin_convert",
+  },
 ];
 
 function appDataPluginsDir() {
-  if (process.env.OMNIGET_DATA_DIR) {
-    return path.join(process.env.OMNIGET_DATA_DIR, "plugins");
+  if (process.env.MANGOFETCH_DATA_DIR) {
+    return path.join(process.env.MANGOFETCH_DATA_DIR, "plugins");
   }
   const platform = process.platform;
   if (platform === "win32") {
-    const base = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
-    return path.join(base, "wtf.tonho.omniget", "plugins");
+    const base =
+      process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+    return path.join(base, "mangofetch", "plugins");
   }
   if (platform === "darwin") {
     return path.join(
       os.homedir(),
       "Library",
       "Application Support",
-      "wtf.tonho.omniget",
+      "mangofetch",
       "plugins",
     );
   }
-  const xdg = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
-  return path.join(xdg, "wtf.tonho.omniget", "plugins");
+  const xdg =
+    process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
+  return path.join(xdg, "mangofetch", "plugins");
 }
 
 function dllFilename(crate) {
@@ -66,8 +80,10 @@ function buildPlugin(repoDir) {
 }
 
 function main() {
-  if (process.env.OMNIGET_SKIP_PLUGIN_DEPLOY === "1") {
-    console.log("OMNIGET_SKIP_PLUGIN_DEPLOY=1 — skipping plugin deployment.");
+  if (process.env.MANGOFETCH_SKIP_PLUGIN_DEPLOY === "1") {
+    console.log(
+      "MANGOFETCH_SKIP_PLUGIN_DEPLOY=1 — skipping plugin deployment.",
+    );
     return;
   }
 
@@ -102,7 +118,10 @@ function main() {
 
     const changedDll = copyIfChanged(dllPath, path.join(destDir, dllName));
     const manifestSrc = path.join(repoDir, "plugin.json");
-    const changedManifest = copyIfChanged(manifestSrc, path.join(destDir, "plugin.json"));
+    const changedManifest = copyIfChanged(
+      manifestSrc,
+      path.join(destDir, "plugin.json"),
+    );
 
     console.log(
       `  Deployed to ${destDir}${
@@ -126,7 +145,7 @@ function main() {
   if (deployedAny) {
     const json = JSON.stringify({ plugins: installed }, null, 2);
     fs.writeFileSync(path.join(pluginsDir, "installed.json"), json);
-    console.log("Done. Restart OmniGet to load plugins.");
+    console.log("Done. Restart MangoFetch to load plugins.");
   } else {
     console.log("No local plugin repos found — nothing to deploy.");
   }
