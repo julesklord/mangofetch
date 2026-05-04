@@ -236,6 +236,8 @@ Portable mode: place `portable.txt` or `.portable` next to the binary to use a l
 ## Related projects
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) — Media extraction engine
+- [omniget (tonhowft)](https://github.com/tonhowtf/omniget) — omniget - the original project who provides the core. 
+
 
 ## Contributing
 
