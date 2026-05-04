@@ -1,0 +1,8 @@
+{
+  "terminal": {
+    "shell": {
+      "program": "powershell.exe"
+    }
+  },
+  "project_name": "mangofetch-cli"
+}
