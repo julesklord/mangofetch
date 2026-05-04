@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-core"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Core download engine for MangoFetch"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]

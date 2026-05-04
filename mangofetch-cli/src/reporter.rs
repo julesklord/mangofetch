@@ -7,12 +7,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-// ============================================================================
-// THEME SYSTEM — Make it easy to add more themes later
-// ============================================================================
+const ACTIVE_BAR_WIDTH: usize = 36;
+const SYSTEM_DOWNLOAD_ID: u64 = u64::MAX;
+
+use crate::formatting::{
+    format_bytes, format_duration, truncate_text, MARGIN as ACTIVE_BLOCK_MARGIN,
+};
 
 pub trait CliTheme: Send + Sync {
-    /// Color codes — return ANSI escape codes or empty string for no color
     fn color_success(&self) -> String;
     fn color_error(&self) -> String;
     fn color_warning(&self) -> String;
@@ -20,36 +22,21 @@ pub trait CliTheme: Send + Sync {
     fn color_platform(&self, platform: &str) -> String;
     fn color_accent(&self) -> String;
     fn color_reset(&self) -> String;
-
-    /// Format a progress bar template
     fn progress_template(&self) -> String;
-
-    /// Format phase change messages
     fn format_phase(&self, download_id: u64, phase: &str) -> String;
-
-    /// Format completion message
     fn format_complete(
         &self,
         title: &str,
         file_path: Option<&str>,
         size_bytes: Option<u64>,
     ) -> String;
-
-    /// Format error message
     fn format_error(&self, download_id: u64, error: &str) -> String;
-
-    /// Format platform name with styling
     fn format_platform(&self, platform: &str) -> String;
 
-    /// Check if theme supports Unicode (for graceful fallback)
     fn supports_unicode(&self) -> bool {
         true
     }
 }
-
-// ============================================================================
-// BRUTALIST THEME (The Recommended Direction)
-// ============================================================================
 
 pub struct BrutalistTheme {
     supports_unicode: bool,
@@ -60,7 +47,7 @@ impl BrutalistTheme {
         Self { supports_unicode }
     }
 
-    fn _unicode_or_ascii<'a>(&self, unicode: &'a str, ascii: &'a str) -> &'a str {
+    fn unicode_or_ascii<'a>(&self, unicode: &'a str, ascii: &'a str) -> &'a str {
         if self.supports_unicode {
             unicode
         } else {
@@ -71,38 +58,38 @@ impl BrutalistTheme {
 
 impl CliTheme for BrutalistTheme {
     fn color_success(&self) -> String {
-        "\x1b[1;32m".to_string() // Bright Green
+        "\x1b[1;32m".to_string()
     }
 
     fn color_error(&self) -> String {
-        "\x1b[1;31m".to_string() // Bright Red
+        "\x1b[1;31m".to_string()
     }
 
     fn color_warning(&self) -> String {
-        "\x1b[1;33m".to_string() // Bright Yellow
+        "\x1b[1;33m".to_string()
     }
 
     fn color_info(&self) -> String {
-        "\x1b[1;36m".to_string() // Bright Cyan
+        "\x1b[1;36m".to_string()
     }
 
     fn color_accent(&self) -> String {
-        "\x1b[1;36m".to_string() // Bright Cyan
+        "\x1b[1;97m".to_string()
     }
 
     fn color_platform(&self, platform: &str) -> String {
         match platform.to_lowercase().as_str() {
-            "youtube" => "\x1b[1;31m".to_string(),       // Red
-            "instagram" => "\x1b[1;35m".to_string(),     // Magenta
-            "tiktok" => "\x1b[1;36m".to_string(),        // Cyan
-            "twitter" | "x" => "\x1b[1;30m".to_string(), // Dark Gray
-            "reddit" => "\x1b[1;33m".to_string(),        // Orange/Yellow
-            "twitch" => "\x1b[1;35m".to_string(),        // Purple/Magenta
-            "pinterest" => "\x1b[1;31m".to_string(),     // Red
-            "vimeo" => "\x1b[1;36m".to_string(),         // Cyan
-            "bluesky" => "\x1b[1;34m".to_string(),       // Blue
-            "bilibili" => "\x1b[1;36m".to_string(),      // Cyan
-            _ => "\x1b[1;37m".to_string(),               // White
+            "youtube" => "\x1b[1;31m".to_string(),
+            "instagram" => "\x1b[1;35m".to_string(),
+            "tiktok" => "\x1b[1;36m".to_string(),
+            "twitter" | "twitter/x" | "x" => "\x1b[1;34m".to_string(),
+            "reddit" => "\x1b[1;33m".to_string(),
+            "twitch" => "\x1b[1;35m".to_string(),
+            "pinterest" => "\x1b[1;31m".to_string(),
+            "vimeo" => "\x1b[1;36m".to_string(),
+            "bluesky" => "\x1b[1;34m".to_string(),
+            "bilibili" => "\x1b[1;36m".to_string(),
+            _ => "\x1b[1;37m".to_string(),
         }
     }
 
@@ -111,19 +98,28 @@ impl CliTheme for BrutalistTheme {
     }
 
     fn progress_template(&self) -> String {
-        "{prefix:.bold.cyan} {spinner:.cyan} [{bar:30.cyan/blue}] {pos:>3}% {msg:.dim}".to_string()
+        "{msg}".to_string()
     }
 
-    fn format_phase(&self, _download_id: u64, phase: &str) -> String {
-        let icon = match phase.to_lowercase().as_str() {
-            p if p.contains("fetch") || p.contains("info") => self._unicode_or_ascii("🔍", "Q"),
-            p if p.contains("download") => self._unicode_or_ascii("⬇️ ", "V"),
-            p if p.contains("process") || p.contains("merge") => self._unicode_or_ascii("🔧", "P"),
-            p if p.contains("done") || p.contains("complete") => self._unicode_or_ascii("✓ ", "+"),
-            _ => self._unicode_or_ascii("⏳", "-"),
+    fn format_phase(&self, download_id: u64, phase: &str) -> String {
+        let icon = match normalize_phase_label(phase) {
+            "FETCHING" => self.unicode_or_ascii(">>", ">>"),
+            "DOWNLOADING" => self.unicode_or_ascii("=>", "=>"),
+            "PROCESSING" => self.unicode_or_ascii("~>", "~>"),
+            "FINALIZING" => self.unicode_or_ascii("::", "::"),
+            "COMPLETE" => self.unicode_or_ascii("OK", "OK"),
+            "ERROR" => self.unicode_or_ascii("!!", "!!"),
+            _ => self.unicode_or_ascii("--", "--"),
         };
 
-        format!("{} {} Phase: {}", self.color_info(), icon, phase,)
+        format!(
+            "{margin}{color}{icon}{reset} DL#{download_id:02} -> {phase_label}",
+            margin = ACTIVE_BLOCK_MARGIN,
+            color = self.color_info(),
+            icon = icon,
+            reset = self.color_reset(),
+            phase_label = normalize_phase_label(phase),
+        )
     }
 
     fn format_complete(
@@ -132,42 +128,38 @@ impl CliTheme for BrutalistTheme {
         file_path: Option<&str>,
         size_bytes: Option<u64>,
     ) -> String {
-        let size_str = size_bytes
-            .map(|b| format_bytes(b))
-            .unwrap_or_else(|| "unknown size".to_string());
-
-        let icon = self._unicode_or_ascii("✓", "+");
+        let size = size_bytes
+            .map(format_bytes)
+            .unwrap_or_else(|| "--".to_string());
 
         match file_path {
             Some(path) => format!(
-                "{} {} COMPLETE{} {} [{}] → {}",
-                self.color_success(),
-                icon,
-                self.color_reset(),
-                title,
-                size_str,
-                path
+                "{margin}{ok} COMPLETE{reset} {title} [{size}] -> {path}",
+                margin = ACTIVE_BLOCK_MARGIN,
+                ok = self.color_success(),
+                reset = self.color_reset(),
+                title = truncate_text(title, 44),
+                size = size,
+                path = path,
             ),
             None => format!(
-                "{} {} COMPLETE{} {} [{}]",
-                self.color_success(),
-                icon,
-                self.color_reset(),
-                title,
-                size_str
+                "{margin}{ok} COMPLETE{reset} {title} [{size}]",
+                margin = ACTIVE_BLOCK_MARGIN,
+                ok = self.color_success(),
+                reset = self.color_reset(),
+                title = truncate_text(title, 44),
+                size = size,
             ),
         }
     }
 
     fn format_error(&self, download_id: u64, error: &str) -> String {
-        let icon = self._unicode_or_ascii("✗", "x");
         format!(
-            "{} {} ERROR (ID:{}){} {}",
-            self.color_error(),
-            icon,
-            download_id,
-            self.color_reset(),
-            error
+            "{margin}{err} ERROR{reset} DL#{download_id:02} {error}",
+            margin = ACTIVE_BLOCK_MARGIN,
+            err = self.color_error(),
+            reset = self.color_reset(),
+            error = truncate_text(error, 80),
         )
     }
 
@@ -185,23 +177,35 @@ impl CliTheme for BrutalistTheme {
     }
 }
 
-// ============================================================================
-// REFACTORED CLI REPORTER
-// ============================================================================
+struct ProgressEntry {
+    bar: ProgressBar,
+    last_progress: Option<QueueItemProgress>,
+    last_phase: Option<String>,
+    label: Option<String>,
+}
+
+impl ProgressEntry {
+    fn new(bar: ProgressBar) -> Self {
+        Self {
+            bar,
+            last_progress: None,
+            last_phase: None,
+            label: None,
+        }
+    }
+}
 
 pub struct CLIReporter {
     multi_progress: MultiProgress,
-    bars: Arc<Mutex<HashMap<u64, ProgressBar>>>,
+    bars: Arc<Mutex<HashMap<u64, ProgressEntry>>>,
     theme: Arc<dyn CliTheme>,
 }
 
 impl CLIReporter {
-    /// Create a new reporter with the default (Brutalist) theme
     pub fn new() -> Self {
         Self::with_theme(Arc::new(BrutalistTheme::new(true)))
     }
 
-    /// Create a reporter with a custom theme
     pub fn with_theme(theme: Arc<dyn CliTheme>) -> Self {
         Self {
             multi_progress: MultiProgress::new(),
@@ -210,25 +214,16 @@ impl CLIReporter {
         }
     }
 
-    /// Create an ASCII-only reporter (for limited terminals)
     pub fn _ascii_only() -> Self {
         Self::with_theme(Arc::new(BrutalistTheme::new(false)))
     }
 
-    fn create_progress_bar(&self, title: &str) -> ProgressBar {
+    fn create_progress_bar(&self) -> ProgressBar {
         let pb = self.multi_progress.add(ProgressBar::new(100));
-        let chars = if self.theme.supports_unicode() {
-            "█>░"
-        } else {
-            "##-"
-        };
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template(&self.theme.progress_template())
-                .unwrap()
-                .progress_chars(chars),
-        );
-        pb.set_prefix(title.to_string());
+        let style = ProgressStyle::default_bar()
+            .template(&self.theme.progress_template())
+            .unwrap();
+        pb.set_style(style);
         pb
     }
 }
@@ -243,30 +238,20 @@ impl Default for CLIReporter {
 impl DownloadReporter for CLIReporter {
     fn on_progress(&self, download_id: u64, info: QueueItemProgress) {
         let mut bars = self.bars.lock().unwrap();
-        let pb = bars
+        let entry = bars
             .entry(download_id)
-            .or_insert_with(|| self.create_progress_bar(&format!("DL#{}", download_id)));
+            .or_insert_with(|| ProgressEntry::new(self.create_progress_bar()));
 
-        pb.set_position(info.percent as u64);
+        entry.last_phase = Some(normalize_phase_label(&info.phase).to_string());
+        entry.last_progress = Some(info.clone());
 
-        // Format speed and ETA inline
-        let speed_mbs = (info.speed_bytes_per_sec / 1_048_576.0 * 10.0).round() / 10.0;
-
-        let eta_str = if info.speed_bytes_per_sec > 0.0 && info.total_bytes.is_some() {
-            let total = info.total_bytes.unwrap();
-            let remaining = total.saturating_sub(info.downloaded_bytes);
-            let eta_seconds = (remaining as f64 / info.speed_bytes_per_sec) as u64;
-            format_duration(eta_seconds)
-        } else {
-            "calculating...".to_string()
-        };
-
-        pb.set_message(format!(
-            "{}{} MB/s | ETA: {}{}",
-            self.theme.color_accent(),
-            speed_mbs,
-            eta_str,
-            self.theme.color_reset()
+        entry
+            .bar
+            .set_position(info.percent.clamp(0.0, 100.0) as u64);
+        entry.bar.set_message(format_progress_block(
+            self.theme.as_ref(),
+            download_id,
+            &info,
         ));
     }
 
@@ -277,48 +262,72 @@ impl DownloadReporter for CLIReporter {
         file_size_bytes: Option<u64>,
     ) {
         let mut bars = self.bars.lock().unwrap();
-        if let Some(pb) = bars.remove(&download_id) {
-            let message =
-                self.theme
-                    .format_complete("Download", file_path.as_deref(), file_size_bytes);
-            pb.finish_with_message(message);
+        if let Some(entry) = bars.remove(&download_id) {
+            let title = entry
+                .last_progress
+                .as_ref()
+                .map(|info| info.title.as_str())
+                .unwrap_or("Download");
+
+            entry.bar.finish_with_message(self.theme.format_complete(
+                title,
+                file_path.as_deref(),
+                file_size_bytes,
+            ));
         }
     }
 
     fn on_error(&self, download_id: u64, error_message: String) {
         let mut bars = self.bars.lock().unwrap();
-        if let Some(pb) = bars.remove(&download_id) {
-            let formatted = self.theme.format_error(download_id, &error_message);
-            pb.abandon_with_message(formatted);
+        let formatted = self.theme.format_error(download_id, &error_message);
+
+        if let Some(entry) = bars.remove(&download_id) {
+            entry.bar.abandon_with_message(formatted);
         } else {
-            let formatted = self.theme.format_error(download_id, &error_message);
             self.multi_progress.println(formatted).unwrap_or_default();
         }
     }
 
     fn on_retry(&self, download_id: u64, attempt: u32, delay_ms: u64) {
         let icon = if self.theme.supports_unicode() {
-            "🔄"
+            "<<"
         } else {
             "R"
         };
         let message = format!(
-            "{} {} (ID:{}) Retry attempt {} in {}ms{}",
-            self.theme.color_warning(),
-            icon,
-            download_id,
-            attempt,
-            delay_ms,
-            self.theme.color_reset()
+            "{margin}{warn}{icon} RETRY{reset} DL#{download_id:02} attempt {attempt} in {delay_ms}ms",
+            margin = ACTIVE_BLOCK_MARGIN,
+            warn = self.theme.color_warning(),
+            icon = icon,
+            reset = self.theme.color_reset(),
+            download_id = download_id,
+            attempt = attempt,
+            delay_ms = delay_ms,
         );
+
         self.multi_progress.println(message).unwrap_or_default();
     }
 
     fn on_phase_change(&self, download_id: u64, phase: String) {
-        let bars = self.bars.lock().unwrap();
-        if let Some(pb) = bars.get(&download_id) {
-            let formatted = self.theme.format_phase(download_id, &phase);
-            pb.set_message(formatted);
+        let normalized = normalize_phase_label(&phase).to_string();
+        let transition = self.theme.format_phase(download_id, &phase);
+
+        let mut bars = self.bars.lock().unwrap();
+        if let Some(entry) = bars.get_mut(&download_id) {
+            if entry.last_phase.as_deref() != Some(normalized.as_str()) {
+                self.multi_progress.println(transition).unwrap_or_default();
+            }
+
+            entry.last_phase = Some(normalized);
+
+            if let Some(info) = entry.last_progress.as_mut() {
+                info.phase = phase;
+                entry.bar.set_message(format_progress_block(
+                    self.theme.as_ref(),
+                    download_id,
+                    info,
+                ));
+            }
         }
     }
 
@@ -330,28 +339,26 @@ impl DownloadReporter for CLIReporter {
         _thumbnail_url: Option<String>,
         duration_seconds: Option<f64>,
     ) {
-        // Extract platform from URL for color coding
         let platform = extract_platform(&url);
-
-        let duration_str = duration_seconds
-            .map(|d| format_duration(d as u64))
-            .unwrap_or_else(|| "unknown duration".to_string());
+        let duration = duration_seconds
+            .map(|seconds| format_duration(seconds as u64))
+            .unwrap_or_else(|| "--".to_string());
 
         let icon = if self.theme.supports_unicode() {
-            "📺"
+            "[]"
         } else {
-            "TV"
+            "[]"
         };
-
         let message = format!(
-            "{} {} Found:{} {} by {} {} [{}]",
-            self.theme.color_info(),
-            icon,
-            self.theme.color_reset(),
-            title,
-            author,
-            self.theme.format_platform(&platform),
-            duration_str
+            "{margin}{info}{icon} FOUND{reset} {title} by {author} [{platform}] [{duration}]",
+            margin = ACTIVE_BLOCK_MARGIN,
+            info = self.theme.color_info(),
+            icon = icon,
+            reset = self.theme.color_reset(),
+            title = truncate_text(&title, 36),
+            author = truncate_text(&author, 20),
+            platform = platform,
+            duration = duration,
         );
 
         self.multi_progress.println(message).unwrap_or_default();
@@ -361,68 +368,243 @@ impl DownloadReporter for CLIReporter {
 
     fn on_system_progress(&self, title: &str, percent: f32, message: &str) {
         let mut bars = self.bars.lock().unwrap();
-        let pb = bars
-            .entry(u64::MAX)
-            .or_insert_with(|| self.create_progress_bar(title));
+        let entry = bars
+            .entry(SYSTEM_DOWNLOAD_ID)
+            .or_insert_with(|| ProgressEntry::new(self.create_progress_bar()));
 
-        pb.set_prefix(format!(
-            "{}SYS: {}{}",
-            self.theme.color_info(),
+        entry.label = Some(title.to_string());
+        entry.bar.set_position(percent.clamp(0.0, 100.0) as u64);
+        entry.bar.set_message(format_system_progress_block(
+            self.theme.as_ref(),
             title,
-            self.theme.color_reset()
+            percent as f64,
+            message,
         ));
-        pb.set_position(percent as u64);
-        pb.set_message(message.to_string());
 
         if percent >= 100.0 {
-            let complete_msg = format!(
-                "{}✓ {}{}",
-                self.theme.color_success(),
-                title,
-                self.theme.color_reset()
-            );
-            pb.finish_with_message(complete_msg);
-            bars.remove(&u64::MAX);
+            entry.bar.finish_with_message(format!(
+                "{margin}{ok} SYSTEM READY{reset} {title}",
+                margin = ACTIVE_BLOCK_MARGIN,
+                ok = self.theme.color_success(),
+                reset = self.theme.color_reset(),
+                title = title,
+            ));
+            bars.remove(&SYSTEM_DOWNLOAD_ID);
         }
     }
 }
 
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
+fn normalize_phase_label(raw: &str) -> &'static str {
+    let lower = raw.trim().to_lowercase();
 
-/// Format bytes into human-readable size
-fn format_bytes(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut size = bytes as f64;
-    let mut unit_idx = 0;
-
-    while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit_idx += 1;
-    }
-
-    if unit_idx == 0 {
-        format!("{} {}", size as u64, UNITS[unit_idx])
+    if lower.is_empty() {
+        "PREPARING"
+    } else if lower.contains("error") || lower.contains("fail") {
+        "ERROR"
+    } else if lower.contains("complete") || lower.contains("done") {
+        "COMPLETE"
+    } else if lower.contains("final") || lower.contains("rename") || lower.contains("move") {
+        "FINALIZING"
+    } else if lower.contains("merge")
+        || lower.contains("merg")
+        || lower.contains("mux")
+        || lower.contains("convert")
+        || lower.contains("process")
+    {
+        "PROCESSING"
+    } else if lower.contains("download") {
+        "DOWNLOADING"
+    } else if lower.contains("fetch")
+        || lower.contains("info")
+        || lower.contains("resolve")
+        || lower.contains("metadata")
+    {
+        "FETCHING"
     } else {
-        format!("{:.1} {}", size, UNITS[unit_idx])
+        "PREPARING"
     }
 }
 
-/// Format seconds into human-readable duration
-fn format_duration(seconds: u64) -> String {
-    if seconds < 60 {
-        format!("{}s", seconds)
-    } else if seconds < 3600 {
-        format!("{}m {}s", seconds / 60, seconds % 60)
+fn format_speed(speed_bytes_per_sec: f64) -> String {
+    if speed_bytes_per_sec <= 0.0 {
+        "--".to_string()
+    } else if speed_bytes_per_sec < 1_048_576.0 {
+        format!("{:.0} KB/s", speed_bytes_per_sec / 1024.0)
     } else {
-        let hours = seconds / 3600;
-        let minutes = (seconds % 3600) / 60;
-        format!("{}h {}m", hours, minutes)
+        format!("{:.1} MB/s", speed_bytes_per_sec / 1_048_576.0)
     }
 }
 
-/// Extract platform name from URL
+fn format_eta(info: &QueueItemProgress) -> String {
+    if info.speed_bytes_per_sec <= 0.0 {
+        return "--".to_string();
+    }
+
+    let Some(total) = info.total_bytes else {
+        return "--".to_string();
+    };
+
+    let remaining = total.saturating_sub(info.downloaded_bytes);
+    let eta_seconds = (remaining as f64 / info.speed_bytes_per_sec) as u64;
+    format_duration(eta_seconds)
+}
+
+fn format_transfer(downloaded: u64, total: Option<u64>) -> String {
+    match total {
+        Some(total) => format!("{} / {}", format_bytes(downloaded), format_bytes(total)),
+        None => format!("{} / --", format_bytes(downloaded)),
+    }
+}
+
+fn phase_detail(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return default_phase_detail("PREPARING").to_string();
+    }
+
+    let normalized = normalize_phase_label(trimmed);
+    if trimmed.eq_ignore_ascii_case(normalized) {
+        default_phase_detail(normalized).to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn default_phase_detail(normalized: &str) -> &'static str {
+    match normalized {
+        "FETCHING" => "Resolving media metadata",
+        "DOWNLOADING" => "Streaming bytes from source",
+        "PROCESSING" => "Combining and polishing media",
+        "FINALIZING" => "Writing final output to disk",
+        "COMPLETE" => "Finished successfully",
+        "ERROR" => "Stopped by an unrecoverable error",
+        _ => "Preparing work queue",
+    }
+}
+
+fn render_bar(percent: f64, width: usize, unicode: bool) -> String {
+    let clamped = percent.clamp(0.0, 100.0);
+    let filled = ((clamped / 100.0) * width as f64).floor() as usize;
+    let is_full = filled >= width;
+
+    if unicode {
+        let full = "█";
+        let head = "▓";
+        let empty = "░";
+
+        if is_full {
+            full.repeat(width)
+        } else if clamped > 0.0 && filled == 0 {
+            format!("{}{}", head, empty.repeat(width - 1))
+        } else if filled == 0 {
+            empty.repeat(width)
+        } else {
+            format!(
+                "{}{}{}",
+                full.repeat(filled),
+                head,
+                empty.repeat(width.saturating_sub(filled + 1))
+            )
+        }
+    } else {
+        let full = "=";
+        let head = ">";
+        let empty = "-";
+
+        if is_full {
+            full.repeat(width)
+        } else if clamped > 0.0 && filled == 0 {
+            format!("{}{}", head, empty.repeat(width - 1))
+        } else if filled == 0 {
+            empty.repeat(width)
+        } else {
+            format!(
+                "{}{}{}",
+                full.repeat(filled),
+                head,
+                empty.repeat(width.saturating_sub(filled + 1))
+            )
+        }
+    }
+}
+
+fn phase_color(theme: &dyn CliTheme, phase: &str) -> String {
+    match phase {
+        "COMPLETE" => theme.color_success(),
+        "ERROR" => theme.color_error(),
+        "FETCHING" | "DOWNLOADING" => theme.color_info(),
+        "PROCESSING" | "FINALIZING" => theme.color_warning(),
+        _ => theme.color_accent(),
+    }
+}
+
+fn format_progress_block(
+    theme: &dyn CliTheme,
+    download_id: u64,
+    info: &QueueItemProgress,
+) -> String {
+    let normalized = normalize_phase_label(&info.phase);
+    let title = truncate_text(&info.title, 40);
+    let phase_color = phase_color(theme, normalized);
+    let percent = info.percent.clamp(0.0, 100.0).round() as u64;
+    let bar = render_bar(info.percent, ACTIVE_BAR_WIDTH, theme.supports_unicode());
+    let speed = format_speed(info.speed_bytes_per_sec);
+    let eta = format_eta(info);
+    let transfer = format_transfer(info.downloaded_bytes, info.total_bytes);
+    let detail = phase_detail(&info.phase);
+    let platform = theme.format_platform(&info.platform);
+
+    format!(
+        "{margin}DL#{download_id:02}  {title}  [{platform}]\n\
+{margin}{phase_color}{phase}{reset}\n\
+{margin}{info_color}{bar}{reset} {percent:>3}%\n\
+{margin}{accent}{speed}{reset}   ETA {eta}   {transfer}\n\
+{margin}{detail}\n",
+        margin = ACTIVE_BLOCK_MARGIN,
+        download_id = download_id,
+        title = title,
+        platform = platform,
+        phase_color = phase_color,
+        phase = normalized,
+        reset = theme.color_reset(),
+        info_color = theme.color_info(),
+        bar = bar,
+        percent = percent,
+        accent = theme.color_accent(),
+        speed = speed,
+        eta = eta,
+        transfer = transfer,
+        detail = detail,
+    )
+}
+
+fn format_system_progress_block(
+    theme: &dyn CliTheme,
+    title: &str,
+    percent: f64,
+    message: &str,
+) -> String {
+    let bar = render_bar(percent, ACTIVE_BAR_WIDTH, theme.supports_unicode());
+    let clamped = percent.clamp(0.0, 100.0).round() as u64;
+
+    format!(
+        "{margin}SYSTEM  {title}\n\
+{margin}{info}{bar}{reset} {percent:>3}%\n\
+{margin}{message}\n",
+        margin = ACTIVE_BLOCK_MARGIN,
+        title = truncate_text(title, 48),
+        info = theme.color_info(),
+        bar = bar,
+        reset = theme.color_reset(),
+        percent = clamped,
+        message = if message.trim().is_empty() {
+            "Preparing dependencies"
+        } else {
+            message
+        },
+    )
+}
+
 fn extract_platform(url: &str) -> String {
     if url.contains("youtube.com") || url.contains("youtu.be") {
         "YouTube".to_string()
@@ -448,10 +630,6 @@ fn extract_platform(url: &str) -> String {
         "Generic".to_string()
     }
 }
-
-// ============================================================================
-// TESTS
-// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -494,5 +672,57 @@ mod tests {
         assert!(theme.supports_unicode());
         assert!(!theme.color_success().is_empty());
         assert!(!theme.progress_template().is_empty());
+    }
+
+    #[test]
+    fn normalizes_common_phase_labels() {
+        assert_eq!(normalize_phase_label("Fetching info"), "FETCHING");
+        assert_eq!(normalize_phase_label("Downloading media"), "DOWNLOADING");
+        assert_eq!(normalize_phase_label("Merging streams"), "PROCESSING");
+        assert_eq!(normalize_phase_label("Final rename"), "FINALIZING");
+    }
+
+    #[test]
+    fn renders_unicode_progress_block_with_margin_and_metrics() {
+        let theme = BrutalistTheme::new(true);
+        let info = QueueItemProgress {
+            id: 7,
+            title: "A very long CLI redesign walkthrough".to_string(),
+            platform: "YouTube".to_string(),
+            percent: 62.4,
+            speed_bytes_per_sec: 3_145_728.0,
+            downloaded_bytes: 148 * 1024 * 1024,
+            total_bytes: Some(238 * 1024 * 1024),
+            phase: "Downloading media".to_string(),
+        };
+
+        let rendered = format_progress_block(&theme, 7, &info);
+
+        assert!(rendered.contains("  DL#07"));
+        assert!(rendered.contains("DOWNLOADING"));
+        assert!(rendered.contains("ETA"));
+        assert!(rendered.contains("148.0 MB / 238.0 MB"));
+    }
+
+    #[test]
+    fn renders_ascii_progress_block_with_same_structure() {
+        let theme = BrutalistTheme::new(false);
+        let info = QueueItemProgress {
+            id: 5,
+            title: "ASCII fallback".to_string(),
+            platform: "Generic".to_string(),
+            percent: 12.0,
+            speed_bytes_per_sec: 0.0,
+            downloaded_bytes: 12,
+            total_bytes: None,
+            phase: "Preparing".to_string(),
+        };
+
+        let rendered = format_progress_block(&theme, 5, &info);
+
+        assert!(rendered.contains("  DL#05"));
+        assert!(rendered.contains("PREPARING"));
+        assert!(rendered.contains("ETA --"));
+        assert!(rendered.contains("12 B / --"));
     }
 }

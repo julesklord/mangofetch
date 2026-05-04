@@ -1,7 +1,9 @@
+mod formatting;
 mod output;
 mod reporter; // NEW: Import output formatters module
 
 use crate::output::{
+    format_about_changelog, format_about_info, format_about_roadmap, format_about_terms,
     format_batch_summary, format_clean_summary, format_config_display, format_dependency_check,
     format_info_card, format_queue_list,
 };
@@ -561,37 +563,23 @@ async fn main() -> Result<()> {
             match topic {
                 AboutTopic::Version => {
                     println!(
-                        "{}🚀 MangoFetch CLI{}",
-                        theme.color_accent(),
-                        theme.color_reset()
+                        "{}",
+                        format_about_info(
+                            env!("CARGO_PKG_VERSION"),
+                            "Jules Martins",
+                            "https://github.com/julesklord/mangofetch-cli",
+                            &theme
+                        )
                     );
-                    println!("   Version: {}", env!("CARGO_PKG_VERSION"));
-                    println!("   Edition: 2021");
-                    println!("   License: GPL-3.0");
                 }
                 AboutTopic::Roadmap => {
-                    println!("{}📊 Roadmap{}:", theme.color_accent(), theme.color_reset());
-                    println!("   v0.3.0 - Interactive TUI mode (ratatui)");
-                    println!("   v0.4.0 - Plugin management");
-                    println!("   v0.5.0 - P2P file sharing");
+                    println!("{}", format_about_roadmap(&theme));
                 }
                 AboutTopic::Changelog => {
-                    println!(
-                        "{}📝 Changelog{}:",
-                        theme.color_accent(),
-                        theme.color_reset()
-                    );
-                    println!("   v0.2.0 - Standalone rewrite: GUI removed, core refactored");
-                    println!("   v0.1.1-fix - Fixed build architecture");
-                    println!("   v0.1.0 - Initial release");
+                    println!("{}", format_about_changelog(&theme));
                 }
                 AboutTopic::Terms => {
-                    println!(
-                        "{}⚖️  License: GPL-3.0{}",
-                        theme.color_info(),
-                        theme.color_reset()
-                    );
-                    println!("   Respect content creator rights. Use responsibly.");
+                    println!("{}", format_about_terms(&theme));
                 }
             }
         }

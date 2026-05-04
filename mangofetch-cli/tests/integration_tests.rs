@@ -114,12 +114,13 @@ mod tests {
     #[test]
     fn test_format_info_card_structure() {
         let expected_parts = vec![
-            "Media Information",
-            "Title:",
-            "Author:",
-            "Platform:",
-            "Type:",
-            "Duration:",
+            "INFO",
+            "MEDIA DETAIL",
+            "TITLE:",
+            "AUTHOR:",
+            "PLATFORM:",
+            "TYPE:",
+            "DURATION:",
         ];
 
         for part in expected_parts {
@@ -160,20 +161,10 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_box_drawing_characters() {
-        let box_chars = vec![
-            ("Top-Left", "┌"),
-            ("Top-Right", "┐"),
-            ("Bottom-Left", "└"),
-            ("Bottom-Right", "┘"),
-            ("Horizontal", "─"),
-            ("Vertical", "│"),
-        ];
-
-        for (_name, char) in box_chars {
-            assert!(!char.is_empty());
-            assert_eq!(char.len(), 3); 
-        }
+    fn test_brutalist_separators() {
+        let sep = "—".repeat(10);
+        assert!(sep.contains("—"));
+        assert_eq!(sep.chars().count(), 10);
     }
 
     #[test]

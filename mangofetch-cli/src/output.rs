@@ -4,6 +4,7 @@
 // Place in: mangofetch-cli/src/output.rs
 // ============================================================================
 
+use crate::formatting::{format_bytes, format_duration, truncate_text, MARGIN};
 use crate::reporter::CliTheme;
 use std::sync::Arc;
 
@@ -17,53 +18,29 @@ pub fn format_info_card(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     let duration_str = duration_seconds
-        .map(|d| {
-            let secs = d as u64;
-            if secs < 60 {
-                format!("{}s", secs)
-            } else if secs < 3600 {
-                format!("{}m {}s", secs / 60, secs % 60)
-            } else {
-                format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
-            }
-        })
+        .map(|d| format_duration(d as u64))
         .unwrap_or_else(|| "—".to_string());
 
-    let box_char = "─";
-    let corner_tl = "┌";
-    let corner_tr = "┐";
-    let corner_bl = "└";
-    let corner_br = "┘";
-    let vert = "│";
-
-    let width = 60;
-    let box_line = format!("{}{}{}", corner_tl, box_char.repeat(width - 2), corner_tr);
-    let closing = format!("{}{}{}", corner_bl, box_char.repeat(width - 2), corner_br);
-
-    let platform_colored = format!(
-        "{}{}{}",
-        theme.color_platform(platform),
-        platform,
-        theme.color_reset()
-    );
+    let platform_colored = theme.format_platform(platform);
 
     format!(
-        "{}\n{} {}Media Information{}\n{} Title:     {}\n{} Author:    {}\n{} Platform:  {}\n{} Type:      {}\n{} Duration:  {}\n{}",
-        box_line,
-        vert,
-        theme.color_info(),
-        theme.color_reset(),
-        vert,
-        title,
-        vert,
-        author,
-        vert,
-        platform_colored,
-        vert,
-        media_type,
-        vert,
-        duration_str,
-        closing,
+        "\n{margin}{info}INFO{reset}  {accent}MEDIA DETAIL{reset}\n\
+         {margin}{bar}\n\
+         {margin}TITLE:     {title}\n\
+         {margin}AUTHOR:    {author}\n\
+         {margin}PLATFORM:  {platform}\n\
+         {margin}TYPE:      {media_type}\n\
+         {margin}DURATION:  {duration}\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
+        title = truncate_text(title, 40),
+        author = truncate_text(author, 40),
+        platform = platform_colored,
+        media_type = media_type,
+        duration = duration_str,
     )
 }
 
@@ -74,77 +51,100 @@ pub fn format_queue_list(
 ) -> String {
     if items.is_empty() {
         return format!(
-            "{}ℹ No downloads found.{}",
-            theme.color_info(),
-            theme.color_reset()
+            "\n{margin}{info}QUEUE{reset}  No downloads found in history.\n",
+            margin = MARGIN,
+            info = theme.color_info(),
+            reset = theme.color_reset()
         );
     }
 
-    let mut output = String::new();
-    output.push_str(&format!(
-        "\n{}📋 Queue Status (Total: {}){}:\n",
-        theme.color_info(),
+    let mut output = format!(
+        "\n{margin}{info}QUEUE{reset}  {accent}STATUS (Total: {}){reset}\n{margin}{bar}\n",
         items.len(),
-        theme.color_reset()
-    ));
-
-    let separator = format!("  {}", "─".repeat(55));
-    output.push_str(&separator);
-    output.push('\n');
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
+    );
 
     for (_idx, (id, title, platform, status, progress)) in items.iter().enumerate() {
         let status_icon = match status.as_str() {
-            s if s.contains("Active") => "▶",
-            s if s.contains("Queued") => "○",
-            s if s.contains("Complete") => "✓",
-            s if s.contains("Error") => "✗",
-            _ => "⏳",
+            s if s.contains("Active") => ">>",
+            s if s.contains("Queued") => "○ ",
+            s if s.contains("Complete") => "OK",
+            s if s.contains("Error") => "!!",
+            _ => "--",
         };
 
         let status_colored = match status.as_str() {
             s if s.contains("Active") => {
-                format!("{}{}{}", theme.color_accent(), status, theme.color_reset())
+                format!(
+                    "{}{}{}",
+                    theme.color_info(),
+                    status.to_uppercase(),
+                    theme.color_reset()
+                )
             }
             s if s.contains("Complete") => {
-                format!("{}{}{}", theme.color_success(), status, theme.color_reset())
+                format!(
+                    "{}{}{}",
+                    theme.color_success(),
+                    status.to_uppercase(),
+                    theme.color_reset()
+                )
             }
             s if s.contains("Error") => {
-                format!("{}{}{}", theme.color_error(), status, theme.color_reset())
+                format!(
+                    "{}{}{}",
+                    theme.color_error(),
+                    status.to_uppercase(),
+                    theme.color_reset()
+                )
             }
-            _ => format!("{}{}{}", theme.color_warning(), status, theme.color_reset()),
+            _ => format!(
+                "{}{}{}",
+                theme.color_warning(),
+                status.to_uppercase(),
+                theme.color_reset()
+            ),
         };
 
-        let platform_colored = format!(
-            "{}[{}]{}",
-            theme.color_platform(platform),
-            platform,
-            theme.color_reset()
-        );
+        let platform_colored = theme.format_platform(platform);
 
         output.push_str(&format!(
-            "  {} #{:<3} {:<35} {} {}\n",
-            status_icon, id, title, platform_colored, status_colored
+            "{margin}{icon} #{id:<2}  {title:<30}  {platform}  {status}\n",
+            margin = MARGIN,
+            icon = status_icon,
+            id = id,
+            title = truncate_text(title, 30),
+            platform = platform_colored,
+            status = status_colored,
         ));
 
         // Show progress bar inline for active downloads
         if status.contains("Active") && !progress.is_empty() {
-            output.push_str(&format!("         {}\n", progress));
+            output.push_str(&format!(
+                "{margin}       {progress}\n",
+                margin = MARGIN,
+                progress = progress
+            ));
         }
     }
 
-    output.push_str(&separator);
     output.push('\n');
-
     output
 }
 
 /// Formats the `config list` output with better structure
 pub fn format_config_display(config_json: &str, theme: &Arc<dyn CliTheme>) -> String {
-    // Parse and pretty-print with colors
     let mut output = format!(
-        "{}⚙️  Configuration{}:\n",
-        theme.color_info(),
-        theme.color_reset()
+        "\n{margin}{info}CONFIG{reset}  {accent}APPLICATION SETTINGS{reset}\n{margin}{bar}\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
     );
 
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(config_json) {
@@ -162,6 +162,7 @@ fn format_json_pretty(
     theme: &Arc<dyn CliTheme>,
     indent: usize,
 ) -> String {
+    let margin = MARGIN;
     let indent_str = "  ".repeat(indent);
     let next_indent = "  ".repeat(indent + 1);
 
@@ -170,13 +171,13 @@ fn format_json_pretty(
             let mut result = String::from("{\n");
             for (i, (key, val)) in map.iter().enumerate() {
                 result.push_str(&format!(
-                    "{}{}{}{}{}: {}",
-                    next_indent,
-                    theme.color_accent(),
-                    key,
-                    theme.color_reset(),
-                    "",
-                    format_json_pretty(val, theme, indent + 1).trim_start()
+                    "{margin}{next_indent}{accent}{key}{reset}: {val}",
+                    margin = margin,
+                    next_indent = next_indent,
+                    accent = theme.color_accent(),
+                    key = key,
+                    reset = theme.color_reset(),
+                    val = format_json_pretty(val, theme, indent + 1).trim_start()
                 ));
                 if i < map.len() - 1 {
                     result.push_str(",\n");
@@ -184,13 +185,18 @@ fn format_json_pretty(
                     result.push('\n');
                 }
             }
-            result.push_str(&format!("{}}}\n", indent_str));
+            result.push_str(&format!(
+                "{margin}{indent_str}}}\n",
+                margin = margin,
+                indent_str = indent_str
+            ));
             result
         }
         serde_json::Value::Array(arr) => {
             let mut result = String::from("[\n");
             for (i, item) in arr.iter().enumerate() {
                 let comma = if i < arr.len() - 1 { "," } else { "" };
+                result.push_str(margin);
                 result.push_str(&next_indent);
                 result.push_str(&format_json_pretty(item, theme, indent + 1).trim_start());
                 if !comma.is_empty() {
@@ -198,7 +204,11 @@ fn format_json_pretty(
                 }
                 result.push('\n');
             }
-            result.push_str(&format!("{}]\n", indent_str));
+            result.push_str(&format!(
+                "{margin}{indent_str}]\n",
+                margin = margin,
+                indent_str = indent_str
+            ));
             result
         }
         serde_json::Value::String(s) => {
@@ -228,36 +238,31 @@ pub fn format_dependency_check(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     let mut output = format!(
-        "\n{}🔍 System Dependencies{}:\n\n",
-        theme.color_info(),
-        theme.color_reset()
+        "\n{margin}{info}CHECK{reset}  {accent}SYSTEM READINESS{reset}\n{margin}{bar}\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
     );
 
     let check_yt_dlp = match yt_dlp {
-        Some(path) => format!(
-            "{}✓{} yt-dlp: {}",
-            theme.color_success(),
-            theme.color_reset(),
-            path
-        ),
+        Some(path) => format!("{margin}OK  yt-dlp: {path}", margin = MARGIN, path = path),
         None => format!(
-            "{}✗{} yt-dlp: NOT FOUND (will auto-install)",
-            theme.color_error(),
-            theme.color_reset()
+            "{margin}{err}!!  yt-dlp: NOT FOUND{reset} (will auto-install)",
+            margin = MARGIN,
+            err = theme.color_error(),
+            reset = theme.color_reset()
         ),
     };
 
     let check_ffmpeg = match ffmpeg {
-        Some(path) => format!(
-            "{}✓{} FFmpeg: {}",
-            theme.color_success(),
-            theme.color_reset(),
-            path
-        ),
+        Some(path) => format!("{margin}OK  FFmpeg: {path}", margin = MARGIN, path = path),
         None => format!(
-            "{}✗{} FFmpeg: NOT FOUND (will auto-install)",
-            theme.color_error(),
-            theme.color_reset()
+            "{margin}{err}!!  FFmpeg: NOT FOUND{reset} (will auto-install)",
+            margin = MARGIN,
+            err = theme.color_error(),
+            reset = theme.color_reset()
         ),
     };
 
@@ -276,20 +281,17 @@ pub fn format_clean_summary(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     let size_str = bytes_freed
-        .map(|b| format_bytes(b))
-        .unwrap_or_else(|| "unknown".to_string());
+        .map(format_bytes)
+        .unwrap_or_else(|| "0 B".to_string());
 
     format!(
-        "{}✓ Cleaned {}{}. Freed: {} of disk space.{}\n",
-        theme.color_success(),
-        total_removed,
-        if total_removed == 1 {
-            " download"
-        } else {
-            " downloads"
-        },
-        size_str,
-        theme.color_reset()
+        "\n{margin}{ok}CLEAN{reset}  {count} item{s} removed. Freed {size} of space.\n",
+        margin = MARGIN,
+        ok = theme.color_success(),
+        reset = theme.color_reset(),
+        count = total_removed,
+        s = if total_removed == 1 { "" } else { "s" },
+        size = size_str
     )
 }
 
@@ -301,57 +303,225 @@ pub fn format_batch_summary(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     let mut output = format!(
-        "\n{}📊 Batch Download Summary{}:\n",
-        theme.color_info(),
-        theme.color_reset()
+        "\n{margin}{info}BATCH{reset}  {accent}DOWNLOAD SUMMARY{reset}\n{margin}{bar}\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
     );
-    output.push_str(&format!("  Total URLs: {}\n", total));
+
     output.push_str(&format!(
-        "  {}Queued: {}{}  ",
-        theme.color_accent(),
-        queued,
-        theme.color_reset()
+        "{margin}TOTAL:   {total}\n\
+         {margin}QUEUED:  {queued}\n",
+        margin = MARGIN,
+        total = total,
+        queued = queued,
     ));
+
     if failed > 0 {
         output.push_str(&format!(
-            "{}Failed: {}{}",
-            theme.color_error(),
-            failed,
-            theme.color_reset()
+            "{margin}{err}FAILED:  {failed}{reset}\n",
+            margin = MARGIN,
+            err = theme.color_error(),
+            failed = failed,
+            reset = theme.color_reset()
         ));
     } else {
-        output.push_str("No failures!");
+        output.push_str(&format!("{margin}FAILURES: None\n", margin = MARGIN));
     }
-    output.push('\n');
 
+    output.push('\n');
     output
 }
 
-/// Helper to format bytes
-fn format_bytes(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
-    let mut size = bytes as f64;
-    let mut unit_idx = 0;
-
-    while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit_idx += 1;
-    }
-
-    if unit_idx == 0 {
-        format!("{} {}", size as u64, UNITS[unit_idx])
-    } else {
-        format!("{:.1} {}", size, UNITS[unit_idx])
-    }
+pub fn format_about_info(
+    version: &str,
+    author: &str,
+    repo: &str,
+    theme: &Arc<dyn CliTheme>,
+) -> String {
+    format!(
+        "\n{margin}{info}ABOUT{reset}  {accent}APPLICATION INFO{reset}\n{margin}{bar}\n\
+         {margin}VERSION:    {version}\n\
+         {margin}AUTHOR:     {author}\n\
+         {margin}REPOSITORY: {repo}\n\
+         {margin}LICENSE:    GPL-3.0\n\
+         {margin}EDITION:    2021\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
+        version = version,
+        author = author,
+        repo = repo,
+    )
 }
+
+pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
+    format!(
+        "\n{margin}{info}ROADMAP{reset}  {accent}FUTURE PLANS{reset}\n{margin}{bar}\n\
+         {margin}v0.3.0 - Interactive TUI mode (ratatui)\n\
+         {margin}v0.4.0 - Plugin management\n\
+         {margin}v0.5.0 - P2P file sharing\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
+    )
+}
+
+pub fn format_about_changelog(theme: &Arc<dyn CliTheme>) -> String {
+    format!(
+        "\n{margin}{info}CHANGES{reset}  {accent}PROJECT HISTORY{reset}\n{margin}{bar}\n\
+         {margin}v0.3.0 - The mango is growing: Brutalist UI redesign & cleanup\n\
+         {margin}v0.2.0 - Standalone rewrite: GUI removed, core refactored\n\
+         {margin}v0.1.1 - Fixed build architecture\n\
+         {margin}v0.1.0 - Initial release\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
+    )
+}
+
+pub fn format_about_terms(theme: &Arc<dyn CliTheme>) -> String {
+    format!(
+        "\n{margin}{info}TERMS{reset}  {accent}LEGAL & USAGE{reset}\n{margin}{bar}\n\
+         {margin}LICENSE:    GPL-3.0\n\
+         {margin}NOTICE:     Respect content creator rights.\n\
+         {margin}            Use responsibly.\n",
+        margin = MARGIN,
+        info = theme.color_info(),
+        accent = theme.color_accent(),
+        reset = theme.color_reset(),
+        bar = "—".repeat(50),
+    )
+}
+
+// format_bytes and format_duration are now imported from formatting.rs
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::reporter::BrutalistTheme;
+
+    fn get_theme() -> Arc<dyn CliTheme> {
+        Arc::new(BrutalistTheme::new(true))
+    }
 
     #[test]
-    fn test_format_bytes() {
-        assert_eq!(format_bytes(1024), "1.0 KB");
-        assert_eq!(format_bytes(1_048_576), "1.0 MB");
+    fn test_format_info_card() {
+        let theme = get_theme();
+        let output = format_info_card(
+            "Test Title",
+            "Test Author",
+            "YouTube",
+            Some(125.0),
+            "Video",
+            &theme,
+        );
+
+        assert!(output.contains("INFO"));
+        assert!(output.contains("MEDIA DETAIL"));
+        assert!(output.contains("TITLE:     Test Title"));
+        assert!(output.contains("AUTHOR:    Test Author"));
+        assert!(output.contains("PLATFORM:"));
+        assert!(output.contains("YouTube"));
+        assert!(output.contains("DURATION:  2m 5s"));
+        assert!(output.contains(MARGIN));
+    }
+
+    #[test]
+    fn test_format_queue_list_empty() {
+        let theme = get_theme();
+        let output = format_queue_list(vec![], &theme);
+
+        assert!(output.contains("QUEUE"));
+        assert!(output.contains("No downloads found"));
+        assert!(output.contains(MARGIN));
+    }
+
+    #[test]
+    fn test_format_queue_list_items() {
+        let theme = get_theme();
+        let items = vec![
+            (
+                1,
+                "Title 1".to_string(),
+                "YouTube".to_string(),
+                "Active".to_string(),
+                "==> 50%".to_string(),
+            ),
+            (
+                2,
+                "Title 2".to_string(),
+                "TikTok".to_string(),
+                "Queued".to_string(),
+                "".to_string(),
+            ),
+        ];
+        let output = format_queue_list(items, &theme);
+
+        assert!(output.contains("QUEUE"));
+        assert!(output.contains("STATUS (Total: 2)"));
+        assert!(output.contains("#1"));
+        assert!(output.contains("Title 1"));
+        assert!(output.contains("ACTIVE"));
+        assert!(output.contains("==> 50%"));
+        assert!(output.contains("#2"));
+        assert!(output.contains("QUEUED"));
+        assert!(output.contains(MARGIN));
+    }
+
+    #[test]
+    fn test_format_dependency_check() {
+        let theme = get_theme();
+
+        // Success case
+        let output_ok = format_dependency_check(Some("/path/ytdlp"), Some("/path/ffmpeg"), &theme);
+        assert!(output_ok.contains("CHECK"));
+        assert!(output_ok.contains("SYSTEM READINESS"));
+        assert!(output_ok.contains("OK  yt-dlp"));
+        assert!(output_ok.contains("OK  FFmpeg"));
+
+        // Missing case
+        let output_missing = format_dependency_check(None, None, &theme);
+        assert!(output_missing.contains("NOT FOUND"));
+        assert!(output_missing.contains("will auto-install"));
+    }
+
+    #[test]
+    fn test_format_clean_summary() {
+        let theme = get_theme();
+
+        let output_single = format_clean_summary(1, Some(1024), &theme);
+        assert!(output_single.contains("CLEAN"));
+        assert!(output_single.contains("1 item removed"));
+        assert!(output_single.contains("1.0 KB"));
+
+        let output_plural = format_clean_summary(5, Some(1024 * 1024), &theme);
+        assert!(output_plural.contains("5 items removed"));
+        assert!(output_plural.contains("1.0 MB"));
+    }
+
+    #[test]
+    fn test_format_batch_summary() {
+        let theme = get_theme();
+
+        // Success only
+        let output_ok = format_batch_summary(10, 10, 0, &theme);
+        assert!(output_ok.contains("BATCH"));
+        assert!(output_ok.contains("DOWNLOAD SUMMARY"));
+        assert!(output_ok.contains("TOTAL:   10"));
+        assert!(output_ok.contains("QUEUED:  10"));
+        assert!(output_ok.contains("FAILURES: None"));
+
+        // With failures
+        let output_fail = format_batch_summary(10, 7, 3, &theme);
+        assert!(output_fail.contains("FAILED:  3"));
     }
 }
