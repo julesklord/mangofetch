@@ -1,4 +1,4 @@
-# 🥭 MangoFetch
+# 🥭 mangofetch
 
 **Brutally fast. Extensible. Pure Rust.**  
 *A high-performance, asynchronous download engine for the terminal.*
