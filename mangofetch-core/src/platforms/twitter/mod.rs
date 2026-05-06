@@ -48,9 +48,7 @@ impl Default for TwitterDownloader {
 impl TwitterDownloader {
     fn manual_cookie_string() -> Option<String> {
         let settings = crate::models::settings::AppSettings::load_from_disk();
-        let raw = settings
-            .advanced
-            .twitter_manual_cookie;
+        let raw = settings.advanced.twitter_manual_cookie;
         let trimmed = raw.trim();
         if trimmed.is_empty() {
             return None;
@@ -78,10 +76,7 @@ impl TwitterDownloader {
     }
 
     fn clone_media_array(value: &serde_json::Value) -> Option<Vec<serde_json::Value>> {
-        value
-            .as_array()
-            .filter(|items| !items.is_empty())
-            .cloned()
+        value.as_array().filter(|items| !items.is_empty()).cloned()
     }
 
     fn find_first_array_for_key(
@@ -117,7 +112,9 @@ impl TwitterDownloader {
         None
     }
 
-    fn media_arrays_from_tweet_result(tweet_result: &serde_json::Value) -> Option<Vec<serde_json::Value>> {
+    fn media_arrays_from_tweet_result(
+        tweet_result: &serde_json::Value,
+    ) -> Option<Vec<serde_json::Value>> {
         let candidate_paths = [
             "/legacy/extended_entities/media",
             "/tweet/legacy/extended_entities/media",
@@ -164,8 +161,14 @@ impl TwitterDownloader {
             return Some(TwitterMediaType::Video);
         }
 
-        if media_item.get("media_url_https").and_then(|v| v.as_str()).is_some()
-            || media_item.get("media_url").and_then(|v| v.as_str()).is_some()
+        if media_item
+            .get("media_url_https")
+            .and_then(|v| v.as_str())
+            .is_some()
+            || media_item
+                .get("media_url")
+                .and_then(|v| v.as_str())
+                .is_some()
         {
             return Some(TwitterMediaType::Photo);
         }
@@ -474,18 +477,25 @@ impl TwitterDownloader {
     fn extract_syndication_media(
         json: &serde_json::Value,
     ) -> anyhow::Result<Vec<serde_json::Value>> {
-        let typename = json.get("__typename").and_then(|v| v.as_str()).unwrap_or("");
+        let typename = json
+            .get("__typename")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if typename == "TweetTombstone" || typename == "TweetUnavailable" {
             tracing::warn!("[twitter] syndication tombstone typename={}", typename);
             return Err(anyhow!("Post not available"));
         }
 
-        let media = json.get("mediaDetails")
+        let media = json
+            .get("mediaDetails")
             .and_then(Self::clone_media_array)
             .or_else(|| Self::find_first_array_for_key(json, "mediaDetails"))
             .ok_or_else(|| anyhow!("No media found in tweet"))?;
 
-        tracing::debug!("[twitter] syndication extracted {} media entries", media.len());
+        tracing::debug!(
+            "[twitter] syndication extracted {} media entries",
+            media.len()
+        );
         Ok(media)
     }
 
@@ -562,37 +572,35 @@ impl TwitterDownloader {
     fn parse_media_items(media: &[serde_json::Value]) -> anyhow::Result<TwitterMedia> {
         let items: Vec<TwitterMediaItem> = media
             .iter()
-            .filter_map(|m| {
-                match Self::infer_media_type(m)? {
-                    TwitterMediaType::Photo => {
-                        let (url, ext) = Self::best_photo_url(m)?;
-                        Some(TwitterMediaItem {
-                            media_type: TwitterMediaType::Photo,
-                            url,
-                            extension: ext,
-                        })
-                    }
-                    TwitterMediaType::Video => {
-                        let url = Self::best_video_url(m)?;
-                        let extension = if url.contains(".m3u8") || url.contains("mpegurl") {
-                            "ytdlp"
-                        } else {
-                            "mp4"
-                        };
-                        Some(TwitterMediaItem {
-                            media_type: TwitterMediaType::Video,
-                            url,
-                            extension: extension.to_string(),
-                        })
-                    }
-                    TwitterMediaType::AnimatedGif => {
-                        let url = Self::best_video_url(m)?;
-                        Some(TwitterMediaItem {
-                            media_type: TwitterMediaType::AnimatedGif,
-                            url,
-                            extension: "mp4".to_string(),
-                        })
-                    }
+            .filter_map(|m| match Self::infer_media_type(m)? {
+                TwitterMediaType::Photo => {
+                    let (url, ext) = Self::best_photo_url(m)?;
+                    Some(TwitterMediaItem {
+                        media_type: TwitterMediaType::Photo,
+                        url,
+                        extension: ext,
+                    })
+                }
+                TwitterMediaType::Video => {
+                    let url = Self::best_video_url(m)?;
+                    let extension = if url.contains(".m3u8") || url.contains("mpegurl") {
+                        "ytdlp"
+                    } else {
+                        "mp4"
+                    };
+                    Some(TwitterMediaItem {
+                        media_type: TwitterMediaType::Video,
+                        url,
+                        extension: extension.to_string(),
+                    })
+                }
+                TwitterMediaType::AnimatedGif => {
+                    let url = Self::best_video_url(m)?;
+                    Some(TwitterMediaItem {
+                        media_type: TwitterMediaType::AnimatedGif,
+                        url,
+                        extension: "mp4".to_string(),
+                    })
                 }
             })
             .collect();
@@ -602,7 +610,11 @@ impl TwitterDownloader {
         }
 
         if items.len() == 1 {
-            Ok(TwitterMedia::Single(items.into_iter().next().unwrap()))
+            if let Some(item) = items.into_iter().next() {
+                Ok(TwitterMedia::Single(item))
+            } else {
+                Err(anyhow!("No media found in tweet"))
+            }
         } else {
             Ok(TwitterMedia::Multiple(items))
         }
@@ -616,7 +628,10 @@ impl TwitterDownloader {
         }
     }
 
-    fn media_info_from_twitter_media(filename_base: String, twitter_media: TwitterMedia) -> MediaInfo {
+    fn media_info_from_twitter_media(
+        filename_base: String,
+        twitter_media: TwitterMedia,
+    ) -> MediaInfo {
         match twitter_media {
             TwitterMedia::Single(item) => {
                 let media_type = Self::media_type_for_item(&item);
@@ -751,7 +766,10 @@ impl PlatformDownloader for TwitterDownloader {
         let count = info.available_qualities.len();
 
         if count == 1 {
-            let quality = info.available_qualities.first().unwrap();
+            let quality = info
+                .available_qualities
+                .first()
+                .ok_or_else(|| anyhow!("No available qualities found"))?;
             let filename = format!(
                 "{}.{}",
                 sanitize_filename::sanitize(&info.title),
@@ -829,7 +847,11 @@ impl TwitterDownloader {
     async fn native_get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let tweet_id =
             Self::extract_tweet_id(url).ok_or_else(|| anyhow!("Could not extract tweet ID"))?;
-        tracing::debug!("[twitter] native_get_media_info tweet_id={} url={}", tweet_id, url);
+        tracing::debug!(
+            "[twitter] native_get_media_info tweet_id={} url={}",
+            tweet_id,
+            url
+        );
 
         let filename_base = format!("twitter_{}", tweet_id);
 
@@ -848,7 +870,10 @@ impl TwitterDownloader {
 
         let twitter_media = Self::parse_media_items(&media_items)?;
 
-        Ok(Self::media_info_from_twitter_media(filename_base, twitter_media))
+        Ok(Self::media_info_from_twitter_media(
+            filename_base,
+            twitter_media,
+        ))
     }
 
     async fn try_graphql(&self, tweet_id: &str) -> anyhow::Result<Vec<serde_json::Value>> {
