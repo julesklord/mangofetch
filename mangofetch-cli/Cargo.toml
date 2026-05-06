@@ -16,7 +16,6 @@ path = "src/main.rs"
 
 [dependencies]
 mangofetch-core = { path = "../mangofetch-core", version = "0.3.1", features = [
-    "manager",
     "platforms",
 ] }
 clap = { version = "4.4", features = ["derive", "cargo"] }

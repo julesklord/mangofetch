@@ -14,10 +14,7 @@ categories = ["multimedia"]
 name = "mangofetch_core"
 
 [features]
-default = ["desktop"]
-desktop = []
-mobile = []
-manager = []
+default = ["platforms"]
 platforms = ["librqbit", "which"]
 
 [dependencies]
