@@ -14,7 +14,7 @@ Set Framerate 60
 Type "./target/release/mangofetch check"
 Sleep 500ms
 Enter
-Sleep 3s
+Sleep 7s
 
 # Clear for the main event
 Type "clear"
@@ -25,18 +25,18 @@ Sleep 1s
 Type "./target/release/mangofetch info https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 Sleep 1s
 Enter
-Sleep 4s
+Sleep 5s
 
 # Download (Simulated, we stop it or let it run a bit)
 Type "./target/release/mangofetch download https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 Sleep 1s
 Enter
-Sleep 10s
+Sleep 20s
 
 # Finish with a flourish
 Type "./target/release/mangofetch --help"
 Sleep 1s
 Enter
-Sleep 3s
+Sleep 6s
 
 Output demo.gif
