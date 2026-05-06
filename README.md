@@ -80,8 +80,9 @@ If you find a bug, open an issue. If you want to add a feature, open a PR. If yo
 ---
 | Version | Milestone |
 |---------|-----------|
-| **v0.2.0** | Standalone rewrite — GUI removed, core refactored ✅ |
+| **v0.3.1** | Rebranding cleanup and test fixes ✅ |
 | **v0.3.0** | Interactive TUI mode (`ratatui`) |
+| **v0.2.0** | Standalone rewrite — GUI removed, core refactored ✅ |
 | **v0.4.0** | Plugin system |
 | **v0.5.0** | P2P file sharing |
 

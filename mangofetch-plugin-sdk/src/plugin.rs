@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::host::PluginHost;
 
-pub trait OmnigetPlugin: Send + Sync {
+pub trait MangoFetchPlugin: Send + Sync {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
     fn version(&self) -> &str;
@@ -24,12 +24,12 @@ pub trait OmnigetPlugin: Send + Sync {
 macro_rules! export_plugin {
     ($constructor:expr) => {
         #[no_mangle]
-        pub extern "C" fn omniget_plugin_abi_version() -> u32 {
+        pub extern "C" fn mangofetch_plugin_abi_version() -> u32 {
             $crate::ABI_VERSION
         }
 
         #[no_mangle]
-        pub extern "C" fn omniget_plugin_init() -> *mut dyn $crate::OmnigetPlugin {
+        pub extern "C" fn mangofetch_plugin_init() -> *mut dyn $crate::MangoFetchPlugin {
             let plugin = $constructor;
             Box::into_raw(Box::new(plugin))
         }

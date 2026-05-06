@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-plugin-sdk"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "SDK for building MangoFetch plugins"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]

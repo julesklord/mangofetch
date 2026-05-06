@@ -7,9 +7,8 @@ High-signal guidance for working in the MangoFetch codebase.
 - **Crate Split:**
   - `mangofetch-core`: UI-agnostic engine (queue, logic, platform downloaders). **Primary target for business logic.**
   - `mangofetch-cli`: `clap`-based binary using the core.
-  - `mangofetch` (GUI): Tauri application. Frontend in SvelteKit (root folder), Backend in `src-tauri/src`.
   - `mangofetch-plugin-sdk`: SDK for extending download capabilities.
-- **Shared Logic:** Never duplicate logic between CLI and GUI. Always move shared behaviors to `mangofetch-core`.
+- **Shared Logic:** The CLI uses `mangofetch-core` for all heavy lifting. Keep it that way.
 - **Portable Mode:** The app looks for `portable.txt` or `.portable` next to the executable to redirect data to a local `data` folder.
 
 ## 🛠 Developer Workflow
@@ -23,13 +22,11 @@ High-signal guidance for working in the MangoFetch codebase.
 ### Key Commands
 
 - **CLI Development:** `cargo run` from root (defaults to `mangofetch-cli`).
-- **GUI Development:** `pnpm tauri dev`.
 - **Core Tests:** `cargo test -p mangofetch-core`.
 - **CLI Tests:** `cargo test -p mangofetch-cli`.
 
 - **Linter:** `cargo clippy`.
 - **Formatter:** `cargo fmt`.
-- **Svelte Check:** `pnpm check`.
 
 ## ⚠️ Gotchas & Constraints
 
@@ -40,6 +37,6 @@ High-signal guidance for working in the MangoFetch codebase.
 
 ## 🧪 Testing
 
-- **Integration Tests:** Located in `src-tauri/mangofetch-core/tests/queue_tests.rs`.
+- **Integration Tests:** Located in `mangofetch-core/tests/queue_tests.rs`.
 - **Running Single Test:** `cargo test -p mangofetch-core --test queue_tests <test_name>`.
 - **Mocking:** Be careful with tests that require actual media binaries; prefer unit tests for logic in `mangofetch-core`.

@@ -9,7 +9,7 @@ pub struct PluginManifest {
     pub description: String,
     pub author: String,
     #[serde(default)]
-    pub min_omniget_version: Option<String>,
+    pub min_mangofetch_version: Option<String>,
     #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]

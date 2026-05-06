@@ -17,7 +17,7 @@ use crate::platforms::traits::PlatformDownloader;
 const CHUNK_SIZE: usize = 64 * 1024;
 
 fn relay_addr() -> String {
-    std::env::var("OMNIGET_RELAY").unwrap_or_else(|_| "relay.tonho.wtf:9009".to_string())
+    std::env::var("MANGOFETCH_RELAY").unwrap_or_else(|_| "relay.tonho.wtf:9009".to_string())
 }
 
 async fn connect_relay() -> anyhow::Result<TcpStream> {

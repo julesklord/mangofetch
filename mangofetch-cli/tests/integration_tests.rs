@@ -1,7 +1,7 @@
 // tests/integration_tests.rs
 // ============================================================================
-// Integration tests for OmniGet CLI UI redesign
-// Location: src-tauri/omniget-cli/tests/integration_tests.rs
+// Integration tests for MangoFetch CLI UI redesign
+// Location: mangofetch-cli/tests/integration_tests.rs
 // ============================================================================
 
 #[cfg(test)]

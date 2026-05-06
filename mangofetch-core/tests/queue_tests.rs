@@ -1,11 +1,11 @@
-use omniget_core::core::manager::queue::{DownloadQueue, QueueItem};
-use omniget_core::models::queue::{QueueStatus, QueueItemInfo};
-use omniget_core::core::traits::DownloadReporter;
+use mangofetch_core::core::manager::queue::{DownloadQueue, QueueItem};
+use mangofetch_core::models::queue::{QueueStatus, QueueItemInfo};
+use mangofetch_core::core::traits::DownloadReporter;
 use std::sync::Arc;
 
 struct MockReporter;
 impl DownloadReporter for MockReporter {
-    fn on_progress(&self, _id: u64, _progress: omniget_core::core::events::QueueItemProgress) {}
+    fn on_progress(&self, _id: u64, _progress: mangofetch_core::core::events::QueueItemProgress) {}
     fn on_complete(&self, _id: u64, _file_path: Option<String>, _file_size_bytes: Option<u64>) {}
     fn on_error(&self, _id: u64, _error_message: String) {}
     fn on_retry(&self, _id: u64, _attempt: u32, _delay_ms: u64) {}
@@ -23,28 +23,28 @@ fn test_queue_lifecycle() {
     // Mock downloader
     struct MockDownloader;
     #[async_trait::async_trait]
-    impl omniget_core::platforms::traits::PlatformDownloader for MockDownloader {
+    impl mangofetch_core::platforms::traits::PlatformDownloader for MockDownloader {
         fn name(&self) -> &str { "mock" }
         fn can_handle(&self, _url: &str) -> bool { true }
-        async fn get_media_info(&self, _url: &str) -> anyhow::Result<omniget_core::models::media::MediaInfo> {
-            Ok(omniget_core::models::media::MediaInfo {
+        async fn get_media_info(&self, _url: &str) -> anyhow::Result<mangofetch_core::models::media::MediaInfo> {
+            Ok(mangofetch_core::models::media::MediaInfo {
                 title: "mock".into(),
                 author: "mock".into(),
                 platform: "mock".into(),
                 duration_seconds: None,
                 thumbnail_url: None,
                 available_qualities: vec![],
-                media_type: omniget_core::models::media::MediaType::Video,
+                media_type: mangofetch_core::models::media::MediaType::Video,
                 file_size_bytes: None,
             })
         }
         async fn download(
             &self, 
-            _info: &omniget_core::models::media::MediaInfo, 
-            _opts: &omniget_core::models::media::DownloadOptions, 
+            _info: &mangofetch_core::models::media::MediaInfo, 
+            _opts: &mangofetch_core::models::media::DownloadOptions, 
             _tx: tokio::sync::mpsc::Sender<f64>
-        ) -> anyhow::Result<omniget_core::models::media::DownloadResult> {
-             Ok(omniget_core::models::media::DownloadResult {
+        ) -> anyhow::Result<mangofetch_core::models::media::DownloadResult> {
+             Ok(mangofetch_core::models::media::DownloadResult {
                 file_path: std::path::PathBuf::from("test"),
                 file_size_bytes: 0,
                 duration_seconds: 0.0,
