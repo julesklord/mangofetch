@@ -1,7 +1,7 @@
 # 🥭 MangoFetch
 
 **Brutally fast. Extensible. Pure Rust.**  
-*The download engine the terminal deserves.*
+*A high-performance, asynchronous download engine for the terminal.*
 
 ---
 
@@ -10,94 +10,157 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/julesklord/mangofetch-cli/releases/latest"><img src="https://img.shields.io/github/v/release/julesklord/mangofetch-cli?style=for-the-badge&color=orange&label=vibe" alt="Latest Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-black?style=for-the-badge" alt="License GPL-3.0" /></a>
-  <img src="https://img.shields.io/badge/Built%20With-Rust-red?style=for-the-badge&logo=rust" alt="Built with Rust" />
-  <img src="https://img.shields.io/badge/Vibe-Brutalist-white?style=for-the-badge" alt="Vibe: Brutalist" />
+  <a href="https://crates.io/crates/mangofetch-cli"><img src="https://img.shields.io/crates/v/mangofetch-cli?style=plastic&color=orange" alt="Crates.io" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=plastic" alt="License GPL-3.0" /></a>
+  <img src="https://img.shields.io/badge/Built%20With-Rust-red?style=plastic&logo=rust" alt="Built with Rust" />
+  <img src="https://img.shields.io/badge/Architecture-Asynchronous-brightgreen?style=plastic" alt="Async" />
+  <img src="https://img.shields.io/badge/Concurrency-Tokio-purple?style=plastic" alt="Tokio" />
 </p>
 
-## Why MangoFetch?
+## Overview
 
-Most downloaders are either too bloated or too fragile. **MangoFetch** is neither. It's a high-performance download engine wrapped in a minimalist, brutalist terminal interface. 
+**MangoFetch** is a highly concurrent, memory-safe media download engine. It eschews bloated graphical interfaces in favor of a raw, low-latency command-line interface. Built on top of **Tokio** and **Reqwest**, it is designed to maximize network throughput and handle massive archival batches without blocking the main thread.
 
-Built with **Tokio** for high-concurrency and **Reqwest** for rock-solid networking, it handles everything from a single YouTube short to massive batch archival tasks without breaking a sweat.
+> **Lineage and Credit:** MangoFetch is an independent, terminal-focused evolution of the [**OmniGet**](https://github.com/tonhowtf/omniget) project by tonhowft. While MangoFetch has been heavily refactored and optimized for pure CLI usage and extreme performance, the robust underlying core engine owes its existence to the brilliant foundational work done in OmniGet.
 
-### The Good Stuff:
-- **🚀 Zero Bloat:** Instant startup, minimal memory footprint.
-- **⚡ Async Everything:** Powered by Rust's async runtime.
-- **🛠️ Self-Healing:** Automatically manages `yt-dlp` and `ffmpeg` dependencies.
-- **🎨 Brutalist UI:** Information-dense, distraction-free progress tracking.
-- **📦 Platform Agnostic:** 1000+ sites supported via the core engine + native extractors for the big players.
-- **🔌 SDK Ready:** Extend it with your own Rust plugins.
+---
+
+## 🏗️ Technical Architecture
+
+MangoFetch is organized as a modular workspace, ensuring strict separation of concerns. This allows the core engine to be portable and highly testable, while the CLI remains a thin rendering layer.
+
+```mermaid
+graph TD
+    User([Terminal User]) -->|CLI Commands| CLI(mangofetch-cli)
+    
+    subgraph MangoFetch Workspace
+        CLI -->|Dispatch & Render| Core(mangofetch-core)
+        
+        subgraph Core Engine
+            Core --> Queue[Async Download Queue]
+            Core --> Registry[Platform Registry]
+            Queue --> IO[Tokio Async I/O]
+            Registry --> Ext_Native[Native Extractors]
+            Registry --> Ext_Generic[Generic Extractor]
+        end
+        
+        CLI -.->|Dynamic Linking| SDK(mangofetch-plugin-sdk)
+    end
+    
+    Ext_Generic -->|Wraps| YTDLP[yt-dlp Binary]
+    Ext_Native -->|Muxes Audio/Video| FFmpeg[FFmpeg Binary]
+    YTDLP -.-> Network((Internet))
+    IO -.-> Network
+    IO --> Disk[(Local Storage)]
+```
+
+### Components
+
+- **`mangofetch-core`**: The UI-agnostic engine. It manages the asynchronous download queue, handles connection pooling, and contains the platform-specific extractors (native parsers for YouTube, Instagram, TikTok, etc.). It intelligently wraps `yt-dlp` and `ffmpeg` for complex media streams, automatically provisioning these binaries if they are missing.
+- **`mangofetch-cli`**: A lightweight frontend built with `clap`. It acts as a thin dispatcher that consumes the core library, rendering real-time progress via a brutalist, information-dense ANSI interface.
+- **`mangofetch-plugin-sdk`**: A robust FFI-compatible SDK designed for extending MangoFetch's capabilities dynamically via shared libraries (`.so` / `.dll`).
+
+---
+
+## ⚙️ The Core Engine Lifecycle
+
+The `mangofetch-core` queue is fault-tolerant. If a single item in a 1,000-item batch fails, the queue continues processing, aggregating failures for the final summary.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued : User Submits URL
+    Queued --> FetchingMetadata : Worker Thread Picks Item
+    FetchingMetadata --> Active : Media Info Resolved
+    FetchingMetadata --> Error : Network/Parse Failure
+    
+    state Active {
+        [*] --> Allocating
+        Allocating --> Downloading : Progress Stream via MPSC
+        Downloading --> Muxing : Audio+Video Merge (FFmpeg)
+        Muxing --> [*]
+    }
+    
+    Active --> Complete : Success
+    Active --> Error : Interruption / Connection Drop
+    Error --> Queued : Retry Logic Triggered
+    Complete --> [*]
+```
+
+### Key Engineering Features:
+
+- **Asynchronous I/O Pipeline:** Utilizing `tokio::sync::mpsc` channels for non-blocking progress reporting. The UI thread is completely decoupled from the I/O threads.
+- **Self-Healing Dependencies:** Automatic resolution, downloading, and path-linking of external binaries (`ffmpeg`, `yt-dlp`). The user never has to touch their `$PATH`.
+- **Intelligent Parsers:** The Platform Registry attempts to natively parse media (saving overhead) before falling back to generic extractors.
+
+---
+
+## 🕹️ Command Reference
+
+MangoFetch is designed for speed. While the full `mangofetch` commands provide clarity, an upcoming release will introduce the `mango` binary and ultra-short aliases for power users.
+
+| Full Command | Short Alias *(Upcoming)* | Description |
+| :--- | :--- | :--- |
+| `mangofetch download <url>` | `mango d <url>` | Single file download and extraction. |
+| `mangofetch download-multiple <file>` | `mango dm <file>` | Batch archival from a text file (supports concurrency). |
+| `mangofetch info <url>` | `mango i <url>` | Inspect media metadata without touching disk. |
+| `mangofetch list` | `mango ls` | View current queue and historical download status. |
+| `mangofetch clean` | `mango c` | Clear download history and purge cache. |
+| `mangofetch config` | `mango cfg` | Manage application settings (connections, paths). |
+| `mangofetch check` | `mango ch` | Verify system dependencies (`yt-dlp`, `ffmpeg`). |
+| `mangofetch update` | `mango up` | Update internal dependency binaries to latest versions. |
+| `mangofetch logs` | `mango log` | Tail raw application logs for debugging. |
+| `mangofetch about` | `mango a` | Display version, license, and lineage information. |
+
+---
 
 ## 🛠️ Installation
 
-### The Fast Way (Cargo)
-```bash
+### Via Cargo (Recommended)
+
+The fastest way to install the CLI directly to your system path:
+
+```zsh
 cargo install mangofetch-cli
 ```
 
-### The "I want to touch the code" Way
-```bash
+### From Source
+
+For developers who want the absolute bleeding edge or wish to modify the core:
+
+```zsh
 git clone https://github.com/julesklord/mangofetch-cli.git
 cd mangofetch-cli
 cargo build --release
-# Binary at: target/release/mangofetch
+# The compiled binary will be available at: target/release/mangofetch
 ```
-
-## 🕹️ Quick Start
-
-```bash
-# Just get the video
-mangofetch download "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-
-# Peek at the metadata first
-mangofetch info "https://www.instagram.com/p/..."
-
-# Archival mode: Download everything from a file
-mangofetch download-multiple links.txt --concurrent 5
-
-# Check if you're ready to go
-mangofetch check
-```
-
-## 🗺️ Roadmap & Vibe
-
-| Status | Feature |
-| :--- | :--- |
-| ✅ | **Core Engine** (Concurrent Queues, Persistence) |
-| ✅ | **Native Extractors** (YT, IG, TikTok, X, etc.) |
-| ✅ | **Dependency Manager** (Auto-fetch yt-dlp/ffmpeg) |
-| 🚧 | **TUI Dashboard** (Full screen monitoring) |
-| 🚧 | **Plugin Store** (Community driven extractors) |
-
-## 🤝 Support & Contribution
-
-If you find a bug, open an issue. If you want to add a feature, open a PR. If you like the project, give it a star. 
-
-**Let's build the best downloader for the terminal.**
 
 ---
-| Version | Milestone |
-|---------|-----------|
-| **v0.3.1** | Rebranding cleanup and test fixes ✅ |
-| **v0.3.0** | Interactive TUI mode (`ratatui`) |
-| **v0.2.0** | Standalone rewrite — GUI removed, core refactored ✅ |
-| **v0.4.0** | Plugin system |
-| **v0.5.0** | P2P file sharing |
 
-## Related projects
+## 🗺️ Roadmap & Milestones
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — Media extraction engine
-- [omniget (tonhowft)](https://github.com/tonhowtf/omniget) — omniget - the original project who provides the core. 
+| Version | Status | Milestone |
+|---------|--------|-----------|
+| **v0.1.0** | ✅ | Initial release and architecture setup |
+| **v0.2.0** | ✅ | Standalone rewrite — GUI removed, core refactored |
+| **v0.3.1** | ✅ | Rebranding cleanup, test fixes, and documentation overhaul |
+| **v0.3.x** | 🚧 | Short aliases (`mango d`) and Interactive TUI mode (`ratatui`) |
+| **v0.4.0** | ⏳ | Plugin management and community extractors via SDK |
+| **v0.5.0** | ⏳ | Decentralized P2P file sharing implementation |
 
+---
+
+## 🤝 Acknowledgments
+
+- **[OmniGet](https://github.com/tonhowtf/omniget)** — The absolute backbone of this project. A huge shoutout to *tonhowft* for architecting the original extraction logic and queue engine that MangoFetch builds upon.
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The incredible extraction engine handling the heavy lifting for over a thousand unsupported platforms.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Pull requests are fiercely welcomed. For major architectural changes, please open an issue first to discuss your approach. See `CONTRIBUTING.md` for guidelines.
 
-## License
+## License 
 
 <p align="center">
-  Built with 🦀 and 🥭 by <a href="https://github.com/julesklord">Jules Martins</a>
+  Built with 🦀 and 🥭 by <a href="https://github.com/julesklord">Jules Martins</a>.<br>
+  Licensed under the GPL-3.0 License.
 </p>
