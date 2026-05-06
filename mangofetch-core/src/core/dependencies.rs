@@ -248,7 +248,12 @@ pub async fn ensure_ffmpeg(
     // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
         let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
-        if managed.as_ref().map_or(true, |p| !p.exists()) {
+        let exists = if let Some(ref p) = managed {
+            tokio::fs::metadata(p).await.is_ok()
+        } else {
+            false
+        };
+        if !exists {
             if let Ok(path) = download_ffmpeg(reporter).await {
                 crate::core::ytdlp::reset_ffmpeg_location_cache();
                 return Ok(path);
@@ -271,7 +276,7 @@ async fn download_ffmpeg(
     reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let ffmpeg_name = bin_name("ffmpeg");
     let ffprobe_name = bin_name("ffprobe");
@@ -289,15 +294,11 @@ async fn download_ffmpeg(
         .await?;
 
         let temp_path = bin_dir.join(".ffmpeg_download.tmp");
-        let data = bytes.to_vec();
-        let temp_clone = temp_path.clone();
-        tokio::task::spawn_blocking(move || std::fs::write(&temp_clone, &data))
-            .await
-            .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
+        tokio::fs::write(&temp_path, &bytes).await?;
 
-        let file_size = std::fs::metadata(&temp_path)?.len();
+        let file_size = tokio::fs::metadata(&temp_path).await?.len();
         if file_size < 1_000_000 {
-            let _ = std::fs::remove_file(&temp_path);
+            let _ = tokio::fs::remove_file(&temp_path).await;
             return Err(anyhow!(
                 "Downloaded file from {} is too small ({}B) — likely an error page",
                 url,
@@ -314,17 +315,17 @@ async fn download_ffmpeg(
             }
         }
 
-        let _ = std::fs::remove_file(&temp_path);
+        let _ = tokio::fs::remove_file(&temp_path).await;
     }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
-        let _ = std::fs::set_permissions(&ffmpeg_target, perms.clone());
+        let _ = tokio::fs::set_permissions(&ffmpeg_target, perms.clone()).await;
         let ffprobe_path = bin_dir.join(&ffprobe_name);
-        if ffprobe_path.exists() {
-            let _ = std::fs::set_permissions(&ffprobe_path, perms);
+        if tokio::fs::metadata(&ffprobe_path).await.is_ok() {
+            let _ = tokio::fs::set_permissions(&ffprobe_path, perms).await;
         }
     }
 
@@ -344,7 +345,7 @@ async fn download_ffmpeg(
             tracing::warn!("Failed to remove quarantine from ffmpeg: {}", e);
         }
         let ffprobe_path = bin_dir.join(&ffprobe_name);
-        if ffprobe_path.exists() {
+        if tokio::fs::metadata(&ffprobe_path).await.is_ok() {
             let ffprobe_mac = ffprobe_path.clone();
             if let Err(e) = tokio::task::spawn_blocking(move || {
                 crate::core::process::std_command("xattr")
@@ -361,7 +362,7 @@ async fn download_ffmpeg(
         }
     }
 
-    if !ffmpeg_target.exists() {
+    if tokio::fs::metadata(&ffmpeg_target).await.is_err() {
         return Err(anyhow!("FFmpeg binary not found after extraction"));
     }
 
@@ -558,12 +559,12 @@ async fn download_deno(
     reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let deno_name = bin_name("deno");
     let deno_target = bin_dir.join(&deno_name);
 
-    if deno_target.exists() {
+    if tokio::fs::metadata(&deno_target).await.is_ok() {
         return Ok(deno_target);
     }
 
@@ -618,14 +619,14 @@ async fn download_deno(
     .await
     .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
 
-    if !deno_target.exists() {
+    if tokio::fs::metadata(&deno_target).await.is_err() {
         return Err(anyhow!("Deno binary not found after extraction"));
     }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&deno_target, std::fs::Permissions::from_mode(0o755));
+        let _ = tokio::fs::set_permissions(&deno_target, std::fs::Permissions::from_mode(0o755)).await;
     }
 
     #[cfg(target_os = "macos")]
@@ -670,7 +671,7 @@ async fn download_aria2c(
     reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let aria2c_name = bin_name("aria2c");
     let aria2c_target = bin_dir.join(&aria2c_name);
@@ -713,7 +714,7 @@ async fn download_aria2c(
     .await
     .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
 
-    if !aria2c_target.exists() {
+    if tokio::fs::metadata(&aria2c_target).await.is_err() {
         return Err(anyhow!("aria2c binary not found after extraction"));
     }
 
