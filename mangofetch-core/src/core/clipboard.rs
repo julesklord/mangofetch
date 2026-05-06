@@ -37,7 +37,12 @@ async fn copy_file_macos(path: &str) -> anyhow::Result<()> {
         crate::core::process::std_command("osascript")
             .args([
                 "-e",
-                &format!("set the clipboard to POSIX file \"{}\"", path),
+                "on run argv",
+                "-e",
+                "set the clipboard to POSIX file (item 1 of argv)",
+                "-e",
+                "end run",
+                &path,
             ])
             .output()
     })
