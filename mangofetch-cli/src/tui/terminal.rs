@@ -1,9 +1,9 @@
-use std::io::{self, Stdout};
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
+use std::io::{self, Stdout};
 
 pub struct TerminalHandler {
     terminal: Terminal<CrosstermBackend<Stdout>>,
