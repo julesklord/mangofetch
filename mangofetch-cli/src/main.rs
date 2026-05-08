@@ -1,6 +1,8 @@
 mod formatting;
 mod output;
 mod reporter; // NEW: Import output formatters module
+mod tui; // NEW: Terminal User Interface module
+mod engine; // Shared download engine logic
 
 use crate::output::{
     format_about_changelog, format_about_info, format_about_roadmap, format_about_terms,
@@ -138,6 +140,9 @@ enum Commands {
         #[command(subcommand)]
         topic: Option<AboutTopic>,
     },
+
+    /// Launch the interactive Terminal User Interface (TUI)
+    Tui,
 }
 
 #[derive(Subcommand)]
@@ -185,7 +190,8 @@ async fn main() -> Result<()> {
     let reporter = Arc::new(CLIReporter::with_theme(theme.clone()));
 
     let mut registry = PlatformRegistry::new();
-    register_platforms(&mut registry);
+    engine::register_platforms(&mut registry);
+    let registry = Arc::new(registry);
 
     let queue = Arc::new(tokio::sync::Mutex::new(DownloadQueue::new(
         3,
@@ -583,6 +589,10 @@ async fn main() -> Result<()> {
                 }
             }
         }
+
+        Commands::Tui => {
+            tui::run(queue.clone(), registry.clone()).await?;
+        }
     }
 
     Ok(())
@@ -591,24 +601,6 @@ async fn main() -> Result<()> {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-
-fn register_platforms(registry: &mut PlatformRegistry) {
-    use mangofetch_core::platforms::*;
-    registry.register(Arc::new(instagram::InstagramDownloader::new()));
-    registry.register(Arc::new(pinterest::PinterestDownloader::new()));
-    registry.register(Arc::new(tiktok::TikTokDownloader::new()));
-    registry.register(Arc::new(twitter::TwitterDownloader::new()));
-    registry.register(Arc::new(twitch::TwitchClipsDownloader::new()));
-    registry.register(Arc::new(bluesky::BlueskyDownloader::new()));
-    registry.register(Arc::new(reddit::RedditDownloader::new()));
-    registry.register(Arc::new(youtube::YouTubeDownloader::new()));
-    registry.register(Arc::new(vimeo::VimeoDownloader::new()));
-    registry.register(Arc::new(bilibili::BilibiliDownloader::new()));
-    let torrent_session = Arc::new(tokio::sync::Mutex::new(None));
-    registry.register(Arc::new(magnet::MagnetDownloader::new(torrent_session)));
-    registry.register(Arc::new(p2p::P2pDownloader::new()));
-    registry.register(Arc::new(generic_ytdlp::GenericYtdlpDownloader::new()));
-}
 
 async fn perform_download(
     url: &str,
