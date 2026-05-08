@@ -88,43 +88,41 @@ async fn handle_add_url_mode(app: &mut App, key: crossterm::event::KeyEvent) {
     match key.code {
         KeyCode::Esc => app.close_add_modal(),
         KeyCode::Tab => app.add_modal_next_field(),
-        KeyCode::Enter => {
-            if !app.url_input.is_empty() {
-                let url = app.url_input.clone();
-                let quality = if app.quality_input.is_empty() {
-                    None
+        KeyCode::Enter if !app.url_input.is_empty() => {
+            let url = app.url_input.clone();
+            let quality = if app.quality_input.is_empty() {
+                None
+            } else {
+                Some(app.quality_input.clone())
+            };
+            let queue = app.queue.clone();
+            let registry = app.registry.clone();
+            app.set_status(format!("Queueing: {}", &url));
+            app.push_log(format!(
+                "[{}] Added: {}",
+                chrono::Local::now().format("%H:%M:%S"),
+                &url
+            ));
+            app.close_add_modal();
+            tokio::spawn(async move {
+                let _ = crate::engine::enqueue_download_with_quality(
+                    &url, None, quality, registry, queue,
+                )
+                .await;
+            });
+        }
+        KeyCode::Char('v') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            if let Ok(clip) = cli_clipboard::get_contents() {
+                let clip = clip.trim().to_string();
+                if app.add_modal_field == 0 {
+                    app.url_input = clip;
                 } else {
-                    Some(app.quality_input.clone())
-                };
-                let queue = app.queue.clone();
-                let registry = app.registry.clone();
-                app.set_status(format!("Queueing: {}", &url));
-                app.push_log(format!(
-                    "[{}] Added: {}",
-                    chrono::Local::now().format("%H:%M:%S"),
-                    &url
-                ));
-                app.close_add_modal();
-                tokio::spawn(async move {
-                    let _ = crate::engine::enqueue_download_with_quality(
-                        &url, None, quality, registry, queue,
-                    )
-                    .await;
-                });
+                    app.quality_input = clip;
+                }
             }
         }
         KeyCode::Char(c) => {
-            if key.modifiers.contains(KeyModifiers::CONTROL) && c == 'v' {
-                // Paste from clipboard if available
-                if let Ok(clip) = cli_clipboard::get_contents() {
-                    let clip = clip.trim().to_string();
-                    if app.add_modal_field == 0 {
-                        app.url_input = clip;
-                    } else {
-                        app.quality_input = clip;
-                    }
-                }
-            } else if app.add_modal_field == 0 {
+            if app.add_modal_field == 0 {
                 app.url_input.push(c);
             } else {
                 app.quality_input.push(c);
@@ -214,17 +212,13 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
         }
 
         // Actions
-        KeyCode::Enter => {
-            if app.active_tab == Tab::Settings {
-                app.toggle_setting();
-            }
+        KeyCode::Enter if app.active_tab == Tab::Settings => {
+            app.toggle_setting();
         }
         KeyCode::Char('p') => app.pause_selected().await,
         KeyCode::Char('r') => app.resume_selected().await,
-        KeyCode::Char('x') | KeyCode::Delete => {
-            if app.table_state.selected().is_some() {
-                app.mode = Mode::ConfirmDelete;
-            }
+        KeyCode::Char('x') | KeyCode::Delete if app.table_state.selected().is_some() => {
+            app.mode = Mode::ConfirmDelete;
         }
 
         _ => {}

@@ -68,7 +68,7 @@ pub fn format_queue_list(
         bar = "—".repeat(50),
     );
 
-    for (_idx, (id, title, platform, status, progress)) in items.iter().enumerate() {
+    for (id, title, platform, status, progress) in items.iter() {
         let status_icon = match status.as_str() {
             s if s.contains("Active") => ">>",
             s if s.contains("Queued") => "○ ",
@@ -198,7 +198,7 @@ fn format_json_pretty(
                 let comma = if i < arr.len() - 1 { "," } else { "" };
                 result.push_str(margin);
                 result.push_str(&next_indent);
-                result.push_str(&format_json_pretty(item, theme, indent + 1).trim_start());
+                result.push_str(format_json_pretty(item, theme, indent + 1).trim_start());
                 if !comma.is_empty() {
                     result.push(',');
                 }

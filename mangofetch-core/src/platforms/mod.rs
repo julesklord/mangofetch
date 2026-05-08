@@ -1,9 +1,21 @@
 pub mod traits;
 
 #[cfg(feature = "platforms")]
+pub mod bilibili;
+#[cfg(feature = "platforms")]
+pub mod bluesky;
+#[cfg(feature = "platforms")]
+pub mod generic_ytdlp;
+#[cfg(feature = "platforms")]
 pub mod instagram;
 #[cfg(feature = "platforms")]
+pub mod magnet;
+#[cfg(feature = "platforms")]
+pub mod p2p;
+#[cfg(feature = "platforms")]
 pub mod pinterest;
+#[cfg(feature = "platforms")]
+pub mod reddit;
 #[cfg(feature = "platforms")]
 pub mod tiktok;
 #[cfg(feature = "platforms")]
@@ -11,21 +23,9 @@ pub mod twitch;
 #[cfg(feature = "platforms")]
 pub mod twitter;
 #[cfg(feature = "platforms")]
-pub mod bilibili;
-#[cfg(feature = "platforms")]
-pub mod generic_ytdlp;
-#[cfg(feature = "platforms")]
-pub mod reddit;
-#[cfg(feature = "platforms")]
 pub mod vimeo;
 #[cfg(feature = "platforms")]
 pub mod youtube;
-#[cfg(feature = "platforms")]
-pub mod magnet;
-#[cfg(feature = "platforms")]
-pub mod p2p;
-#[cfg(feature = "platforms")]
-pub mod bluesky;
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

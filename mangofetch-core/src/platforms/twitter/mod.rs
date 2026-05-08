@@ -539,7 +539,7 @@ impl TwitterDownloader {
             .ok()
             .and_then(|u| {
                 u.path_segments()
-                    .and_then(|segments| segments.last().map(|s| s.to_string()))
+                    .and_then(|mut segments| segments.next_back().map(|s| s.to_string()))
             })
             .and_then(|filename| filename.rsplit('.').next().map(|ext| ext.to_string()))
             .filter(|ext| !ext.is_empty())

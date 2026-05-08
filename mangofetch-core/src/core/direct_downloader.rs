@@ -75,7 +75,7 @@ pub async fn download_direct_with_headers(
             Ok(bytes) => return Ok(bytes),
             Err(e) => {
                 if is_fatal_error(&e) {
-                    let _ = std::fs::remove_file(&part_path_for(output));
+                    let _ = std::fs::remove_file(part_path_for(output));
                     return Err(e);
                 }
                 tracing::warn!(
@@ -89,7 +89,7 @@ pub async fn download_direct_with_headers(
         }
     }
 
-    let _ = std::fs::remove_file(&part_path_for(output));
+    let _ = std::fs::remove_file(part_path_for(output));
     Err(last_err.unwrap_or_else(|| anyhow!("Download failed after {} attempts", MAX_RETRIES)))
 }
 
@@ -634,6 +634,6 @@ mod tests {
 
     #[test]
     fn threshold_gte_chunk_size() {
-        assert!(CHUNK_THRESHOLD >= CHUNK_SIZE);
+        const { assert!(CHUNK_THRESHOLD >= CHUNK_SIZE) };
     }
 }

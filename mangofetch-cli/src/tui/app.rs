@@ -1,4 +1,5 @@
 use super::themes::Theme;
+use super::tui_reporter::LogSink;
 use chrono::Local;
 use mangofetch_core::core::manager::queue::DownloadQueue;
 use mangofetch_core::core::registry::PlatformRegistry;
@@ -117,6 +118,13 @@ pub struct App {
     pub log_lines: Vec<String>,
     pub log_scroll: usize,
 
+    /// Ring-buffer for the bottom output panel (reporter events)
+    pub output_lines: Vec<String>,
+    pub output_scroll: usize,
+
+    /// Shared log sink from the TuiReporter
+    log_sink: LogSink,
+
     /// Aggregate stats refreshed each tick
     pub total_speed: f64,
     pub active_count: usize,
@@ -126,7 +134,11 @@ pub struct App {
 // ── App impl ──────────────────────────────────────────────────────────────────
 
 impl App {
-    pub fn new(queue: Arc<Mutex<DownloadQueue>>, registry: Arc<PlatformRegistry>) -> Self {
+    pub fn new(
+        queue: Arc<Mutex<DownloadQueue>>,
+        registry: Arc<PlatformRegistry>,
+        log_sink: LogSink,
+    ) -> Self {
         let settings = AppSettings::load_from_disk();
         let theme = Self::make_theme(&settings.appearance.tui_theme);
 
@@ -155,6 +167,9 @@ impl App {
             message_time: None,
             log_lines: Vec::new(),
             log_scroll: 0,
+            output_lines: Vec::new(),
+            output_scroll: 0,
+            log_sink,
             total_speed: 0.0,
             active_count: 0,
             queued_count: 0,
@@ -201,6 +216,26 @@ impl App {
         }
         // Auto-scroll to bottom
         self.log_scroll = self.log_lines.len().saturating_sub(1);
+    }
+
+    /// Drain any pending lines from the TuiReporter into output_lines.
+    pub fn drain_reporter_logs(&mut self) {
+        if let Ok(mut sink) = self.log_sink.lock() {
+            for line in sink.drain(..) {
+                // Mirror into log_lines for the Logs tab too
+                self.log_lines.push(line.clone());
+                self.output_lines.push(line);
+            }
+        }
+        // Cap sizes
+        if self.log_lines.len() > 1000 {
+            self.log_lines.drain(0..200);
+        }
+        if self.output_lines.len() > 500 {
+            self.output_lines.drain(0..100);
+        }
+        // Auto-scroll output to bottom
+        self.output_scroll = self.output_lines.len().saturating_sub(1);
     }
 
     // ── Help toggle ───────────────────────────────────────────────────────────

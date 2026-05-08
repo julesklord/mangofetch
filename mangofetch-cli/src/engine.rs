@@ -1,9 +1,9 @@
-use mangofetch_core::core::registry::PlatformRegistry;
-use mangofetch_core::core::manager::queue::DownloadQueue;
+use anyhow::Result;
 use mangofetch_core::core::dependencies::ensure_dependencies;
+use mangofetch_core::core::manager::queue::DownloadQueue;
+use mangofetch_core::core::registry::PlatformRegistry;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use anyhow::Result;
 
 pub fn register_platforms(registry: &mut PlatformRegistry) {
     use mangofetch_core::platforms::*;
@@ -52,8 +52,7 @@ pub async fn enqueue_download_with_quality(
     .await
     .ok();
 
-    static ID_COUNTER2: std::sync::atomic::AtomicU64 =
-        std::sync::atomic::AtomicU64::new(200);
+    static ID_COUNTER2: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(200);
     let id = ID_COUNTER2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
     let mut q = queue.lock().await;
@@ -66,9 +65,16 @@ pub async fn enqueue_download_with_quality(
             .map(|i| i.title.clone())
             .unwrap_or_else(|| url.to_string()),
         output,
-        None, None, quality, None, None, None, None,
+        None,
+        None,
+        quality,
+        None,
+        None,
+        None,
+        None,
         media_info,
-        None, None,
+        None,
+        None,
         downloader,
         deps.ytdlp,
         false,
@@ -122,9 +128,16 @@ pub async fn enqueue_download(
             .map(|i| i.title.clone())
             .unwrap_or_else(|| url.to_string()),
         output,
-        None, None, None, None, None, None, None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
         media_info,
-        None, None,
+        None,
+        None,
         downloader,
         deps.ytdlp,
         false,

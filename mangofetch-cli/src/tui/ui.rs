@@ -1,5 +1,5 @@
 use super::app::{App, AppState, Mode, Tab};
-use super::assets::MANGO_LOGO;
+use super::assets::{BLOCK_TITLE, MANGO_BODY, MANGO_STEM};
 use crate::formatting::{format_bytes, format_duration};
 use mangofetch_core::models::queue::QueueStatus;
 use ratatui::{
@@ -22,9 +22,10 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
     let area = f.area();
     let chunks = Layout::vertical([
-        Constraint::Length(3), // header / tabs
-        Constraint::Min(0),    // main content
-        Constraint::Length(5), // detail panel
+        Constraint::Length(3),  // header / tabs
+        Constraint::Min(8),    // main content (table, settings, etc.)
+        Constraint::Length(5), // detail panel + progress gauge
+        Constraint::Length(8), // output panel (reporter events)
         Constraint::Length(1), // status bar
     ])
     .split(area);
@@ -32,7 +33,8 @@ pub fn render(f: &mut Frame, app: &mut App) {
     render_tabs(f, app, chunks[0]);
     render_main(f, app, chunks[1]);
     render_detail(f, app, chunks[2]);
-    render_statusbar(f, app, chunks[3]);
+    render_output(f, app, chunks[3]);
+    render_statusbar(f, app, chunks[4]);
 
     // Overlays
     if app.show_help {
@@ -52,34 +54,117 @@ fn render_splash(f: &mut Frame, app: &App) {
     let area = f.area();
     let t = &app.theme;
 
-    let logo_h = MANGO_LOGO.len() as u16;
+    // Colors
+    let orange = Color::Rgb(255, 160, 30);
+    let gold = Color::Rgb(255, 220, 60);
+    let green_stem = Color::Rgb(60, 200, 80);
+    let green_leaf = Color::Rgb(30, 160, 50);
+    let dim_border = t.surface;
+    let accent = t.accent;
+    let secondary = t.secondary;
+
+    let stem_h = MANGO_STEM.len() as u16;
+    let body_h = MANGO_BODY.len() as u16;
+    let title_h = BLOCK_TITLE.len() as u16; // 5
+                                            // total content height: stem + body + 1 gap + title + 1 gap + tagline + 1 gap + hint
+    let content_h = stem_h + body_h + 1 + title_h + 1 + 1 + 1 + 1;
+    let pad_top = area.height.saturating_sub(content_h) / 2;
+
     let chunks = Layout::vertical([
-        Constraint::Min(1),
-        Constraint::Length(logo_h),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Min(1),
+        Constraint::Length(pad_top),
+        Constraint::Length(stem_h),
+        Constraint::Length(body_h),
+        Constraint::Length(1), // gap
+        Constraint::Length(title_h),
+        Constraint::Length(1), // gap
+        Constraint::Length(1), // tagline
+        Constraint::Length(1), // gap
+        Constraint::Length(1), // hint
+        Constraint::Min(0),
     ])
     .split(area);
 
-    let logo = Paragraph::new(MANGO_LOGO.join("\n"))
-        .alignment(Alignment::Center)
-        .style(Style::new().fg(t.accent).bold());
-    f.render_widget(logo, chunks[1]);
+    // ── Stem (green) ─────────────────────────────────────────────────────────
+    let stem_text: Text = Text::from(
+        MANGO_STEM
+            .iter()
+            .enumerate()
+            .map(|(i, &line)| {
+                let col = if i == 0 { green_stem } else { green_leaf };
+                Line::from(Span::styled(line, Style::new().fg(col).bold()))
+                    .alignment(Alignment::Center)
+            })
+            .collect::<Vec<_>>(),
+    );
+    f.render_widget(Paragraph::new(stem_text), chunks[1]);
 
-    let sub = Paragraph::new(format!(
-        "  v{}  ·  1000+ platforms  ·  yt-dlp powered",
-        app.version
-    ))
-    .alignment(Alignment::Center)
-    .style(Style::new().fg(t.text_dim));
-    f.render_widget(sub, chunks[2]);
+    // ── Mango body (orange + gold highlight) ──────────────────────────────────
+    let body_text: Text = Text::from(
+        MANGO_BODY
+            .iter()
+            .map(|&line| {
+                // Split each line on '░' zones → render those in gold
+                let mut spans: Vec<Span> = Vec::new();
+                let mut seg = String::new();
+                let mut in_highlight = false;
+                for ch in line.chars() {
+                    let is_hl = ch == '░';
+                    if is_hl != in_highlight {
+                        if !seg.is_empty() {
+                            let col = if in_highlight { gold } else { orange };
+                            spans.push(Span::styled(seg.clone(), Style::new().fg(col).bold()));
+                            seg.clear();
+                        }
+                        in_highlight = is_hl;
+                    }
+                    seg.push(if is_hl { '▒' } else { ch });
+                }
+                if !seg.is_empty() {
+                    let col = if in_highlight { gold } else { orange };
+                    spans.push(Span::styled(seg, Style::new().fg(col).bold()));
+                }
+                Line::from(spans).alignment(Alignment::Center)
+            })
+            .collect::<Vec<_>>(),
+    );
+    f.render_widget(Paragraph::new(body_text), chunks[2]);
 
-    let hint = Paragraph::new("Press any key to start  ·  q to quit")
-        .alignment(Alignment::Center)
-        .style(Style::new().fg(t.secondary).bold());
-    f.render_widget(hint, chunks[4]);
+    // ── Block title (MANGOFETCH) ───────────────────────────────────────────────
+    let title_text: Text = Text::from(
+        BLOCK_TITLE
+            .iter()
+            .enumerate()
+            .map(|(i, &row)| {
+                // Rows alternate accent / secondary for a gradient feel
+                let col = if i % 2 == 0 { accent } else { secondary };
+                Line::from(Span::styled(row, Style::new().fg(col).bold()))
+                    .alignment(Alignment::Center)
+            })
+            .collect::<Vec<_>>(),
+    );
+    f.render_widget(Paragraph::new(title_text), chunks[4]);
+
+    // ── Tagline ───────────────────────────────────────────────────────────────
+    let tagline = Paragraph::new(Line::from(vec![
+        Span::styled(" ⬇ ", Style::new().fg(accent)),
+        Span::styled(
+            format!("download anything  ·  1000+ platforms  ·  v{}", app.version),
+            Style::new().fg(t.text_dim),
+        ),
+    ]))
+    .alignment(Alignment::Center);
+    f.render_widget(tagline, chunks[6]);
+
+    // ── Hint ─────────────────────────────────────────────────────────────────
+    let hint = Paragraph::new(Line::from(vec![
+        Span::styled("  [ ", Style::new().fg(dim_border)),
+        Span::styled("any key", Style::new().fg(secondary).bold()),
+        Span::styled(" ] start    [ ", Style::new().fg(dim_border)),
+        Span::styled("q", Style::new().fg(t.error).bold()),
+        Span::styled(" ] quit  ", Style::new().fg(dim_border)),
+    ]))
+    .alignment(Alignment::Center);
+    f.render_widget(hint, chunks[8]);
 }
 
 // ── Tabs / header ─────────────────────────────────────────────────────────────
@@ -203,7 +288,7 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
 
             let title = truncate(&item.title, 42);
 
-            Row::new(vec![
+            Row::new([
                 Cell::from(item.id.to_string()).style(Style::new().fg(t.text_dim)),
                 Cell::from(item.platform.clone()).style(Style::new().fg(t.secondary)),
                 Cell::from(title),
@@ -307,7 +392,7 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let settings = mangofetch_core::models::settings::AppSettings::load_from_disk();
 
-    let rows_data = vec![
+    let rows_data = [
         (
             "TUI Theme",
             settings.appearance.tui_theme.clone(),
@@ -350,7 +435,7 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
                 Style::new().fg(t.text)
             });
             let hint_cell = Cell::from(*hint).style(Style::new().fg(t.text_dim));
-            Row::new(vec![key_cell, val_cell, hint_cell])
+            Row::new([key_cell, val_cell, hint_cell])
                 .height(1)
                 .bottom_margin(0)
         })
@@ -455,6 +540,51 @@ fn render_detail(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(gauge, chunks[1]);
 }
 
+// ── Output panel (reporter events) ───────────────────────────────────────────
+
+fn render_output(f: &mut Frame, app: &App, area: Rect) {
+    let t = &app.theme;
+
+    let line_count = app.output_lines.len();
+    let visible_h = area.height.saturating_sub(2) as usize; // borders eat 2
+
+    // Show the most recent lines that fit
+    let start = line_count.saturating_sub(visible_h);
+    let items: Vec<ListItem> = app
+        .output_lines
+        .iter()
+        .skip(start)
+        .map(|line| {
+            // Color-code by prefix
+            let style = if line.starts_with('✓') {
+                Style::new().fg(t.success)
+            } else if line.starts_with('✗') {
+                Style::new().fg(t.error)
+            } else if line.starts_with('↻') {
+                Style::new().fg(t.warning)
+            } else if line.starts_with('⟫') {
+                Style::new().fg(t.secondary)
+            } else if line.starts_with('◈') {
+                Style::new().fg(t.accent)
+            } else if line.starts_with('⚙') {
+                Style::new().fg(t.progress)
+            } else {
+                Style::new().fg(t.text_dim)
+            };
+            ListItem::new(line.as_str()).style(style)
+        })
+        .collect();
+
+    let title = format!(" ⚡ Output  ({} events) ", line_count);
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::new().fg(t.surface)),
+    );
+    f.render_widget(list, area);
+}
+
 // ── Status bar ────────────────────────────────────────────────────────────────
 
 fn render_statusbar(f: &mut Frame, app: &App, area: Rect) {
@@ -513,11 +643,12 @@ fn render_help(f: &mut Frame, app: &App) {
     let area = centered_rect(62, 80, f.area());
     f.render_widget(Clear, area);
 
-    let items: Vec<ListItem> = vec![
+    let items = [
         ListItem::new("  General").style(Style::new().fg(t.secondary).bold()),
         ListItem::new("  q          Quit").style(Style::new().fg(t.text)),
         ListItem::new("  ?          Toggle this help").style(Style::new().fg(t.text)),
-        ListItem::new("  : or /     Command mode  (:download <url>  :quit  :clear)").style(Style::new().fg(t.text)),
+        ListItem::new("  : or /     Command mode  (:download <url>  :quit  :clear)")
+            .style(Style::new().fg(t.text)),
         ListItem::new("  Tab        Next tab").style(Style::new().fg(t.text)),
         ListItem::new("  Shift+Tab  Previous tab").style(Style::new().fg(t.text)),
         ListItem::new("  1-4        Jump to tab").style(Style::new().fg(t.text)),
@@ -540,9 +671,7 @@ fn render_help(f: &mut Frame, app: &App) {
         ListItem::new("  ↑↓         Scroll  ·  G to bottom").style(Style::new().fg(t.text)),
     ];
 
-    let styled: Vec<ListItem> = items;
-
-    let list = List::new(styled).block(
+    let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
             .title(" ❓ Help & Keybindings  (? to close) ")
@@ -648,7 +777,11 @@ fn status_display(
     t: &super::themes::Theme,
 ) -> (Color, String) {
     fn ic(nf: bool, nf_icon: &'static str, fb: &'static str) -> &'static str {
-        if nf { nf_icon } else { fb }
+        if nf {
+            nf_icon
+        } else {
+            fb
+        }
     }
     match &item.status {
         QueueStatus::Queued => (t.text_dim, format!("{} Queued", ic(nf, "󰄗", "·"))),
@@ -660,9 +793,9 @@ fn status_display(
         QueueStatus::Seeding => (t.secondary, format!("{} Seeding", ic(nf, "󰕒", "↑"))),
         QueueStatus::Complete { success } => {
             if *success {
-                (t.success, format!("{} Done",   ic(nf, "󰄬", "✓")))
+                (t.success, format!("{} Done", ic(nf, "󰄬", "✓")))
             } else {
-                (t.error,   format!("{} Failed", ic(nf, "󰅖", "✗")))
+                (t.error, format!("{} Failed", ic(nf, "󰅖", "✗")))
             }
         }
         QueueStatus::Error { message } => (

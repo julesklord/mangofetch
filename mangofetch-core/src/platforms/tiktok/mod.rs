@@ -413,7 +413,7 @@ impl PlatformDownloader for TikTokDownloader {
                 return self
                     .get_media_info_via_ytdlp(&original_url, &post_id)
                     .await
-                    .or_else(|_| Err(first_err));
+                    .map_err(|_| first_err);
             }
         };
 

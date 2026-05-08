@@ -50,18 +50,15 @@ pub struct PluginEvents {
     pub complete: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum NavGroup {
     Primary,
+    #[default]
     Secondary,
 }
 
-impl Default for NavGroup {
-    fn default() -> Self {
-        NavGroup::Secondary
-    }
-}
+
 
 fn default_nav_group() -> NavGroup {
     NavGroup::Secondary

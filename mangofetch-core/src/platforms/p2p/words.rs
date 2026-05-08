@@ -267,8 +267,8 @@ pub fn generate_code() -> String {
     let mut nums: Vec<usize> = (0..256).collect();
     nums.shuffle(&mut rng);
 
-    for i in 0..4 {
-        indices.push(nums[i]);
+    for &num in nums.iter().take(4) {
+        indices.push(num);
     }
 
     indices

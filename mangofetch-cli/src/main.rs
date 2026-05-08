@@ -1,8 +1,8 @@
+mod engine;
 mod formatting;
 mod output;
 mod reporter; // NEW: Import output formatters module
-mod tui; // NEW: Terminal User Interface module
-mod engine; // Shared download engine logic
+mod tui; // NEW: Terminal User Interface module // Shared download engine logic
 
 use crate::output::{
     format_about_changelog, format_about_info, format_about_roadmap, format_about_terms,
@@ -324,17 +324,14 @@ async fn main() -> Result<()> {
             let any_filter = active || queued || completed || failed;
 
             if any_filter {
-                filtered = filtered
-                    .into_iter()
-                    .filter(|i| {
-                        (active && matches!(i.status, QueueStatus::Active))
-                            || (queued && matches!(i.status, QueueStatus::Queued))
-                            || (completed && matches!(i.status, QueueStatus::Complete { .. }))
-                            || (failed && matches!(i.status, QueueStatus::Error { .. }))
-                            || (active && matches!(i.status, QueueStatus::Seeding))
-                            || (queued && matches!(i.status, QueueStatus::Paused))
-                    })
-                    .collect();
+                filtered.retain(|i| {
+                    (active && matches!(i.status, QueueStatus::Active))
+                        || (queued && matches!(i.status, QueueStatus::Queued))
+                        || (completed && matches!(i.status, QueueStatus::Complete { .. }))
+                        || (failed && matches!(i.status, QueueStatus::Error { .. }))
+                        || (active && matches!(i.status, QueueStatus::Seeding))
+                        || (queued && matches!(i.status, QueueStatus::Paused))
+                });
             }
 
             // Convert to displayable format
@@ -525,7 +522,7 @@ async fn main() -> Result<()> {
                 let entries = std::fs::read_dir(&dir)?;
                 let mut files: Vec<_> = entries
                     .flatten()
-                    .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
+                    .filter(|e| e.path().extension().is_some_and(|ext| ext == "log"))
                     .collect();
 
                 files.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
@@ -602,6 +599,7 @@ async fn main() -> Result<()> {
 // HELPER FUNCTIONS
 // ============================================================================
 
+#[allow(clippy::too_many_arguments)]
 async fn perform_download(
     url: &str,
     output: Option<String>,
