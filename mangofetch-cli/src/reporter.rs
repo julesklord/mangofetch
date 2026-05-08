@@ -344,11 +344,7 @@ impl DownloadReporter for CLIReporter {
             .map(|seconds| format_duration(seconds as u64))
             .unwrap_or_else(|| "--".to_string());
 
-        let icon = if self.theme.supports_unicode() {
-            "[]"
-        } else {
-            "[]"
-        };
+        let icon = "[]";
         let message = format!(
             "{margin}{info}{icon} FOUND{reset} {title} by {author} [{platform}] [{duration}]",
             margin = ACTIVE_BLOCK_MARGIN,

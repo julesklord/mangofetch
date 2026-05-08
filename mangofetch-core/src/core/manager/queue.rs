@@ -502,7 +502,7 @@ impl ProgressThrottle {
 
 pub fn emit_queue_state_from_state(reporter: &Option<SharedReporter>, state: Vec<QueueItemInfo>) {
     let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
-    if n % 10 == 0 {
+    if n.is_multiple_of(10) {
         tracing::debug!("[perf] emit_queue_state called {} times", n);
     }
     if let Some(reporter) = reporter {

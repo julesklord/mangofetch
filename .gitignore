@@ -242,7 +242,7 @@ vite.config.ts.timestamp-*
 .vite/
 
 # Local dev scratch files
-scratch/
+.scratch/
 
 # Trunk linter
 .trunk/
@@ -255,3 +255,9 @@ flatpak/
 
 .scratch/GEMINI.md
 scripts/results
+
+AGENTS.md
+GEMINI.md
+
+.claude/
+.agents/

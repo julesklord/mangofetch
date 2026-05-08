@@ -35,6 +35,14 @@ pub struct LastDownloadOptions {
 pub struct AppearanceSettings {
     pub theme: String,
     pub language: String,
+    #[serde(default = "default_tui_theme")]
+    pub tui_theme: String,
+    #[serde(default)]
+    pub use_nerd_fonts: bool,
+}
+
+fn default_tui_theme() -> String {
+    "mango".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,6 +177,8 @@ impl Default for AppSettings {
             appearance: AppearanceSettings {
                 theme: "system".into(),
                 language: "en".into(),
+                tui_theme: "mango".into(),
+                use_nerd_fonts: false,
             },
             download: DownloadSettings {
                 default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),

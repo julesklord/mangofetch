@@ -98,12 +98,27 @@ mod tests {
             }
         }
 
-        assert_eq!(extract_platform("https://youtube.com/watch?v=123"), "YouTube");
+        assert_eq!(
+            extract_platform("https://youtube.com/watch?v=123"),
+            "YouTube"
+        );
         assert_eq!(extract_platform("https://youtu.be/123"), "YouTube");
-        assert_eq!(extract_platform("https://www.instagram.com/reel/123/"), "Instagram");
-        assert_eq!(extract_platform("https://www.tiktok.com/@user/video/123"), "TikTok");
-        assert_eq!(extract_platform("https://twitter.com/user/status/123"), "Twitter/X");
-        assert_eq!(extract_platform("https://x.com/user/status/123"), "Twitter/X");
+        assert_eq!(
+            extract_platform("https://www.instagram.com/reel/123/"),
+            "Instagram"
+        );
+        assert_eq!(
+            extract_platform("https://www.tiktok.com/@user/video/123"),
+            "TikTok"
+        );
+        assert_eq!(
+            extract_platform("https://twitter.com/user/status/123"),
+            "Twitter/X"
+        );
+        assert_eq!(
+            extract_platform("https://x.com/user/status/123"),
+            "Twitter/X"
+        );
         assert_eq!(extract_platform("https://example.com/file"), "Generic");
     }
 
@@ -124,11 +139,7 @@ mod tests {
         ];
 
         for part in expected_parts {
-            assert!(
-                !part.is_empty(),
-                "Card should contain {} section",
-                part
-            );
+            assert!(!part.is_empty(), "Card should contain {} section", part);
         }
     }
 
@@ -169,17 +180,7 @@ mod tests {
 
     #[test]
     fn test_emoji_availability() {
-        let emojis = vec![
-            "✓", 
-            "✗", 
-            "▶", 
-            "○", 
-            "🔍", 
-            "⬇️", 
-            "🔧", 
-            "📋", 
-            "📊", 
-        ];
+        let emojis = vec!["✓", "✗", "▶", "○", "🔍", "⬇️", "🔧", "📋", "📊"];
 
         for emoji in emojis {
             assert!(!emoji.is_empty());
@@ -238,10 +239,7 @@ mod tests {
             }
         }
 
-        assert_eq!(
-            truncate("This is a very long string", 10),
-            "This is..."
-        );
+        assert_eq!(truncate("This is a very long string", 10), "This is...");
         assert_eq!(truncate("Short", 10), "Short");
         assert_eq!(truncate("Exact", 5), "Exact");
     }
@@ -311,7 +309,7 @@ mod tests {
         ];
 
         for s in test_strings {
-            assert_eq!(s, s); 
+            assert_eq!(s, s);
         }
     }
 
@@ -332,10 +330,7 @@ mod tests {
 
     #[test]
     fn test_no_color_output_when_disabled() {
-        let should_not_contain_codes = vec![
-            "Simple text",
-            "No ANSI here",
-        ];
+        let should_not_contain_codes = vec!["Simple text", "No ANSI here"];
 
         for text in should_not_contain_codes {
             assert!(!text.contains("\x1b"));

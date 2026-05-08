@@ -470,7 +470,7 @@ pub async fn ensure_ytdlp(reporter: Option<&dyn DownloadReporter>) -> anyhow::Re
     // works reliably with --js-runtimes and --ffmpeg-location.
     if !crate::core::dependencies::is_flatpak() {
         let managed = managed_ytdlp_path();
-        if managed.as_ref().map_or(true, |p| !p.exists()) {
+        if managed.as_ref().is_none_or(|p| !p.exists()) {
             tracing::info!("[ytdlp] managed binary missing, downloading...");
             match download_ytdlp_binary(reporter).await {
                 Ok(path) => {
@@ -2060,10 +2060,10 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
                     continue;
                 }
                 if let Ok(modified) = meta.modified() {
-                    if now.duration_since(modified).unwrap_or_default() < fallback_limit {
-                        if newest.as_ref().map_or(true, |(_, t)| modified > *t) {
-                            newest = Some((path, modified));
-                        }
+                    if now.duration_since(modified).unwrap_or_default() < fallback_limit
+                        && newest.as_ref().is_none_or(|(_, t)| modified > *t)
+                    {
+                        newest = Some((path, modified));
                     }
                 }
             }
