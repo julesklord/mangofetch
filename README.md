@@ -143,9 +143,9 @@ cargo build --release
 | **v0.1.0** | ✅ | Initial release and architecture setup |
 | **v0.2.0** | ✅ | Standalone rewrite — GUI removed, core refactored |
 | **v0.3.1** | ✅ | Rebranding cleanup, test fixes, and documentation overhaul |
-| **v0.3.x** | 🚧 | Short aliases (`mango d`) and Interactive TUI mode (`ratatui`) |
-| **v0.4.0** | ⏳ | Plugin management and community extractors via SDK |
-| **v0.5.0** | ⏳ | Decentralized P2P file sharing implementation |
+| **v0.4.0** | ✅ | **The TUI Release:** Full-screen interactive terminal interface |
+| **v0.5.0** | ⏳ | Plugin management and community extractors via SDK |
+| **v0.6.0** | ⏳ | Decentralized P2P file sharing implementation |
 
 ---
 

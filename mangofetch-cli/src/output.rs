@@ -376,6 +376,7 @@ pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
 pub fn format_about_changelog(theme: &Arc<dyn CliTheme>) -> String {
     format!(
         "\n{margin}{info}CHANGES{reset}  {accent}PROJECT HISTORY{reset}\n{margin}{bar}\n\
+         {margin}v0.4.0 - Interactive TUI implementation & Stability release\n\
          {margin}v0.3.1 - Rebranding cleanup and test fixes\n\
          {margin}v0.3.0 - The mango is growing: Brutalist UI redesign & cleanup\n\
          {margin}v0.2.0 - Standalone rewrite: GUI removed, core refactored\n\

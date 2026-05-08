@@ -8,17 +8,17 @@ MangoFetch has successfully transitioned from a monolithic GUI/CLI hybrid into a
 
 ---
 
-## 🟢 Phase 1: UX Polish & TUI Integration (v0.3.x)
+## 🟢 Phase 1: UX Polish & TUI Integration (v0.3.x - v0.4.x)
 
-Our immediate focus is refining the terminal experience without adding core bloat. The CLI must remain the fastest way to interact with the engine.
+Our immediate focus was refining the terminal experience and implementing the TUI.
 
-- **[x] v0.3.1 - Rebranding & Core Cleanup:** Finalize the "OmniGet" to "MangoFetch" transition, clean up environment variables, and stabilize test suites.
-- **[ ] Alias System (`mango`):** Implement the secondary `mango` binary and short subcommands (`d`, `ls`, `cfg`) for power users.
-- **[ ] Interactive TUI (`ratatui`):** Introduce an optional full-screen terminal interface for monitoring massive batch downloads and queue state.
+- **[x] v0.3.1 - Rebranding & Core Cleanup:** Finalize the "OmniGet" to "MangoFetch" transition.
+- **[x] v0.4.0 - Interactive TUI (`ratatui`):** Full-screen terminal interface for queue monitoring.
+- **[ ] Alias System (`mango`):** Implement the secondary `mango` binary and short subcommands.
 
 ---
 
-## 🟡 Phase 2: Extensibility & Ecosystem (v0.4.x)
+## 🟡 Phase 2: Extensibility & Ecosystem (v0.5.x)
 
 MangoFetch cannot natively support every platform on earth. We must decentralize platform extraction logic to the community.
 
@@ -28,7 +28,7 @@ MangoFetch cannot natively support every platform on earth. We must decentralize
 
 ---
 
-## 🟠 Phase 3: GUI Reintegration & Meta-Crate (v0.5.x)
+## 🟠 Phase 3: GUI Reintegration & Meta-Crate (v0.6.x)
 
 We will provide a premium desktop experience without compromising the CLI user base.
 
