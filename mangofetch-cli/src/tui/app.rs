@@ -417,6 +417,18 @@ impl App {
         self.log_scroll = self.log_lines.len().saturating_sub(1);
     }
 
+    pub fn log_scroll_up(&mut self) {
+        if self.log_scroll > 0 {
+            self.log_scroll -= 1;
+        }
+    }
+
+    pub fn log_scroll_down(&mut self) {
+        if self.log_scroll < self.log_lines.len().saturating_sub(1) {
+            self.log_scroll += 1;
+        }
+    }
+
     /// Drain any pending lines from the TuiReporter into output_lines.
     pub fn drain_reporter_logs(&mut self) {
         if let Ok(mut sink) = self.log_sink.lock() {
