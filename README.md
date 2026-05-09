@@ -28,7 +28,7 @@ As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User 
 ## ✨ Key Features (v0.5.0)
 
 *   **1000+ Platforms**: Deep integration with `yt-dlp` to support almost every video site.
-*   **Interactive TUI**: A full-screen dashboard with **Tropical Fruit Themes** (Mango, Pitaya, Guava, and more!).
+*   **Interactive TUI**: A full-screen dashboard with **Tropical Fruit Themes** (Mango, Pitaya, Guayaba, and more!).
 *   **Mouse Support**: Scroll through queues and click tabs directly in your terminal.
 *   **Vim-Style Commands**: Power users can use `:` commands for ultra-fast operations.
 *   **P2P & Torrents**: Native support for magnet links and peer-to-peer file sharing.

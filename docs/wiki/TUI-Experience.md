@@ -63,12 +63,11 @@ MangoFetch allows you to customize the color palette using our collection of tro
 *   **🥭 Mango**: Warm oranges and golds (Default).
 *   **🍇 Pitaya**: Vibrant pinks and deep purples.
 *   **🥥 Coconut**: Natural beiges and browns.
-*   **🍐 Guava**: Fresh pink flesh and green skin.
+*   **🍐 Guayaba**: Fresh pink flesh and green skin.
 *   **🟠 Papaya**: Vibrant orange and dark seed accents.
 *   **🌺 Passionfruit**: Electric yellow and deep passion purple.
 *   **🍒 Lychee**: Translucent whites and vibrant red skin.
 *   **⭐ Starfruit**: Bright yellow and green edges.
-*   **🫐 Açai**: Deep purple and indigo on black.
 *   **🍇 Mangosteen**: Dark purple skin and pure white flesh.
 *   **🥝 Kiwi**: Fuzzy brown and bright green.
 

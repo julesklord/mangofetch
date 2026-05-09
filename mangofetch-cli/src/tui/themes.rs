@@ -83,8 +83,8 @@ impl Theme {
         }
     }
 
-    /// 🍐 Guava — pink flesh & green skin
-    pub fn guava() -> Self {
+    /// 🍐 Guayaba — pink flesh & green skin
+    pub fn guayaba() -> Self {
         Self {
             accent: Color::Rgb(255, 110, 130),   // pink flesh
             secondary: Color::Rgb(140, 210, 80), // green skin
@@ -170,24 +170,6 @@ impl Theme {
             warning: Color::Rgb(255, 165, 0),
             error: Color::Rgb(255, 69, 0),
             progress: Color::Rgb(255, 255, 0),
-        }
-    }
-
-    /// 🫐 Açai — deep purple & black
-    pub fn acai() -> Self {
-        Self {
-            accent: Color::Rgb(75, 0, 130),      // indigo
-            secondary: Color::Rgb(138, 43, 226), // blue violet
-            highlight: Color::Rgb(20, 0, 40),
-            background: Color::Rgb(10, 5, 15),
-            surface: Color::Rgb(25, 10, 35),
-            surface_dim: Color::Rgb(15, 5, 20),
-            text: Color::Rgb(230, 210, 250),
-            text_dim: Color::Rgb(140, 110, 180),
-            success: Color::Rgb(0, 255, 127),
-            warning: Color::Rgb(255, 140, 0),
-            error: Color::Rgb(255, 20, 147),
-            progress: Color::Rgb(138, 43, 226),
         }
     }
 
