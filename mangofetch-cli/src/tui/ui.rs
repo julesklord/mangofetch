@@ -1,7 +1,8 @@
-use super::app::{App, AppState, DownloadsCategory, Mode, Tab};
+use super::app::{App, AppState, DownloadsCategory, Mode, SettingKind, Tab};
 use super::assets::{BLOCK_TITLE, MANGO_BODY, MANGO_STEM};
 use crate::formatting::{format_bytes, format_duration};
 use mangofetch_core::models::queue::QueueStatus;
+use mangofetch_core::models::settings::AppSettings;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row, Table, Wrap},
@@ -414,180 +415,29 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let settings = mangofetch_core::models::settings::AppSettings::load_from_disk();
 
-    let rows_data = [
-        (
-            "TUI Theme",
-            settings.appearance.tui_theme.clone(),
-            "mango │ pitaya │ coconut │ dracula",
-        ),
-        (
-            "Nerd Fonts",
-            if app.use_nerd_fonts {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Enables icons (requires patched terminal)",
-        ),
-        (
-            "Max Downloads",
-            settings.advanced.max_concurrent_downloads.to_string(),
-            "Max simultaneous downloads",
-        ),
-        (
-            "Default Quality",
-            settings.download.video_quality.clone(),
-            "best │ 1080p │ 720p │ 480p │ 360p",
-        ),
-        (
-            "Organize Platforms",
-            if settings.download.organize_by_platform {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Organize files into platform folders",
-        ),
-        (
-            "Skip Existing",
-            if settings.download.skip_existing {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Don't redownload already existing files",
-        ),
-        (
-            "Subtitles",
-            if settings.download.download_subtitles {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Download and embed subtitles",
-        ),
-        (
-            "Attachments",
-            if settings.download.download_attachments {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Download thumbnails and extra assets",
-        ),
-        (
-            "Descriptions",
-            if settings.download.download_descriptions {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Save media descriptions to .txt files",
-        ),
-        (
-            "SponsorBlock",
-            if settings.download.youtube_sponsorblock {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Skip sponsor segments (YouTube)",
-        ),
-        (
-            "Split Chapters",
-            if settings.download.split_by_chapters {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Save each chapter as a separate file",
-        ),
-        (
-            "Embed Metadata",
-            if settings.download.embed_metadata {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Add tags and info to media files",
-        ),
-        (
-            "Embed Cover",
-            if settings.download.embed_thumbnail {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Add thumbnail as album art",
-        ),
-        (
-            "Max Segments",
-            settings.advanced.max_concurrent_segments.to_string(),
-            "Parallel segments per download",
-        ),
-        (
-            "Max Fragments",
-            settings.advanced.concurrent_fragments.to_string(),
-            "Fragments for HLS/DASH streams",
-        ),
-        (
-            "Stagger Delay",
-            format!("{}ms", settings.advanced.stagger_delay_ms),
-            "Delay between starting connections",
-        ),
-        (
-            "Torrent Port",
-            settings.advanced.torrent_listen_port.to_string(),
-            "Listening port for P2P traffic",
-        ),
-        (
-            "Proxy Mode",
-            if settings.proxy.enabled {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Route traffic through configured proxy",
-        ),
-        (
-            "TG File Fix",
-            if settings.telegram.fix_file_extensions {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Automatically fix extensions for Telegram",
-        ),
-        (
-            "Auto-Start",
-            if settings.start_with_windows {
-                "ON".into()
-            } else {
-                "OFF".into()
-            },
-            "Run MangoFetch at system startup",
-        ),
-    ];
-
-    let rows: Vec<Row> = rows_data
+    let rows: Vec<Row> = SettingKind::ALL
         .iter()
         .enumerate()
-        .map(|(i, (key, val, hint))| {
-            let selected = i == app.settings_index;
-            let key_cell = Cell::from(*key).style(if selected {
+        .map(|(i, kind)| {
+            let value = get_setting_value(kind, &settings, app);
+            let is_sel = i == app.settings_index;
+
+            let key_cell = Cell::from(kind.label()).style(if is_sel {
                 Style::new().fg(t.accent).bold()
             } else {
                 Style::new().fg(t.secondary)
             });
-            let val_cell = Cell::from(val.as_str()).style(if selected {
+
+            let val_cell = Cell::from(format!(" [ {} ] ", value)).style(if is_sel {
                 Style::new().fg(t.text).bold().bg(t.highlight)
             } else {
                 Style::new().fg(t.text)
             });
-            let hint_cell = Cell::from(*hint).style(Style::new().fg(t.text_dim));
-            Row::new([key_cell, val_cell, hint_cell])
-                .height(1)
-                .bottom_margin(0)
+
+            let hint_cell =
+                Cell::from(kind.description()).style(Style::new().fg(t.text_dim).italic());
+
+            Row::new([key_cell, val_cell, hint_cell]).height(1)
         })
         .collect();
 
@@ -602,21 +452,123 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(18),
-            Constraint::Length(14),
-            Constraint::Min(30),
+            Constraint::Length(25),
+            Constraint::Length(22),
+            Constraint::Min(40),
         ],
     )
     .header(header)
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" ⚙ Settings  (↑↓ navigate · Enter cycle) ")
-            .border_style(Style::new().fg(t.text_dim)),
-    )
-    .row_highlight_style(Style::new().bg(t.highlight));
+            .title(" ⚙  Configuration & Appearance ")
+            .border_style(Style::new().fg(t.surface)),
+    );
 
     f.render_widget(table, area);
+}
+
+fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
+    match kind {
+        SettingKind::TuiTheme => s.appearance.tui_theme.clone(),
+        SettingKind::UseNerdFonts => {
+            if app.use_nerd_fonts {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::MaxDownloads => s.advanced.max_concurrent_downloads.to_string(),
+        SettingKind::VideoQuality => s.download.video_quality.clone(),
+        SettingKind::OrganizeByPlatform => {
+            if s.download.organize_by_platform {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::SkipExisting => {
+            if s.download.skip_existing {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::DownloadSubtitles => {
+            if s.download.download_subtitles {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::DownloadAttachments => {
+            if s.download.download_attachments {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::DownloadDescriptions => {
+            if s.download.download_descriptions {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::SponsorBlock => {
+            if s.download.youtube_sponsorblock {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::SplitByChapters => {
+            if s.download.split_by_chapters {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::EmbedMetadata => {
+            if s.download.embed_metadata {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::EmbedThumbnail => {
+            if s.download.embed_thumbnail {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::MaxConcurrentSegments => s.advanced.max_concurrent_segments.to_string(),
+        SettingKind::MaxRetries => s.advanced.max_retries.to_string(),
+        SettingKind::ConcurrentFragments => s.advanced.concurrent_fragments.to_string(),
+        SettingKind::StaggerDelay => format!("{}ms", s.advanced.stagger_delay_ms),
+        SettingKind::ClipboardDetection => {
+            if s.download.clipboard_detection {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::ProxyEnabled => {
+            if s.proxy.enabled {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::PortableMode => {
+            if s.portable_mode {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+    }
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────

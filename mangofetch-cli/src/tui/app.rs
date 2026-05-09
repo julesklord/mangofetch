@@ -127,7 +127,7 @@ pub enum AppState {
     Running,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mode {
     Normal,
     /// Vim-style `:command` mode
@@ -138,6 +138,105 @@ pub enum Mode {
     AddConfirm,
     /// Confirmation to delete selected item
     ConfirmDelete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingKind {
+    TuiTheme,
+    UseNerdFonts,
+    MaxDownloads,
+    VideoQuality,
+    OrganizeByPlatform,
+    SkipExisting,
+    DownloadSubtitles,
+    DownloadAttachments,
+    DownloadDescriptions,
+    SponsorBlock,
+    SplitByChapters,
+    EmbedMetadata,
+    EmbedThumbnail,
+    MaxConcurrentSegments,
+    MaxRetries,
+    ConcurrentFragments,
+    StaggerDelay,
+    ClipboardDetection,
+    ProxyEnabled,
+    PortableMode,
+}
+
+impl SettingKind {
+    pub const ALL: &'static [SettingKind] = &[
+        SettingKind::TuiTheme,
+        SettingKind::UseNerdFonts,
+        SettingKind::MaxDownloads,
+        SettingKind::VideoQuality,
+        SettingKind::OrganizeByPlatform,
+        SettingKind::SkipExisting,
+        SettingKind::DownloadSubtitles,
+        SettingKind::DownloadAttachments,
+        SettingKind::DownloadDescriptions,
+        SettingKind::SponsorBlock,
+        SettingKind::SplitByChapters,
+        SettingKind::EmbedMetadata,
+        SettingKind::EmbedThumbnail,
+        SettingKind::MaxConcurrentSegments,
+        SettingKind::MaxRetries,
+        SettingKind::ConcurrentFragments,
+        SettingKind::StaggerDelay,
+        SettingKind::ClipboardDetection,
+        SettingKind::ProxyEnabled,
+        SettingKind::PortableMode,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SettingKind::TuiTheme => "TUI Theme",
+            SettingKind::UseNerdFonts => "Nerd Fonts",
+            SettingKind::MaxDownloads => "Max Downloads",
+            SettingKind::VideoQuality => "Default Quality",
+            SettingKind::OrganizeByPlatform => "Organize Platforms",
+            SettingKind::SkipExisting => "Skip Existing",
+            SettingKind::DownloadSubtitles => "Download Subtitles",
+            SettingKind::DownloadAttachments => "Download Attachments",
+            SettingKind::DownloadDescriptions => "Download Descriptions",
+            SettingKind::SponsorBlock => "SponsorBlock",
+            SettingKind::SplitByChapters => "Split Chapters",
+            SettingKind::EmbedMetadata => "Embed Metadata",
+            SettingKind::EmbedThumbnail => "Embed Thumbnail",
+            SettingKind::MaxConcurrentSegments => "Max Segments",
+            SettingKind::MaxRetries => "Max Retries",
+            SettingKind::ConcurrentFragments => "Concurrent Fragments",
+            SettingKind::StaggerDelay => "Stagger Delay",
+            SettingKind::ClipboardDetection => "Clipboard Detect",
+            SettingKind::ProxyEnabled => "Use Proxy",
+            SettingKind::PortableMode => "Portable Mode",
+        }
+    }
+
+    pub fn description(self) -> &'static str {
+        match self {
+            SettingKind::TuiTheme => "mango │ pitaya │ coconut │ dracula",
+            SettingKind::UseNerdFonts => "Enables icons (requires patched terminal)",
+            SettingKind::MaxDownloads => "Max simultaneous downloads",
+            SettingKind::VideoQuality => "best │ 1080p │ 720p │ 480p │ 360p",
+            SettingKind::OrganizeByPlatform => "Organize files into platform folders",
+            SettingKind::SkipExisting => "Do not re-download existing files",
+            SettingKind::DownloadSubtitles => "Attempt to download subtitles",
+            SettingKind::DownloadAttachments => "Download extra media attachments",
+            SettingKind::DownloadDescriptions => "Save .description files",
+            SettingKind::SponsorBlock => "Skip sponsors on YouTube",
+            SettingKind::SplitByChapters => "Split video into chapter files",
+            SettingKind::EmbedMetadata => "Write metadata to file",
+            SettingKind::EmbedThumbnail => "Embed thumbnail into video",
+            SettingKind::MaxConcurrentSegments => "Max segments for direct downloads",
+            SettingKind::MaxRetries => "Number of retry attempts",
+            SettingKind::ConcurrentFragments => "Fragments per download (yt-dlp)",
+            SettingKind::StaggerDelay => "Delay between downloads (ms)",
+            SettingKind::ClipboardDetection => "Scan clipboard for URLs",
+            SettingKind::ProxyEnabled => "Use configured proxy",
+            SettingKind::PortableMode => "Save data in local folder",
+        }
+    }
 }
 
 // ── App struct ────────────────────────────────────────────────────────────────
