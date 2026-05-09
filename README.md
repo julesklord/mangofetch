@@ -1,7 +1,7 @@
 # 🥭 mangofetch
 
 **Brutally fast. Extensible. Pure Rust.**  
-_A high-performance, asynchronous download engine for the terminal._
+_A state-of-the-art, fault-tolerant asynchronous media download engine for the modern terminal._
 
 ---
 
@@ -19,26 +19,28 @@ _A high-performance, asynchronous download engine for the terminal._
 
 ## Overview
 
-**MangoFetch** is a highly concurrent, memory-safe media download engine. Built on top of **Tokio** and **Reqwest**, it is designed to maximize network throughput and handle massive archival batches without blocking the main thread. 
+**MangoFetch** represents a paradigm shift in terminal-based media acquisition. Engineered with uncompromising standards for memory safety and concurrency, it eschews bloated graphical interfaces in favor of a raw, low-latency execution environment. Built upon the robust foundations of **Tokio** and **Reqwest**, the engine is explicitly designed to saturate network throughput and orchestrate massive archival batches seamlessly, completely decoupling asynchronous I/O operations from the main thread.
 
-As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
+With the release of **v0.5.0**, MangoFetch transcends traditional CLI tools by introducing a professional-grade **TUI (Terminal User Interface)**. This interface blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
+
+> **Lineage and Credit:** MangoFetch is an independent, terminal-focused evolution of the [**OmniGet**](https://github.com/tonhowtf/omniget) project by tonhowft. While MangoFetch has been heavily refactored and optimized for pure CLI usage and extreme performance, the robust underlying core engine owes its existence to the brilliant foundational work done in OmniGet.
 
 ---
 
 ## ✨ Key Features (v0.5.0)
 
-*   **1000+ Platforms**: Deep integration with `yt-dlp` to support almost every video site.
-*   **Interactive TUI**: A full-screen dashboard with **Tropical Fruit Themes** (Mango, Pitaya, Guayaba, and more!).
-*   **Mouse Support**: Scroll through queues and click tabs directly in your terminal.
-*   **Vim-Style Commands**: Power users can use `:` commands for ultra-fast operations.
-*   **P2P & Torrents**: Native support for magnet links and peer-to-peer file sharing.
-*   **Smart Engine**: Multi-segment downloads, staggered starts, and automatic metadata embedding.
+*   **1000+ Platforms**: Deep, zero-overhead integration with `yt-dlp` to support virtually any media portal on the internet.
+*   **Interactive TUI**: A highly responsive, full-screen dashboard powered by `ratatui`, featuring **11 Tropical Fruit Themes** (Mango, Pitaya, Guayaba, Passionfruit, and more).
+*   **Fluid Mouse Support**: Full support for pointer events—scroll through sprawling download queues and actuate tabs directly via mouse telemetry.
+*   **Vim-Style Commands**: For the ultimate power user, actuate ultra-fast, non-blocking operations via the `:` command buffer.
+*   **P2P & Torrents**: Native protocol implementations for magnet links and peer-to-peer decentralized file sharing.
+*   **Intelligent Extraction Engine**: Features multi-segment HTTP downloads, staggered connection starts to bypass rate limits, and zero-copy metadata embedding.
 
 ---
 
 ## 🏗️ Technical Architecture
 
-MangoFetch is organized as a modular workspace, ensuring strict separation of concerns. This allows the core engine to be portable and highly testable, while the CLI remains a thin rendering layer.
+MangoFetch is rigorously organized as a modular workspace, enforcing strict separation of concerns. This architectural decision ensures the core engine remains portable, highly testable, and isolated from the rendering layer.
 
 ```mermaid
 graph TD
@@ -65,17 +67,17 @@ graph TD
     IO --> Disk[(Local Storage)]
 ```
 
-### Components
+### Core Components
 
-- **`mangofetch-core`**: The UI-agnostic engine. It manages the asynchronous download queue, handles connection pooling, and contains the platform-specific extractors (native parsers for YouTube, Instagram, TikTok, etc.). It intelligently wraps `yt-dlp` and `ffmpeg` for complex media streams, automatically provisioning these binaries if they are missing.
-- **`mangofetch-cli`**: A lightweight frontend built with `clap`. It acts as a thin dispatcher that consumes the core library, rendering real-time progress via a brutalist, information-dense ANSI interface.
-- **`mangofetch-plugin-sdk`**: A robust FFI-compatible SDK designed for extending MangoFetch's capabilities dynamically via shared libraries (`.so` / `.dll`).
+- **`mangofetch-core`**: The UI-agnostic heartbeat of the system. It governs the asynchronous download queue, orchestrates connection pooling, and houses the platform-specific native extractors (YouTube, Instagram, TikTok, etc.). It intelligently encapsulates `yt-dlp` and `ffmpeg` for complex stream muxing, automatically provisioning these binaries if omitted from the host `$PATH`.
+- **`mangofetch-cli`**: A hyper-lightweight frontend built with `clap`. It acts as a highly optimized dispatcher consuming the core library, rendering real-time telemetry via a brutalist, information-dense ANSI interface or the interactive TUI.
+- **`mangofetch-plugin-sdk`**: A robust FFI-compatible SDK engineered to extend MangoFetch's capabilities dynamically at runtime via shared libraries (`.so` / `.dll`).
 
 ---
 
 ## ⚙️ The Core Engine Lifecycle
 
-The `mangofetch-core` queue is fault-tolerant. If a single item in a 1,000-item batch fails, the queue continues processing, aggregating failures for the final summary.
+The `mangofetch-core` queue is intrinsically fault-tolerant. Operating on a resilient asynchronous loop, if a single task in a 10,000-item batch encounters a network anomaly, the queue isolates the failure, initiates exponential backoff retries, and continues processing the matrix without stalling.
 
 ```mermaid
 stateDiagram-v2
@@ -97,17 +99,17 @@ stateDiagram-v2
     Complete --> [*]
 ```
 
-### Key Engineering Features
+### Key Engineering Milestones
 
-- **Asynchronous I/O Pipeline:** Utilizing `tokio::sync::mpsc` channels for non-blocking progress reporting. The UI thread is completely decoupled from the I/O threads.
-- **Self-Healing Dependencies:** Automatic resolution, downloading, and path-linking of external binaries (`ffmpeg`, `yt-dlp`). The user never has to touch their `$PATH`.
-- **Intelligent Parsers:** The Platform Registry attempts to natively parse media (saving overhead) before falling back to generic extractors.
+- **Asynchronous I/O Pipeline:** Built upon `tokio::sync::mpsc` channels for non-blocking progress reporting. The UI rendering thread is completely decoupled from the heavy I/O threads, guaranteeing fluid terminal refreshes.
+- **Self-Healing Dependencies:** Automatic checksum validation, resolution, downloading, and path-linking of external binaries (`ffmpeg`, `yt-dlp`).
+- **Intelligent Parser Heuristics:** The Platform Registry attempts to natively parse media using zero-cost abstractions, falling back to generic extractors only when mathematically necessary.
 
 ---
 
 ## 🕹️ Command Reference
 
-For a complete breakdown of all commands, flags, and TUI shortcuts, please visit our **[Official Wiki](docs/wiki/Home.md)**.
+For a comprehensive breakdown of all execution flags, API arguments, and TUI keybindings, please consult our **[Official Engineering Wiki](docs/wiki/Home.md)**.
 
 *   🚀 **[Installation Guide](docs/wiki/Installation.md)**
 *   🛠️ **[CLI Command Reference](docs/wiki/CLI-Guide.md)**
@@ -116,16 +118,16 @@ For a complete breakdown of all commands, flags, and TUI shortcuts, please visit
 
 | Full Command                          | Short Alias _(Upcoming)_ | Description                                             |
 | :------------------------------------ | :----------------------- | :------------------------------------------------------ |
-| `mangofetch download <url>`           | `mango d <url>`          | Single file download and extraction.                    |
-| `mangofetch download-multiple <file>` | `mango dm <file>`        | Batch archival from a text file (supports concurrency). |
-| `mangofetch info <url>`               | `mango i <url>`          | Inspect media metadata without touching disk.           |
-| `mangofetch list`                     | `mango ls`               | View current queue and historical download status.      |
-| `mangofetch clean`                    | `mango c`                | Clear download history and purge cache.                 |
-| `mangofetch config`                   | `mango cfg`              | Manage application settings (connections, paths).       |
-| `mangofetch check`                    | `mango ch`               | Verify system dependencies (`yt-dlp`, `ffmpeg`).        |
-| `mangofetch update`                   | `mango up`               | Update internal dependency binaries to latest versions. |
-| `mangofetch logs`                     | `mango log`              | Tail raw application logs for debugging.                |
-| `mangofetch about`                    | `mango a`                | Display version, license, and lineage information.      |
+| `mangofetch download <url>`           | `mango d <url>`          | Single file payload extraction and download.            |
+| `mangofetch download-multiple <file>` | `mango dm <file>`        | High-throughput batch archival from a manifest file.    |
+| `mangofetch info <url>`               | `mango i <url>`          | Perform media metadata telemetry without touching disk. |
+| `mangofetch list`                     | `mango ls`               | Inspect current active queue and historical matrix.     |
+| `mangofetch clean`                    | `mango c`                | Clear persistent download history and purge cache.      |
+| `mangofetch config`                   | `mango cfg`              | Manage engine parameters, connection limits, and paths. |
+| `mangofetch check`                    | `mango ch`               | Verify cryptographic integrity of system dependencies.  |
+| `mangofetch update`                   | `mango up`               | Upgrade internal dependency binaries to latest hashes.  |
+| `mangofetch logs`                     | `mango log`              | Tail raw asynchronous application logs for debugging.   |
+| `mangofetch about`                    | `mango a`                | Display engine version, license, and telemetry data.    |
 
 ---
 
@@ -133,7 +135,7 @@ For a complete breakdown of all commands, flags, and TUI shortcuts, please visit
 
 ### Via Cargo (Recommended)
 
-The fastest way to install the CLI directly to your system path:
+The most efficient method to compile and install the CLI binary natively targeting your CPU architecture:
 
 ```zsh
 cargo install mangofetch-cli
@@ -141,13 +143,13 @@ cargo install mangofetch-cli
 
 ### From Source
 
-For developers who want the absolute bleeding edge or wish to modify the core:
+For engineers requiring the absolute bleeding-edge tree or looking to audit the source code:
 
 ```zsh
 git clone https://github.com/julesklord/mangofetch-cli.git
 cd mangofetch-cli
 cargo build --release
-# The compiled binary will be available at: target/release/mangofetch
+# The highly optimized binary will be located at: target/release/mangofetch
 ```
 
 ---
@@ -156,13 +158,13 @@ cargo build --release
 
 | Version    | Status | Milestone                                                       |
 | ---------- | ------ | --------------------------------------------------------------- |
-| **v0.1.0** | ✅     | Initial release and architecture setup                          |
-| **v0.2.0** | ✅     | Standalone rewrite — GUI removed, core refactored               |
-| **v0.3.1** | ✅     | Rebranding cleanup, test fixes, and documentation overhaul      |
+| **v0.1.0** | ✅     | Initial release and asynchronous architecture setup             |
+| **v0.2.0** | ✅     | Standalone rewrite — GUI stripped, core engine highly optimized |
+| **v0.3.1** | ✅     | Rebranding cleanup, test matrix fixes, and documentation        |
 | **v0.4.0** | ✅     | **The TUI Release:** Full-screen interactive terminal interface |
-| **v0.5.0** | ✅     | **UX & Polish:** Tropical themes, mouse support, dynamic settings |
-| **v0.6.0** | ⏳     | Plugin management and community extractors via SDK              |
-| **v0.7.0** | ⏳     | Decentralized P2P file sharing implementation                   |
+| **v0.5.0** | ✅     | **UX & Polish:** Tropical themes, pointer support, dynamic UI   |
+| **v0.6.0** | ⏳     | Plugin management and community extractors via FFI SDK          |
+| **v0.7.0** | ⏳     | Decentralized P2P swarm integration                             |
 
 ---
 
@@ -173,11 +175,11 @@ cargo build --release
 
 ## Contributing
 
-Pull requests are fiercely welcomed. For major architectural changes, please open an issue first to discuss your approach. See `CONTRIBUTING.md` for guidelines.
+Pull requests are fiercely welcomed. We adhere to rigorous engineering standards. For major architectural permutations, please open an RFC issue first to discuss your algorithm and approach. See `CONTRIBUTING.md` for guidelines.
 
 ## License
 
 <p align="center">
-  Built with 🦀 and 🥭 by <a href="https://github.com/julesklord">Jules Martins</a>.<br>
-  Licensed under the GPL-3.0 License.
+  Engineered with 🦀 and 🥭 by <a href="https://github.com/julesklord">Jules Martins</a>.<br>
+  Released under the terms of the GPL-3.0 License.
 </p>
