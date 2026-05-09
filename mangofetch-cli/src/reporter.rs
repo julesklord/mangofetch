@@ -671,6 +671,43 @@ mod tests {
     }
 
     #[test]
+    fn test_brutalist_theme_base_colors() {
+        let theme = BrutalistTheme::new(true);
+        assert_eq!(theme.color_success(), "\x1b[1;32m");
+        assert_eq!(theme.color_error(), "\x1b[1;31m");
+        assert_eq!(theme.color_warning(), "\x1b[1;33m");
+        assert_eq!(theme.color_info(), "\x1b[1;36m");
+        assert_eq!(theme.color_accent(), "\x1b[1;97m");
+        assert_eq!(theme.color_reset(), "\x1b[0m");
+    }
+
+    #[test]
+    fn test_brutalist_theme_platform_colors() {
+        let theme = BrutalistTheme::new(true);
+
+        // Test supported platforms
+        assert_eq!(theme.color_platform("youtube"), "\x1b[1;31m");
+        assert_eq!(theme.color_platform("instagram"), "\x1b[1;35m");
+        assert_eq!(theme.color_platform("tiktok"), "\x1b[1;36m");
+        assert_eq!(theme.color_platform("twitter"), "\x1b[1;34m");
+        assert_eq!(theme.color_platform("twitter/x"), "\x1b[1;34m");
+        assert_eq!(theme.color_platform("x"), "\x1b[1;34m");
+        assert_eq!(theme.color_platform("reddit"), "\x1b[1;33m");
+        assert_eq!(theme.color_platform("twitch"), "\x1b[1;35m");
+        assert_eq!(theme.color_platform("pinterest"), "\x1b[1;31m");
+        assert_eq!(theme.color_platform("vimeo"), "\x1b[1;36m");
+        assert_eq!(theme.color_platform("bluesky"), "\x1b[1;34m");
+        assert_eq!(theme.color_platform("bilibili"), "\x1b[1;36m");
+
+        // Test case insensitivity
+        assert_eq!(theme.color_platform("YouTube"), "\x1b[1;31m");
+        assert_eq!(theme.color_platform("INSTAGRAM"), "\x1b[1;35m");
+
+        // Test default case
+        assert_eq!(theme.color_platform("unknown"), "\x1b[1;37m");
+    }
+
+    #[test]
     fn normalizes_common_phase_labels() {
         assert_eq!(normalize_phase_label("Fetching info"), "FETCHING");
         assert_eq!(normalize_phase_label("Downloading media"), "DOWNLOADING");
