@@ -83,21 +83,75 @@ impl Theme {
         }
     }
 
-    /// 🧛 Dracula — classic dark purple + cyan
-    pub fn dracula() -> Self {
+    /// 🍐 Guava — pink flesh & green skin
+    pub fn guava() -> Self {
         Self {
-            accent: Color::Rgb(189, 147, 249),    // purple
-            secondary: Color::Rgb(139, 233, 253), // cyan
-            highlight: Color::Rgb(50, 40, 70),
-            background: Color::Rgb(40, 42, 54),
-            surface: Color::Rgb(52, 55, 70),
-            surface_dim: Color::Rgb(44, 46, 60),
-            text: Color::Rgb(248, 248, 242),
-            text_dim: Color::Rgb(98, 114, 164),
-            success: Color::Rgb(80, 250, 123),
-            warning: Color::Rgb(241, 250, 140),
-            error: Color::Rgb(255, 85, 85),
-            progress: Color::Rgb(189, 147, 249),
+            accent: Color::Rgb(255, 110, 130),   // pink flesh
+            secondary: Color::Rgb(140, 210, 80), // green skin
+            highlight: Color::Rgb(60, 20, 30),
+            background: Color::Rgb(22, 12, 15),
+            surface: Color::Rgb(45, 22, 28),
+            surface_dim: Color::Rgb(30, 15, 18),
+            text: Color::Rgb(245, 230, 235),
+            text_dim: Color::Rgb(150, 110, 120),
+            success: Color::Rgb(100, 230, 100),
+            warning: Color::Rgb(255, 220, 60),
+            error: Color::Rgb(255, 70, 70),
+            progress: Color::Rgb(255, 110, 130),
+        }
+    }
+
+    /// 🟠 Papaya — vibrant orange & dark seeds
+    pub fn papaya() -> Self {
+        Self {
+            accent: Color::Rgb(255, 130, 40),    // papaya orange
+            secondary: Color::Rgb(255, 190, 60), // light orange
+            highlight: Color::Rgb(45, 25, 10),
+            background: Color::Rgb(15, 12, 8),
+            surface: Color::Rgb(35, 25, 18),
+            surface_dim: Color::Rgb(25, 18, 12),
+            text: Color::Rgb(250, 240, 230),
+            text_dim: Color::Rgb(140, 120, 100),
+            success: Color::Rgb(120, 210, 80),
+            warning: Color::Rgb(255, 200, 50),
+            error: Color::Rgb(255, 80, 40),
+            progress: Color::Rgb(255, 130, 40),
+        }
+    }
+
+    /// 🌺 Passionfruit — bright yellow & deep purple
+    pub fn passionfruit() -> Self {
+        Self {
+            accent: Color::Rgb(255, 230, 40),    // bright yellow
+            secondary: Color::Rgb(160, 60, 220), // passion purple
+            highlight: Color::Rgb(40, 10, 55),
+            background: Color::Rgb(15, 8, 20),
+            surface: Color::Rgb(35, 15, 45),
+            surface_dim: Color::Rgb(25, 10, 32),
+            text: Color::Rgb(245, 235, 255),
+            text_dim: Color::Rgb(150, 120, 180),
+            success: Color::Rgb(100, 240, 150),
+            warning: Color::Rgb(255, 200, 60),
+            error: Color::Rgb(255, 60, 100),
+            progress: Color::Rgb(255, 230, 40),
+        }
+    }
+
+    /// 🍒 Lychee — translucent white & red skin
+    pub fn lychee() -> Self {
+        Self {
+            accent: Color::Rgb(245, 245, 245),  // white flesh
+            secondary: Color::Rgb(230, 60, 80), // red skin
+            highlight: Color::Rgb(55, 25, 30),
+            background: Color::Rgb(18, 12, 14),
+            surface: Color::Rgb(42, 28, 32),
+            surface_dim: Color::Rgb(28, 18, 22),
+            text: Color::Rgb(250, 240, 242),
+            text_dim: Color::Rgb(160, 130, 135),
+            success: Color::Rgb(120, 240, 120),
+            warning: Color::Rgb(255, 210, 80),
+            error: Color::Rgb(255, 80, 80),
+            progress: Color::Rgb(230, 60, 80),
         }
     }
 }

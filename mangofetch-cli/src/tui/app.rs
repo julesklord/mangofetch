@@ -376,7 +376,10 @@ impl App {
         match name {
             "pitaya" => Theme::pitaya(),
             "coconut" => Theme::coconut(),
-            "dracula" => Theme::dracula(),
+            "guava" => Theme::guava(),
+            "papaya" => Theme::papaya(),
+            "passionfruit" => Theme::passionfruit(),
+            "lychee" => Theme::lychee(),
             _ => Theme::mango(),
         }
     }
@@ -514,7 +517,10 @@ impl App {
                 let next = match settings.appearance.tui_theme.as_str() {
                     "mango" => "pitaya",
                     "pitaya" => "coconut",
-                    "coconut" => "dracula",
+                    "coconut" => "guava",
+                    "guava" => "papaya",
+                    "papaya" => "passionfruit",
+                    "passionfruit" => "lychee",
                     _ => "mango",
                 };
                 settings.appearance.tui_theme = next.to_string();
