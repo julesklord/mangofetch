@@ -51,7 +51,7 @@ fn check_relay_error(line: &str) -> anyhow::Result<()> {
 }
 
 pub struct P2pDownloader;
- 
+
 impl Default for P2pDownloader {
     fn default() -> Self {
         Self::new()

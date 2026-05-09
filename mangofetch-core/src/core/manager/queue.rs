@@ -128,6 +128,54 @@ impl DownloadQueue {
         self.reporter = Some(reporter);
     }
 
+    pub fn load_from_recovery(&mut self, registry: &crate::core::registry::PlatformRegistry) {
+        let recovery_items = crate::core::manager::recovery::list();
+        for item in recovery_items {
+            let downloader = registry
+                .find_platform(&item.url)
+                .or_else(|| registry.find_by_name(&item.platform));
+
+            if let Some(dl) = downloader {
+                let percent = if matches!(item.status, QueueStatus::Complete { success: true }) {
+                    100.0
+                } else {
+                    0.0
+                };
+
+                let q_item = QueueItem {
+                    id: item.id,
+                    url: item.url,
+                    platform: item.platform,
+                    title: item.title,
+                    status: item.status,
+                    cancel_token: CancellationToken::new(),
+                    output_dir: item.output_dir,
+                    download_mode: item.download_mode,
+                    quality: item.quality,
+                    format_id: item.format_id,
+                    referer: item.referer,
+                    extra_headers: None,
+                    page_url: None,
+                    user_agent: None,
+                    percent,
+                    speed_bytes_per_sec: 0.0,
+                    downloaded_bytes: 0,
+                    total_bytes: item.file_size_bytes,
+                    file_path: item.file_path,
+                    file_size_bytes: item.file_size_bytes,
+                    file_count: None,
+                    media_info: None,
+                    downloader: dl,
+                    ytdlp_path: None,
+                    from_hotkey: false,
+                    torrent_id: None,
+                    phase: "Restored".to_string(),
+                };
+                self.items.push(q_item);
+            }
+        }
+    }
+
     fn sync_recovery(&self, item: &QueueItem) {
         crate::core::manager::recovery::persist(crate::core::manager::recovery::RecoveryItem {
             id: item.id,
@@ -140,6 +188,8 @@ impl DownloadQueue {
             quality: item.quality.clone(),
             format_id: item.format_id.clone(),
             referer: item.referer.clone(),
+            file_path: item.file_path.clone(),
+            file_size_bytes: item.file_size_bytes,
         });
     }
 
@@ -729,12 +779,6 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
         info_start.elapsed()
     );
 
-    let mut info = info;
-    if is_generic_title(&info.title) {
-        let pokemon = crate::core::pokemon_names::random_pokemon_name();
-        info.title = format!("video_{}", pokemon);
-    }
-
     let state = {
         let mut q = queue.lock().await;
         if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
@@ -1057,7 +1101,12 @@ pub async fn fetch_and_cache_info(
     }
 
     tracing::debug!("[perf] fetch_and_cache_info: fetching for {}", platform);
-    let info = downloader.get_media_info(url).await?;
+    let mut info = downloader.get_media_info(url).await?;
+
+    if is_generic_title(&info.title) {
+        let name = crate::core::random_names::get_random_name();
+        info.title = format!("video_{}", name);
+    }
 
     let mut cache = info_cache().lock().await;
     cache.insert(

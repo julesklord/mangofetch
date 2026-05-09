@@ -12,17 +12,24 @@ use tokio::sync::Mutex;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Tab {
+    Home,
     Queue,
     History,
-    Logs,
     Settings,
+    About,
+    Logs,
 }
 
 impl Tab {
-    pub const ALL: &'static [Tab] = &[Tab::Queue, Tab::History, Tab::Logs, Tab::Settings];
-
     pub fn label(self, nf: bool) -> &'static str {
         match self {
+            Tab::Home => {
+                if nf {
+                    " 󰋜 Home "
+                } else {
+                    " 🏠 Home "
+                }
+            }
             Tab::Queue => {
                 if nf {
                     " 󰄖 Queue "
@@ -37,13 +44,6 @@ impl Tab {
                     " 📜 History "
                 }
             }
-            Tab::Logs => {
-                if nf {
-                    "  Logs "
-                } else {
-                    " 📋 Logs "
-                }
-            }
             Tab::Settings => {
                 if nf {
                     " 󰒓 Settings "
@@ -51,12 +51,75 @@ impl Tab {
                     " ⚙ Settings "
                 }
             }
+            Tab::About => {
+                if nf {
+                    " 󰋽 About "
+                } else {
+                    " ℹ About "
+                }
+            }
+            Tab::Logs => {
+                if nf {
+                    " 󰋚 Logs "
+                } else {
+                    " 📋 Logs "
+                }
+            }
         }
     }
 
     pub fn index(self) -> usize {
-        Tab::ALL.iter().position(|&t| t == self).unwrap_or(0)
+        match self {
+            Tab::Home => 0,
+            Tab::Queue => 1,
+            Tab::History => 2,
+            Tab::Settings => 3,
+            Tab::About => 4,
+            Tab::Logs => 5,
+        }
     }
+
+    pub const ALL: &'static [Tab] = &[
+        Tab::Home,
+        Tab::Queue,
+        Tab::History,
+        Tab::Settings,
+        Tab::About,
+        Tab::Logs,
+    ];
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum DownloadsCategory {
+    All,
+    Active,
+    Queued,
+    Completed,
+    Failed,
+}
+
+impl DownloadsCategory {
+    pub const ALL: &'static [DownloadsCategory] = &[
+        DownloadsCategory::All,
+        DownloadsCategory::Active,
+        DownloadsCategory::Queued,
+        DownloadsCategory::Completed,
+        DownloadsCategory::Failed,
+    ];
+
+    pub fn label(self, nf: bool) -> String {
+        match self {
+            DownloadsCategory::All => if nf { "󰄗 All" } else { "All" }.into(),
+            DownloadsCategory::Active => if nf { "󰄖 Active" } else { "Active" }.into(),
+            DownloadsCategory::Queued => if nf { "󰄗 Queued" } else { "Queued" }.into(),
+            DownloadsCategory::Completed => if nf { "󰄬 Completed" } else { "Completed" }.into(),
+            DownloadsCategory::Failed => if nf { "󰅖 Failed" } else { "Failed" }.into(),
+        }
+    }
+}
+
+pub enum AppMsg {
+    PreviewFetched(Result<mangofetch_core::models::queue::QueueItemInfo, String>),
 }
 
 pub enum AppState {
@@ -71,6 +134,8 @@ pub enum Mode {
     Command,
     /// Modal to add a new download URL
     AddUrl,
+    /// Pre-download confirmation modal
+    AddConfirm,
     /// Confirmation to delete selected item
     ConfirmDelete,
 }
@@ -104,6 +169,16 @@ pub struct App {
     /// Which input field is focused in AddUrl modal (0 = url, 1 = quality)
     pub add_modal_field: usize,
 
+    /// Preview info for confirmation
+    pub preview_info: Option<mangofetch_core::models::queue::QueueItemInfo>,
+    /// Whether we are currently fetching info for preview
+    pub is_fetching_preview: bool,
+    /// Error message during preview fetch
+    pub preview_error: Option<String>,
+
+    pub msg_tx: tokio::sync::mpsc::UnboundedSender<AppMsg>,
+    pub msg_rx: tokio::sync::mpsc::UnboundedReceiver<AppMsg>,
+
     /// Settings tab cursor
     pub settings_index: usize,
     pub settings_count: usize,
@@ -125,10 +200,21 @@ pub struct App {
     /// Shared log sink from the TuiReporter
     log_sink: LogSink,
 
+    /// Current category for the Queue/History tabs
+    pub download_category: DownloadsCategory,
+
+    /// Selected action in Home tab
+    pub home_index: usize,
+
+    /// Selected sub-section in About tab
+    pub about_index: usize,
+
     /// Aggregate stats refreshed each tick
     pub total_speed: f64,
     pub active_count: usize,
     pub queued_count: usize,
+    pub completed_count: usize,
+    pub failed_count: usize,
 }
 
 // ── App impl ──────────────────────────────────────────────────────────────────
@@ -141,6 +227,7 @@ impl App {
     ) -> Self {
         let settings = AppSettings::load_from_disk();
         let theme = Self::make_theme(&settings.appearance.tui_theme);
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
         Self {
             state: AppState::Splash,
@@ -160,8 +247,13 @@ impl App {
             quality_input: String::new(),
             add_modal_field: 0,
             settings_index: 0,
-            settings_count: 4, // Theme, Nerd Fonts, Max Downloads, Quality
+            settings_count: 20, // Expanded list
             show_help: false,
+            preview_info: None,
+            is_fetching_preview: false,
+            preview_error: None,
+            msg_tx: tx,
+            msg_rx: rx,
             status_message: None,
             status_is_error: false,
             message_time: None,
@@ -170,9 +262,14 @@ impl App {
             output_lines: Vec::new(),
             output_scroll: 0,
             log_sink,
+            download_category: DownloadsCategory::All,
+            home_index: 0,
+            about_index: 0,
             total_speed: 0.0,
             active_count: 0,
             queued_count: 0,
+            completed_count: 0,
+            failed_count: 0,
         }
     }
 
@@ -222,9 +319,13 @@ impl App {
     pub fn drain_reporter_logs(&mut self) {
         if let Ok(mut sink) = self.log_sink.lock() {
             for line in sink.drain(..) {
+                let cleaned = strip_ansi_and_clean(&line);
+                if cleaned.is_empty() {
+                    continue;
+                }
                 // Mirror into log_lines for the Logs tab too
-                self.log_lines.push(line.clone());
-                self.output_lines.push(line);
+                self.log_lines.push(cleaned.clone());
+                self.output_lines.push(cleaned);
             }
         }
         // Cap sizes
@@ -355,15 +456,221 @@ impl App {
                 .to_string();
                 self.set_status(format!("Quality: {}", settings.download.video_quality));
             }
+            4 => {
+                settings.download.organize_by_platform = !settings.download.organize_by_platform;
+                self.set_status(format!(
+                    "Organize by Platform: {}",
+                    if settings.download.organize_by_platform {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            5 => {
+                settings.download.skip_existing = !settings.download.skip_existing;
+                self.set_status(format!(
+                    "Skip existing: {}",
+                    if settings.download.skip_existing {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            6 => {
+                settings.download.download_subtitles = !settings.download.download_subtitles;
+                self.set_status(format!(
+                    "Download Subtitles: {}",
+                    if settings.download.download_subtitles {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            7 => {
+                settings.download.download_attachments = !settings.download.download_attachments;
+                self.set_status(format!(
+                    "Download Attachments: {}",
+                    if settings.download.download_attachments {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            8 => {
+                settings.download.download_descriptions = !settings.download.download_descriptions;
+                self.set_status(format!(
+                    "Download Descriptions: {}",
+                    if settings.download.download_descriptions {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            9 => {
+                settings.download.youtube_sponsorblock = !settings.download.youtube_sponsorblock;
+                self.set_status(format!(
+                    "SponsorBlock: {}",
+                    if settings.download.youtube_sponsorblock {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            10 => {
+                settings.download.split_by_chapters = !settings.download.split_by_chapters;
+                self.set_status(format!(
+                    "Split by chapters: {}",
+                    if settings.download.split_by_chapters {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            11 => {
+                settings.download.embed_metadata = !settings.download.embed_metadata;
+                self.set_status(format!(
+                    "Embed Metadata: {}",
+                    if settings.download.embed_metadata {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            12 => {
+                settings.download.embed_thumbnail = !settings.download.embed_thumbnail;
+                self.set_status(format!(
+                    "Embed Thumbnail: {}",
+                    if settings.download.embed_thumbnail {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            13 => {
+                settings.advanced.max_concurrent_segments =
+                    match settings.advanced.max_concurrent_segments {
+                        8 => 16,
+                        16 => 32,
+                        32 => 64,
+                        _ => 8,
+                    };
+                self.set_status(format!(
+                    "Max Segments: {}",
+                    settings.advanced.max_concurrent_segments
+                ));
+            }
+            14 => {
+                settings.advanced.concurrent_fragments =
+                    match settings.advanced.concurrent_fragments {
+                        4 => 8,
+                        8 => 16,
+                        _ => 4,
+                    };
+                self.set_status(format!(
+                    "Max Fragments: {}",
+                    settings.advanced.concurrent_fragments
+                ));
+            }
+            15 => {
+                settings.advanced.stagger_delay_ms = match settings.advanced.stagger_delay_ms {
+                    0 => 100,
+                    100 => 250,
+                    250 => 500,
+                    _ => 0,
+                };
+                self.set_status(format!(
+                    "Stagger Delay: {}ms",
+                    settings.advanced.stagger_delay_ms
+                ));
+            }
+            16 => {
+                settings.advanced.torrent_listen_port = match settings.advanced.torrent_listen_port
+                {
+                    6881 => 8881,
+                    8881 => 9881,
+                    _ => 6881,
+                };
+                self.set_status(format!(
+                    "Torrent Port: {}",
+                    settings.advanced.torrent_listen_port
+                ));
+            }
+            17 => {
+                settings.proxy.enabled = !settings.proxy.enabled;
+                self.set_status(format!(
+                    "Proxy: {}",
+                    if settings.proxy.enabled { "ON" } else { "OFF" }
+                ));
+            }
+            18 => {
+                settings.telegram.fix_file_extensions = !settings.telegram.fix_file_extensions;
+                self.set_status(format!(
+                    "Fix TG extensions: {}",
+                    if settings.telegram.fix_file_extensions {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
+            19 => {
+                settings.start_with_windows = !settings.start_with_windows;
+                self.set_status(format!(
+                    "Start with Windows: {}",
+                    if settings.start_with_windows {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                ));
+            }
             _ => {}
         }
         let _ = settings.save_to_disk();
     }
 
+    // ── Message processing ───────────────────────────────────────────────────
+
+    pub fn process_messages(&mut self) {
+        while let Ok(msg) = self.msg_rx.try_recv() {
+            match msg {
+                AppMsg::PreviewFetched(result) => {
+                    self.is_fetching_preview = false;
+                    match result {
+                        Ok(info) => {
+                            self.preview_info = Some(info);
+                            self.preview_error = None;
+                        }
+                        Err(e) => {
+                            self.preview_error = Some(e);
+                            self.preview_info = None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ── Data refresh ──────────────────────────────────────────────────────────
 
     pub fn refresh_data(&mut self) {
-        self.current_time = Local::now().format("%H:%M:%S").to_string();
+        self.process_messages();
+
+        // Update clock only once per second to avoid UI churn
+        let now = Local::now();
+        let time_str = now.format("%H:%M").to_string();
+        if self.current_time != time_str {
+            self.current_time = time_str;
+        }
 
         if matches!(self.state, AppState::Splash) {
             return;
@@ -381,33 +688,54 @@ impl App {
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Queued))
                 .count();
+            self.completed_count = all
+                .iter()
+                .filter(|i| matches!(i.status, QueueStatus::Complete { .. }))
+                .count();
+            self.failed_count = all
+                .iter()
+                .filter(|i| matches!(i.status, QueueStatus::Error { .. }))
+                .count();
+
             self.total_speed = all
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .map(|i| i.speed_bytes_per_sec)
                 .sum();
 
-            // Filter per tab
+            // Filter per tab and category
             self.items = match self.active_tab {
-                Tab::Queue => all
-                    .into_iter()
-                    .filter(|i| {
-                        !matches!(
-                            i.status,
-                            QueueStatus::Complete { .. } | QueueStatus::Error { .. }
-                        )
-                    })
-                    .collect(),
-                Tab::History => all
-                    .into_iter()
-                    .filter(|i| {
-                        matches!(
-                            i.status,
-                            QueueStatus::Complete { .. } | QueueStatus::Error { .. }
-                        )
-                    })
-                    .collect(),
-                Tab::Logs | Tab::Settings => Vec::new(),
+                Tab::Queue | Tab::History => {
+                    all.into_iter()
+                        .filter(|i| match self.download_category {
+                            DownloadsCategory::All => true,
+                            DownloadsCategory::Active => matches!(i.status, QueueStatus::Active),
+                            DownloadsCategory::Queued => matches!(i.status, QueueStatus::Queued),
+                            DownloadsCategory::Completed => {
+                                matches!(i.status, QueueStatus::Complete { .. })
+                            }
+                            DownloadsCategory::Failed => {
+                                matches!(i.status, QueueStatus::Error { .. })
+                            }
+                        })
+                        .filter(|i| {
+                            // Secondary filter to keep Queue/History separation if desired,
+                            // but usually categories are enough.
+                            match self.active_tab {
+                                Tab::Queue => !matches!(
+                                    i.status,
+                                    QueueStatus::Complete { .. } | QueueStatus::Error { .. }
+                                ),
+                                Tab::History => matches!(
+                                    i.status,
+                                    QueueStatus::Complete { .. } | QueueStatus::Error { .. }
+                                ),
+                                _ => true,
+                            }
+                        })
+                        .collect()
+                }
+                _ => Vec::new(),
             };
         }
 
@@ -450,17 +778,43 @@ impl App {
     }
 
     pub fn next_tab(&mut self) {
-        let idx = (self.active_tab.index() + 1) % Tab::ALL.len();
-        self.active_tab = Tab::ALL[idx];
+        let all = Tab::ALL;
+        let current_idx = all.iter().position(|&t| t == self.active_tab).unwrap_or(0);
+        self.active_tab = all[(current_idx + 1) % all.len()];
         self.table_state.select(None);
         self.refresh_data();
     }
 
     pub fn prev_tab(&mut self) {
-        let idx = (self.active_tab.index() + Tab::ALL.len() - 1) % Tab::ALL.len();
-        self.active_tab = Tab::ALL[idx];
+        let all = Tab::ALL;
+        let current_idx = all.iter().position(|&t| t == self.active_tab).unwrap_or(0);
+        if current_idx == 0 {
+            self.active_tab = all[all.len() - 1];
+        } else {
+            self.active_tab = all[current_idx - 1];
+        }
         self.table_state.select(None);
         self.refresh_data();
+    }
+
+    pub fn next_category(&mut self) {
+        let all = DownloadsCategory::ALL;
+        let current_idx = all
+            .iter()
+            .position(|&c| c == self.download_category)
+            .unwrap_or(0);
+        self.download_category = all[(current_idx + 1) % all.len()];
+        self.refresh_data();
+    }
+
+    pub async fn execute_home_action(&mut self) {
+        match self.home_index {
+            0 => self.open_add_modal(),
+            1 => self.set_status("Batch Download: Use 'download-multiple' command".to_string()),
+            2 => self.set_status("P2P Send: Use 'send' command".to_string()),
+            3 => self.set_status("Torrent/Magnet: Paste URL in 'Add URL' modal".to_string()),
+            _ => {}
+        }
     }
 
     pub fn scroll_logs_down(&mut self) {
@@ -517,4 +871,34 @@ fn truncate(s: &str, max: usize) -> String {
             s.chars().take(max.saturating_sub(1)).collect::<String>()
         )
     }
+}
+
+fn strip_ansi_and_clean(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_escape = false;
+
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+        } else if in_escape {
+            if c == '['
+                || c == '('
+                || c == ')'
+                || c == '#'
+                || c == '?'
+                || c.is_ascii_digit()
+                || c == ';'
+            {
+                continue;
+            }
+            if c.is_ascii_alphabetic() {
+                in_escape = false;
+            }
+        } else if c == '\r' || c == '\n' || c == '\0' {
+            continue;
+        } else {
+            result.push(c);
+        }
+    }
+    result.trim().to_string()
 }

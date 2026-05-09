@@ -15,6 +15,7 @@ use clap::{Parser, Subcommand};
 use mangofetch_core::core::manager::queue::DownloadQueue;
 use mangofetch_core::core::manager::recovery;
 use mangofetch_core::core::registry::PlatformRegistry;
+use mangofetch_core::core::traits::DownloadReporter;
 use mangofetch_core::models::queue::QueueStatus;
 use mangofetch_core::models::settings::AppSettings;
 use std::sync::Arc;
@@ -62,6 +63,10 @@ enum Commands {
         /// Download audio only
         #[arg(short, long)]
         audio_only: bool,
+
+        /// Skip confirmation
+        #[arg(short, long)]
+        yes: bool,
     },
 
     /// Batch download from a text file
@@ -72,6 +77,10 @@ enum Commands {
         /// Output directory
         #[arg(short, long)]
         output: Option<String>,
+
+        /// Skip confirmation
+        #[arg(short, long)]
+        yes: bool,
     },
 
     /// Inspect media info without downloading
@@ -170,9 +179,10 @@ enum AboutTopic {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let is_tui = matches!(cli.command, Commands::Tui);
 
     // Initialize logging
-    mangofetch_core::core::logger::init_logging(cli.verbose);
+    mangofetch_core::core::logger::init_logging_ext(cli.verbose, !is_tui);
 
     // Initialize recovery from disk
     recovery::init_from_disk();
@@ -187,16 +197,20 @@ async fn main() -> Result<()> {
     };
 
     // Create reporter with theme
-    let reporter = Arc::new(CLIReporter::with_theme(theme.clone()));
+    // If in TUI mode, we don't want the CLI reporter to touch stdout
+    let reporter: Option<Arc<dyn DownloadReporter>> = if is_tui {
+        None
+    } else {
+        Some(Arc::new(CLIReporter::with_theme(theme.clone())))
+    };
 
     let mut registry = PlatformRegistry::new();
     engine::register_platforms(&mut registry);
     let registry = Arc::new(registry);
 
-    let queue = Arc::new(tokio::sync::Mutex::new(DownloadQueue::new(
-        3,
-        Some(reporter.clone()),
-    )));
+    let mut q_obj = DownloadQueue::new(3, reporter.clone());
+    q_obj.load_from_recovery(&registry);
+    let queue = Arc::new(tokio::sync::Mutex::new(q_obj));
 
     // ========================================================================
     // COMMAND DISPATCHER
@@ -208,12 +222,14 @@ async fn main() -> Result<()> {
             output,
             quality,
             audio_only,
+            yes,
         } => {
             perform_download(
                 &url,
                 output,
                 quality,
                 audio_only,
+                yes,
                 &registry,
                 &queue,
                 reporter.clone(),
@@ -223,7 +239,7 @@ async fn main() -> Result<()> {
             wait_for_queue(&queue).await;
         }
 
-        Commands::DownloadMultiple { file, output } => {
+        Commands::DownloadMultiple { file, output, yes } => {
             let content = std::fs::read_to_string(&file)?;
             let urls: Vec<String> = content
                 .lines()
@@ -248,6 +264,7 @@ async fn main() -> Result<()> {
                     output.clone(),
                     None,
                     false,
+                    yes,
                     &registry,
                     &queue,
                     reporter.clone(),
@@ -433,11 +450,8 @@ async fn main() -> Result<()> {
                 theme.color_reset()
             );
 
-            match mangofetch_core::core::dependencies::ensure_dependencies(
-                false,
-                Some(reporter.clone()),
-            )
-            .await
+            match mangofetch_core::core::dependencies::ensure_dependencies(false, reporter.clone())
+                .await
             {
                 Ok(deps) => {
                     let yt_dlp_path = deps.ytdlp.as_ref().map(|p| p.to_string_lossy().to_string());
@@ -471,11 +485,8 @@ async fn main() -> Result<()> {
                 theme.color_reset()
             );
 
-            match mangofetch_core::core::dependencies::ensure_dependencies(
-                true,
-                Some(reporter.clone()),
-            )
-            .await
+            match mangofetch_core::core::dependencies::ensure_dependencies(true, reporter.clone())
+                .await
             {
                 Ok(deps) => {
                     let yt_dlp_path = deps.ytdlp.as_ref().map(|p| p.to_string_lossy().to_string());
@@ -605,15 +616,71 @@ async fn perform_download(
     output: Option<String>,
     quality: Option<String>,
     audio_only: bool,
+    yes: bool,
     registry: &PlatformRegistry,
     queue: &Arc<tokio::sync::Mutex<DownloadQueue>>,
-    reporter: Arc<crate::reporter::CLIReporter>,
+    reporter: Option<Arc<dyn DownloadReporter>>,
     theme: &Arc<dyn CliTheme>,
 ) -> Result<()> {
     let downloader = registry
         .find_platform(url)
         .ok_or_else(|| anyhow::anyhow!("No supported platform found for URL"))?;
     let platform_name = downloader.name().to_string();
+
+    // Fetch info to show title/confirmation
+    println!(
+        "{}🔍 Fetching info for {}{}...",
+        theme.color_info(),
+        url,
+        theme.color_reset()
+    );
+    let media_info = mangofetch_core::core::manager::queue::fetch_and_cache_info(
+        url,
+        &*downloader,
+        &platform_name,
+    )
+    .await;
+
+    if !yes {
+        match &media_info {
+            Ok(info) => {
+                println!(
+                    "\n{margin}{info}PREVIEW{reset}  {accent}READY TO DOWNLOAD{reset}\n{margin}{bar}",
+                    margin = "  ",
+                    info = theme.color_info(),
+                    accent = theme.color_accent(),
+                    reset = theme.color_reset(),
+                    bar = "—".repeat(50),
+                );
+                println!("  TITLE:    {}", info.title);
+                println!("  PLATFORM: {}", platform_name);
+                if !info.author.is_empty() && info.author != "unknown" {
+                    println!("  AUTHOR:   {}", info.author);
+                }
+                println!();
+
+                if !confirm("  Proceed with download?", true) {
+                    println!(
+                        "\n{}⚠ Aborted by user.{}",
+                        theme.color_warning(),
+                        theme.color_reset()
+                    );
+                    return Ok(());
+                }
+            }
+            Err(e) => {
+                println!(
+                    "{}⚠ Could not fetch info: {}{}",
+                    theme.color_warning(),
+                    e,
+                    theme.color_reset()
+                );
+                if !confirm("  Download anyway?", true) {
+                    return Ok(());
+                }
+            }
+        }
+    }
 
     let output_dir = output.unwrap_or_else(|| {
         dirs::download_dir()
@@ -623,17 +690,52 @@ async fn perform_download(
     });
 
     let deps =
-        mangofetch_core::core::dependencies::ensure_dependencies(false, Some(reporter.clone()))
-            .await?;
+        mangofetch_core::core::dependencies::ensure_dependencies(false, reporter.clone()).await?;
 
-    // Pre-fetch info to show title
-    let media_info = mangofetch_core::core::manager::queue::fetch_and_cache_info(
-        url,
-        &*downloader,
-        &platform_name,
-    )
-    .await
-    .ok();
+    let media_info = media_info.ok();
+
+    if let Some(ref info) = media_info {
+        if info.media_type == mangofetch_core::models::media::MediaType::Playlist {
+            println!(
+                "{}📖 Enqueuing playlist:{} {} ({} items)",
+                theme.color_accent(),
+                theme.color_reset(),
+                info.title,
+                info.available_qualities.len()
+            );
+
+            for entry in &info.available_qualities {
+                let id = recovery::get_next_id();
+                let entry_url = &entry.url;
+                let entry_title = &entry.label;
+
+                let mut q = queue.lock().await;
+                q.enqueue(
+                    id,
+                    entry_url.to_string(),
+                    platform_name.clone(),
+                    entry_title.clone(),
+                    output_dir.clone(),
+                    None,
+                    quality.clone(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None, // We don't have full info for each entry yet
+                    None,
+                    None,
+                    downloader.clone(),
+                    deps.ytdlp.clone(),
+                    audio_only,
+                );
+                drop(q);
+            }
+            mangofetch_core::core::manager::queue::try_start_next(queue.clone()).await;
+            return Ok(());
+        }
+    }
 
     if let Some(ref info) = media_info {
         println!(
@@ -653,8 +755,7 @@ async fn perform_download(
         );
     }
 
-    static ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    let id = ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let id = recovery::get_next_id();
 
     let mut q = queue.lock().await;
     q.enqueue(
@@ -727,4 +828,24 @@ fn set_json_path(val: &mut serde_json::Value, path: &str, value: &str) -> bool {
         }
     }
     false
+}
+
+fn confirm(prompt: &str, default: bool) -> bool {
+    use std::io::{self, Write};
+    print!(
+        "{} [{}/{}] ",
+        prompt,
+        if default { "Y" } else { "y" },
+        if default { "n" } else { "N" }
+    );
+    let _ = io::stdout().flush();
+    let mut input = String::new();
+    if io::stdin().read_line(&mut input).is_err() {
+        return default;
+    }
+    let input = input.trim().to_lowercase();
+    if input.is_empty() {
+        return default;
+    }
+    input == "y" || input == "yes"
 }

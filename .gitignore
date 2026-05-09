@@ -244,9 +244,6 @@ vite.config.ts.timestamp-*
 # Local dev scratch files
 .scratch/
 
-# Trunk linter
-.trunk/
-
 # TEMPORARY - flatpak folder
 flatpak/
 

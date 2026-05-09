@@ -1,12 +1,12 @@
 # 🥭 mangofetch
 
 **Brutally fast. Extensible. Pure Rust.**  
-*A high-performance, asynchronous download engine for the terminal.*
+_A high-performance, asynchronous download engine for the terminal._
 
 ---
 
 <p align="center">
-  <img src="demo.gif" alt="MangoFetch in action" width="850" />
+  <img src="docs/assets/shot.png" alt="MangoFetch in action" width="900" />
 </p>
 
 <p align="center">
@@ -32,10 +32,10 @@ MangoFetch is organized as a modular workspace, ensuring strict separation of co
 ```mermaid
 graph TD
     User([Terminal User]) -->|CLI Commands| CLI(mangofetch-cli)
-    
+
     subgraph MangoFetch Workspace
         CLI -->|Dispatch & Render| Core(mangofetch-core)
-        
+
         subgraph Core Engine
             Core --> Queue[Async Download Queue]
             Core --> Registry[Platform Registry]
@@ -43,10 +43,10 @@ graph TD
             Registry --> Ext_Native[Native Extractors]
             Registry --> Ext_Generic[Generic Extractor]
         end
-        
+
         CLI -.->|Dynamic Linking| SDK(mangofetch-plugin-sdk)
     end
-    
+
     Ext_Generic -->|Wraps| YTDLP[yt-dlp Binary]
     Ext_Native -->|Muxes Audio/Video| FFmpeg[FFmpeg Binary]
     YTDLP -.-> Network((Internet))
@@ -72,21 +72,21 @@ stateDiagram-v2
     Queued --> FetchingMetadata : Worker Thread Picks Item
     FetchingMetadata --> Active : Media Info Resolved
     FetchingMetadata --> Error : Network/Parse Failure
-    
+
     state Active {
         [*] --> Allocating
         Allocating --> Downloading : Progress Stream via MPSC
         Downloading --> Muxing : Audio+Video Merge (FFmpeg)
         Muxing --> [*]
     }
-    
+
     Active --> Complete : Success
     Active --> Error : Interruption / Connection Drop
     Error --> Queued : Retry Logic Triggered
     Complete --> [*]
 ```
 
-### Key Engineering Features:
+### Key Engineering Features
 
 - **Asynchronous I/O Pipeline:** Utilizing `tokio::sync::mpsc` channels for non-blocking progress reporting. The UI thread is completely decoupled from the I/O threads.
 - **Self-Healing Dependencies:** Automatic resolution, downloading, and path-linking of external binaries (`ffmpeg`, `yt-dlp`). The user never has to touch their `$PATH`.
@@ -98,18 +98,18 @@ stateDiagram-v2
 
 MangoFetch is designed for speed. While the full `mangofetch` commands provide clarity, an upcoming release will introduce the `mango` binary and ultra-short aliases for power users.
 
-| Full Command | Short Alias *(Upcoming)* | Description |
-| :--- | :--- | :--- |
-| `mangofetch download <url>` | `mango d <url>` | Single file download and extraction. |
-| `mangofetch download-multiple <file>` | `mango dm <file>` | Batch archival from a text file (supports concurrency). |
-| `mangofetch info <url>` | `mango i <url>` | Inspect media metadata without touching disk. |
-| `mangofetch list` | `mango ls` | View current queue and historical download status. |
-| `mangofetch clean` | `mango c` | Clear download history and purge cache. |
-| `mangofetch config` | `mango cfg` | Manage application settings (connections, paths). |
-| `mangofetch check` | `mango ch` | Verify system dependencies (`yt-dlp`, `ffmpeg`). |
-| `mangofetch update` | `mango up` | Update internal dependency binaries to latest versions. |
-| `mangofetch logs` | `mango log` | Tail raw application logs for debugging. |
-| `mangofetch about` | `mango a` | Display version, license, and lineage information. |
+| Full Command                          | Short Alias _(Upcoming)_ | Description                                             |
+| :------------------------------------ | :----------------------- | :------------------------------------------------------ |
+| `mangofetch download <url>`           | `mango d <url>`          | Single file download and extraction.                    |
+| `mangofetch download-multiple <file>` | `mango dm <file>`        | Batch archival from a text file (supports concurrency). |
+| `mangofetch info <url>`               | `mango i <url>`          | Inspect media metadata without touching disk.           |
+| `mangofetch list`                     | `mango ls`               | View current queue and historical download status.      |
+| `mangofetch clean`                    | `mango c`                | Clear download history and purge cache.                 |
+| `mangofetch config`                   | `mango cfg`              | Manage application settings (connections, paths).       |
+| `mangofetch check`                    | `mango ch`               | Verify system dependencies (`yt-dlp`, `ffmpeg`).        |
+| `mangofetch update`                   | `mango up`               | Update internal dependency binaries to latest versions. |
+| `mangofetch logs`                     | `mango log`              | Tail raw application logs for debugging.                |
+| `mangofetch about`                    | `mango a`                | Display version, license, and lineage information.      |
 
 ---
 
@@ -138,27 +138,27 @@ cargo build --release
 
 ## 🗺️ Roadmap & Milestones
 
-| Version | Status | Milestone |
-|---------|--------|-----------|
-| **v0.1.0** | ✅ | Initial release and architecture setup |
-| **v0.2.0** | ✅ | Standalone rewrite — GUI removed, core refactored |
-| **v0.3.1** | ✅ | Rebranding cleanup, test fixes, and documentation overhaul |
-| **v0.4.0** | ✅ | **The TUI Release:** Full-screen interactive terminal interface |
-| **v0.5.0** | ⏳ | Plugin management and community extractors via SDK |
-| **v0.6.0** | ⏳ | Decentralized P2P file sharing implementation |
+| Version    | Status | Milestone                                                       |
+| ---------- | ------ | --------------------------------------------------------------- |
+| **v0.1.0** | ✅     | Initial release and architecture setup                          |
+| **v0.2.0** | ✅     | Standalone rewrite — GUI removed, core refactored               |
+| **v0.3.1** | ✅     | Rebranding cleanup, test fixes, and documentation overhaul      |
+| **v0.4.0** | ✅     | **The TUI Release:** Full-screen interactive terminal interface |
+| **v0.5.0** | ⏳     | Plugin management and community extractors via SDK              |
+| **v0.6.0** | ⏳     | Decentralized P2P file sharing implementation                   |
 
 ---
 
 ## 🤝 Acknowledgments
 
-- **[OmniGet](https://github.com/tonhowtf/omniget)** — The absolute backbone of this project. A huge shoutout to *tonhowft* for architecting the original extraction logic and queue engine that MangoFetch builds upon.
+- **[OmniGet](https://github.com/tonhowtf/omniget)** — The absolute backbone of this project. A huge shoutout to _tonhowft_ for architecting the original extraction logic and queue engine that MangoFetch builds upon.
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The incredible extraction engine handling the heavy lifting for over a thousand unsupported platforms.
 
 ## Contributing
 
 Pull requests are fiercely welcomed. For major architectural changes, please open an issue first to discuss your approach. See `CONTRIBUTING.md` for guidelines.
 
-## License 
+## License
 
 <p align="center">
   Built with 🦀 and 🥭 by <a href="https://github.com/julesklord">Jules Martins</a>.<br>

@@ -58,8 +58,6 @@ pub enum NavGroup {
     Secondary,
 }
 
-
-
 fn default_nav_group() -> NavGroup {
     NavGroup::Secondary
 }

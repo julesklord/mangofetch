@@ -52,8 +52,38 @@ pub async fn enqueue_download_with_quality(
     .await
     .ok();
 
-    static ID_COUNTER2: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(200);
-    let id = ID_COUNTER2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let id = mangofetch_core::core::manager::recovery::get_next_id();
+
+    if let Some(ref info) = media_info {
+        if info.media_type == mangofetch_core::models::media::MediaType::Playlist {
+            for entry in &info.available_qualities {
+                let pid = mangofetch_core::core::manager::recovery::get_next_id();
+                let mut q = queue.lock().await;
+                q.enqueue(
+                    pid,
+                    entry.url.clone(),
+                    platform_name.clone(),
+                    entry.label.clone(),
+                    output.clone(),
+                    None,
+                    None,
+                    quality.clone(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    downloader.clone(),
+                    deps.ytdlp.clone(),
+                    false,
+                );
+            }
+            mangofetch_core::core::manager::queue::try_start_next(queue.clone()).await;
+            return Ok(());
+        }
+    }
 
     let mut q = queue.lock().await;
     q.enqueue(
@@ -115,8 +145,7 @@ pub async fn enqueue_download(
     .await
     .ok();
 
-    static ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(100); // Start high for TUI manually added ones
-    let id = ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let id = mangofetch_core::core::manager::recovery::get_next_id();
 
     let mut q = queue.lock().await;
     q.enqueue(

@@ -1,13 +1,12 @@
-use super::app::{App, AppState, Mode, Tab};
+use super::app::{App, AppState, DownloadsCategory, Mode, Tab};
 use super::assets::{BLOCK_TITLE, MANGO_BODY, MANGO_STEM};
 use crate::formatting::{format_bytes, format_duration};
 use mangofetch_core::models::queue::QueueStatus;
 use ratatui::{
     prelude::*,
-    widgets::{
-        Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap,
-    },
+    widgets::{Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row, Table, Wrap},
 };
+use std::sync::Arc;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -22,7 +21,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
     let area = f.area();
     let chunks = Layout::vertical([
-        Constraint::Length(3),  // header / tabs
+        Constraint::Length(3), // header / tabs
         Constraint::Min(8),    // main content (table, settings, etc.)
         Constraint::Length(5), // detail panel + progress gauge
         Constraint::Length(8), // output panel (reporter events)
@@ -42,6 +41,9 @@ pub fn render(f: &mut Frame, app: &mut App) {
     }
     if app.mode == Mode::AddUrl {
         render_add_modal(f, app);
+    }
+    if app.mode == Mode::AddConfirm {
+        render_add_confirm_modal(f, app);
     }
     if app.mode == Mode::ConfirmDelete {
         render_confirm_delete(f, app);
@@ -173,53 +175,67 @@ fn render_tabs(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let nf = app.use_nerd_fonts;
 
-    let titles: Vec<String> = Tab::ALL
-        .iter()
-        .map(|tab| tab.label(nf).to_string())
-        .collect();
-    let selected = app.active_tab.index();
+    let mut spans: Vec<Span> = Vec::new();
+    spans.push(Span::styled(" ", Style::new().fg(t.text_dim)));
 
-    // Right-side stats
-    let speed_str = if app.total_speed > 0.0 {
-        format!("  {}/s", format_bytes(app.total_speed as u64))
-    } else {
-        String::new()
-    };
-    let header_title = format!(
-        " MangoFetch  ▸  {} active  {}{}  {} ",
-        app.active_count,
-        if app.queued_count > 0 {
-            format!("· {} queued", app.queued_count)
+    for (i, tab) in Tab::ALL.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(" │ ", Style::new().fg(t.surface)));
+        }
+
+        let label = tab.label(nf);
+        let key = format!("{}", i + 1);
+        let is_active = i == app.active_tab.index();
+
+        if is_active {
+            // Active: inverted pill with accent background
+            spans.push(Span::styled(
+                format!(" {}{} ", key, label),
+                Style::new().fg(t.background).bg(t.accent).bold(),
+            ));
         } else {
-            String::new()
-        },
-        speed_str,
-        app.current_time,
+            // Inactive: dim key number + label
+            spans.push(Span::styled(
+                format!(" {}", key),
+                Style::new().fg(t.surface).dim(),
+            ));
+            spans.push(Span::styled(
+                format!("{} ", label),
+                Style::new().fg(t.text_dim),
+            ));
+        }
+    }
+
+    let header_title = format!(" 🥭 MangoFetch v{} ", app.version);
+
+    let tabs_p = Paragraph::new(Line::from(spans)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(header_title)
+            .title_style(Style::new().fg(t.accent).bold())
+            .title(
+                Line::from(vec![
+                    Span::styled(" Shift+Tab ", Style::new().fg(t.text_dim)),
+                    Span::styled("◂ ▸", Style::new().fg(t.accent)),
+                    Span::styled(" Tab ", Style::new().fg(t.text_dim)),
+                ])
+                .alignment(Alignment::Right),
+            )
+            .border_style(Style::new().fg(t.surface)),
     );
 
-    let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(header_title)
-                .title_style(Style::new().fg(t.text_dim))
-                .border_style(Style::new().fg(t.accent)),
-        )
-        .select(selected)
-        .style(Style::new().fg(t.text_dim))
-        .highlight_style(Style::new().fg(t.accent).bold())
-        .divider(Span::styled(" │ ", Style::new().fg(t.surface)));
-
-    f.render_widget(tabs, area);
+    f.render_widget(tabs_p, area);
 }
 
 // ── Main content router ───────────────────────────────────────────────────────
 
 fn render_main(f: &mut Frame, app: &mut App, area: Rect) {
     match app.active_tab {
+        Tab::Home => render_home(f, app, area),
         Tab::Queue | Tab::History => render_queue_table(f, app, area),
         Tab::Logs => render_logs(f, app, area),
         Tab::Settings => render_settings(f, app, area),
+        Tab::About => render_about(f, app, area),
     }
 }
 
@@ -230,9 +246,15 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
     let nf = app.use_nerd_fonts;
     let is_queue = app.active_tab == Tab::Queue;
 
-    // Split area: table top, progress bars bottom
-    let chunks = Layout::vertical([Constraint::Min(0)]).split(area);
-    let table_area = chunks[0];
+    // Split area: top category tabs, then table
+    let chunks = Layout::vertical([
+        Constraint::Length(3), // Categories
+        Constraint::Min(0),    // Table
+    ])
+    .split(area);
+
+    render_categories(f, app, chunks[0]);
+    let table_area = chunks[1];
 
     let h_binding = [
         if nf { "  ID" } else { " ID" },
@@ -320,7 +342,7 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Block::default()
                     .borders(Borders::ALL)
                     .title(title)
-                    .border_style(Style::new().fg(t.surface)),
+                    .border_style(Style::new().fg(t.text_dim)),
             )
             .style(Style::new().fg(t.text_dim))
             .alignment(Alignment::Center);
@@ -345,7 +367,7 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
         Block::default()
             .borders(Borders::ALL)
             .title(title)
-            .border_style(Style::new().fg(t.surface)),
+            .border_style(Style::new().fg(t.text_dim)),
     )
     .row_highlight_style(Style::new().bg(t.highlight).bold())
     .highlight_symbol("▶ ");
@@ -381,7 +403,7 @@ fn render_logs(f: &mut Frame, app: &App, area: Rect) {
         Block::default()
             .borders(Borders::ALL)
             .title(format!(" 📋 Logs  ({} lines) ", app.log_lines.len()))
-            .border_style(Style::new().fg(t.surface)),
+            .border_style(Style::new().fg(t.text_dim)),
     );
     f.render_widget(list, area);
 }
@@ -396,7 +418,7 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
         (
             "TUI Theme",
             settings.appearance.tui_theme.clone(),
-            "mango │ pitaya │ coconut │ dracula  (Enter to cycle)",
+            "mango │ pitaya │ coconut │ dracula",
         ),
         (
             "Nerd Fonts",
@@ -405,17 +427,145 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 "OFF".into()
             },
-            "Requires a Nerd Font patched terminal font",
+            "Enables icons (requires patched terminal)",
         ),
         (
             "Max Downloads",
             settings.advanced.max_concurrent_downloads.to_string(),
-            "Max simultaneous downloads  (1 │ 2 │ 3 │ 5)",
+            "Max simultaneous downloads",
         ),
         (
             "Default Quality",
             settings.download.video_quality.clone(),
             "best │ 1080p │ 720p │ 480p │ 360p",
+        ),
+        (
+            "Organize Platforms",
+            if settings.download.organize_by_platform {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Organize files into platform folders",
+        ),
+        (
+            "Skip Existing",
+            if settings.download.skip_existing {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Don't redownload already existing files",
+        ),
+        (
+            "Subtitles",
+            if settings.download.download_subtitles {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Download and embed subtitles",
+        ),
+        (
+            "Attachments",
+            if settings.download.download_attachments {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Download thumbnails and extra assets",
+        ),
+        (
+            "Descriptions",
+            if settings.download.download_descriptions {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Save media descriptions to .txt files",
+        ),
+        (
+            "SponsorBlock",
+            if settings.download.youtube_sponsorblock {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Skip sponsor segments (YouTube)",
+        ),
+        (
+            "Split Chapters",
+            if settings.download.split_by_chapters {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Save each chapter as a separate file",
+        ),
+        (
+            "Embed Metadata",
+            if settings.download.embed_metadata {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Add tags and info to media files",
+        ),
+        (
+            "Embed Cover",
+            if settings.download.embed_thumbnail {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Add thumbnail as album art",
+        ),
+        (
+            "Max Segments",
+            settings.advanced.max_concurrent_segments.to_string(),
+            "Parallel segments per download",
+        ),
+        (
+            "Max Fragments",
+            settings.advanced.concurrent_fragments.to_string(),
+            "Fragments for HLS/DASH streams",
+        ),
+        (
+            "Stagger Delay",
+            format!("{}ms", settings.advanced.stagger_delay_ms),
+            "Delay between starting connections",
+        ),
+        (
+            "Torrent Port",
+            settings.advanced.torrent_listen_port.to_string(),
+            "Listening port for P2P traffic",
+        ),
+        (
+            "Proxy Mode",
+            if settings.proxy.enabled {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Route traffic through configured proxy",
+        ),
+        (
+            "TG File Fix",
+            if settings.telegram.fix_file_extensions {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Automatically fix extensions for Telegram",
+        ),
+        (
+            "Auto-Start",
+            if settings.start_with_windows {
+                "ON".into()
+            } else {
+                "OFF".into()
+            },
+            "Run MangoFetch at system startup",
         ),
     ];
 
@@ -462,7 +612,7 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
         Block::default()
             .borders(Borders::ALL)
             .title(" ⚙ Settings  (↑↓ navigate · Enter cycle) ")
-            .border_style(Style::new().fg(t.surface)),
+            .border_style(Style::new().fg(t.text_dim)),
     )
     .row_highlight_style(Style::new().bg(t.highlight));
 
@@ -499,7 +649,9 @@ fn render_detail(f: &mut Frame, app: &App, area: Rect) {
         }
     } else {
         match app.active_tab {
+            Tab::Home => " Use ↑↓ to navigate actions, Enter to execute.".into(),
             Tab::Settings => " Use ↑↓ to navigate settings, Enter to cycle values.".into(),
+            Tab::About => " Use ↑↓ to navigate sections.".into(),
             Tab::Logs => " ↑↓ or j/k to scroll  ·  G jumps to bottom  ·  :clear to clear".into(),
             _ => " Select an item above to see details.".into(),
         }
@@ -510,7 +662,7 @@ fn render_detail(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Details ")
-                .border_style(Style::new().fg(t.surface)),
+                .border_style(Style::new().fg(t.text_dim)),
         )
         .style(Style::new().fg(t.text))
         .wrap(Wrap { trim: true });
@@ -529,7 +681,7 @@ fn render_detail(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Progress ")
-                .border_style(Style::new().fg(t.surface)),
+                .border_style(Style::new().fg(t.text_dim)),
         )
         .gauge_style(Style::new().fg(t.progress).bg(t.surface_dim))
         .percent(pct)
@@ -580,7 +732,7 @@ fn render_output(f: &mut Frame, app: &App, area: Rect) {
         Block::default()
             .borders(Borders::ALL)
             .title(title)
-            .border_style(Style::new().fg(t.surface)),
+            .border_style(Style::new().fg(t.text_dim)),
     );
     f.render_widget(list, area);
 }
@@ -609,24 +761,26 @@ fn render_statusbar(f: &mut Frame, app: &App, area: Rect) {
         )
     } else {
         let shortcuts = match app.active_tab {
+            Tab::Home => " ↑↓:navigate  Enter:execute  Tab:tab  q:quit",
             Tab::Queue | Tab::History => {
-                " a:add  p:pause  r:resume  x:delete  /:cmd  Tab:tab  ?:help  q:quit"
+                " a:add  p:pause  r:resume  x:delete  /:cmd  Tab:cat  Tab:tab  ?:help  q:quit"
             }
             Tab::Settings => " ↑↓:navigate  Enter:cycle  Tab:tab  q:quit",
+            Tab::About => " ↑↓:navigate  Tab:tab  q:quit",
             Tab::Logs => " ↑↓:scroll  G:bottom  :clear  q:quit",
         };
         Span::styled(shortcuts, Style::new().fg(t.text_dim).bg(t.surface_dim))
     };
 
     let right_str = format!(
-        " {} active  v{}  {} ",
+        " {} active  v{}  [{}] ",
         app.active_count, app.version, app.current_time
     );
     let right = Span::styled(&right_str, Style::new().fg(t.text_dim).bg(t.surface_dim));
 
     let left_w = left.width() as u16;
     let right_w = right.width() as u16;
-    let gap = area.width.saturating_sub(left_w + right_w);
+    let gap = area.width.saturating_sub(left_w + right_w + 1);
 
     let bar = Paragraph::new(Line::from(vec![
         left,
@@ -708,7 +862,7 @@ fn render_add_modal(f: &mut Frame, app: &App) {
     let url_style = if app.add_modal_field == 0 {
         Style::new().fg(t.accent)
     } else {
-        Style::new().fg(t.surface)
+        Style::new().fg(t.text_dim)
     };
     let url_block = Block::default()
         .borders(Borders::ALL)
@@ -722,7 +876,7 @@ fn render_add_modal(f: &mut Frame, app: &App) {
     let q_style = if app.add_modal_field == 1 {
         Style::new().fg(t.accent)
     } else {
-        Style::new().fg(t.surface)
+        Style::new().fg(t.text_dim)
     };
     let q_block = Block::default()
         .borders(Borders::ALL)
@@ -769,7 +923,291 @@ fn render_confirm_delete(f: &mut Frame, app: &App) {
     f.render_widget(p, area);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── New Tabs: Home, About, Categories ─────────────────────────────────────────
+
+fn render_home(f: &mut Frame, app: &App, area: Rect) {
+    let t = &app.theme;
+    let nf = app.use_nerd_fonts;
+
+    // Use a centered, comfortably sized area for the dashboard
+    let dash_area = centered_rect(85, 75, area);
+
+    // Split into Left (Logo) and Right (Info + Actions)
+    let main_chunks = Layout::horizontal([
+        Constraint::Length(35), // Space for logo
+        Constraint::Min(45),    // Space for info and menu
+    ])
+    .split(dash_area);
+
+    // ── Left: Large Logo ──────────────────────────────────────────────────
+    let green_stem = Color::Rgb(60, 200, 80);
+    let green_leaf = Color::Rgb(30, 160, 50);
+    let orange = Color::Rgb(255, 160, 30);
+    let gold = Color::Rgb(255, 220, 60);
+
+    let mut logo_lines = Vec::new();
+
+    // Top padding to vertically center the logo slightly
+    for _ in 0..3 {
+        logo_lines.push(Line::from(""));
+    }
+
+    for (i, &line) in super::assets::MANGO_STEM.iter().enumerate() {
+        let col = if i == 0 { green_stem } else { green_leaf };
+        logo_lines.push(
+            Line::from(Span::styled(line, Style::new().fg(col).bold()))
+                .alignment(Alignment::Center),
+        );
+    }
+
+    for &line in super::assets::MANGO_BODY.iter() {
+        let mut spans: Vec<Span> = Vec::new();
+        let mut seg = String::new();
+        let mut in_highlight = false;
+        for ch in line.chars() {
+            let is_hl = ch == '░';
+            if is_hl != in_highlight {
+                if !seg.is_empty() {
+                    let col = if in_highlight { gold } else { orange };
+                    spans.push(Span::styled(seg.clone(), Style::new().fg(col).bold()));
+                    seg.clear();
+                }
+                in_highlight = is_hl;
+            }
+            seg.push(if is_hl { '▒' } else { ch });
+        }
+        if !seg.is_empty() {
+            let col = if in_highlight { gold } else { orange };
+            spans.push(Span::styled(seg, Style::new().fg(col).bold()));
+        }
+        logo_lines.push(Line::from(spans).alignment(Alignment::Center));
+    }
+
+    f.render_widget(Paragraph::new(logo_lines), main_chunks[0]);
+
+    // ── Right: Info & Actions ─────────────────────────────────────────────
+    let right_chunks = Layout::vertical([
+        Constraint::Length(2), // Title
+        Constraint::Length(2), // Tagline
+        Constraint::Length(6), // Features
+        Constraint::Length(2), // "Quick Actions" header
+        Constraint::Min(8),    // Menu
+    ])
+    .split(main_chunks[1]);
+
+    // Title
+    let title = Line::from(vec![
+        Span::styled("M A N G O ", Style::new().fg(t.accent).bold()),
+        Span::styled("F E T C H", Style::new().fg(t.secondary).bold()),
+        Span::styled(format!("  v{}", app.version), Style::new().fg(t.text_dim)),
+    ]);
+    f.render_widget(Paragraph::new(title), right_chunks[0]);
+
+    // Tagline
+    let tagline = Line::from(Span::styled(
+        "The Universal Terminal Download Manager",
+        Style::new().fg(t.text).italic(),
+    ));
+    f.render_widget(Paragraph::new(tagline), right_chunks[1]);
+
+    // Features
+    let check = if nf { "󰄬" } else { "✓" };
+    let features = vec![
+        Line::from(vec![
+            Span::styled(format!(" {} ", check), Style::new().fg(t.success)),
+            Span::styled(
+                "Supports 1000+ platforms (YouTube, IG, TikTok...)",
+                Style::new().fg(t.text),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(format!(" {} ", check), Style::new().fg(t.success)),
+            Span::styled("Torrents & Magnet Links", Style::new().fg(t.text)),
+        ]),
+        Line::from(vec![
+            Span::styled(format!(" {} ", check), Style::new().fg(t.success)),
+            Span::styled("P2P File Sharing", Style::new().fg(t.text)),
+        ]),
+        Line::from(vec![
+            Span::styled(format!(" {} ", check), Style::new().fg(t.success)),
+            Span::styled("Subtitle & Metadata Extraction", Style::new().fg(t.text)),
+        ]),
+    ];
+    f.render_widget(Paragraph::new(features), right_chunks[2]);
+
+    // Quick Actions Header
+    let actions_header = Line::from(Span::styled(
+        "Quick Actions  (↑↓ navigate · Enter select)",
+        Style::new().fg(t.text_dim).bold(),
+    ));
+    f.render_widget(Paragraph::new(actions_header), right_chunks[3]);
+
+    // Menu
+    let action_items = [
+        (
+            if nf { "󰄖" } else { "[A]" },
+            "Add URL",
+            "Download media from a URL",
+        ),
+        (
+            if nf { "󰗀" } else { "[B]" },
+            "Batch",
+            "Download from a list of URLs",
+        ),
+        (
+            if nf { "󰕒" } else { "[S]" },
+            "P2P Send",
+            "Share a local file peer-to-peer",
+        ),
+        (
+            if nf { "󰄗" } else { "[T]" },
+            "Torrent",
+            "Open a magnet link or .torrent",
+        ),
+    ];
+
+    let mut action_lines: Vec<Line> = Vec::new();
+    for (i, (icon, name, desc)) in action_items.iter().enumerate() {
+        let is_sel = i == app.home_index;
+        if is_sel {
+            action_lines.push(Line::from(vec![
+                Span::styled(" ▸ ", Style::new().fg(t.accent).bold()),
+                Span::styled(
+                    format!(" {} {} ", icon, name),
+                    Style::new().fg(t.background).bg(t.accent).bold(),
+                ),
+                Span::styled(format!("  {}", desc), Style::new().fg(t.text)),
+            ]));
+        } else {
+            action_lines.push(Line::from(vec![
+                Span::styled("   ", Style::new()),
+                Span::styled(format!(" {} {} ", icon, name), Style::new().fg(t.text_dim)),
+                Span::styled(format!("  {}", desc), Style::new().fg(t.surface)),
+            ]));
+        }
+        action_lines.push(Line::from(""));
+    }
+
+    f.render_widget(Paragraph::new(action_lines), right_chunks[4]);
+}
+
+fn render_about(f: &mut Frame, app: &App, area: Rect) {
+    let t = &app.theme;
+    let nf = app.use_nerd_fonts;
+
+    let sections = [
+        (if nf { "󰋽 Info" } else { "Project Info" }),
+        (if nf { "󰄗 Roadmap" } else { "Roadmap" }),
+        (if nf { "󰄗 Changelog" } else { "Changelog" }),
+        (if nf { "󰄬 Terms" } else { "Terms of Use" }),
+        (if nf { "󰒓 Debug" } else { "Debug Details" }),
+    ];
+
+    let chunks = Layout::horizontal([Constraint::Length(20), Constraint::Min(0)]).split(area);
+
+    // Sidebar
+    let sidebar_items: Vec<ListItem> = sections
+        .iter()
+        .enumerate()
+        .map(|(i, &s)| {
+            let is_sel = i == app.about_index;
+            let style = if is_sel {
+                Style::new().fg(t.accent).bold()
+            } else {
+                Style::new().fg(t.text_dim)
+            };
+            ListItem::new(format!("  {}  ", s)).style(style)
+        })
+        .collect();
+
+    let sidebar = List::new(sidebar_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" About ")
+            .border_style(Style::new().fg(t.text_dim)),
+    );
+    f.render_widget(sidebar, chunks[0]);
+
+    // Content
+    let theme_obj: Arc<dyn crate::reporter::CliTheme> =
+        Arc::new(crate::reporter::BrutalistTheme::new(true));
+    let text = match app.about_index {
+        0 => crate::output::format_about_info(
+            &app.version,
+            "julesklord",
+            "github.com/julesklord/mangofetch-cli",
+            &theme_obj,
+        ),
+        1 => crate::output::format_about_roadmap(&theme_obj),
+        2 => crate::output::format_about_changelog(&theme_obj),
+        3 => crate::output::format_about_terms(&theme_obj),
+        _ => format!(
+            "\n  MangoFetch CLI v{}\n  Target: {}\n  Data Dir: {:?}\n",
+            app.version,
+            std::env::consts::OS,
+            mangofetch_core::core::paths::app_data_dir().unwrap_or_default()
+        ),
+    };
+
+    let p = Paragraph::new(text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::new().fg(t.text_dim)),
+        )
+        .wrap(Wrap { trim: false });
+    f.render_widget(p, chunks[1]);
+}
+
+fn render_categories(f: &mut Frame, app: &App, area: Rect) {
+    let t = &app.theme;
+    let nf = app.use_nerd_fonts;
+    let mut spans: Vec<Span> = Vec::new();
+
+    spans.push(Span::styled(" Filter: ", Style::new().fg(t.text_dim)));
+
+    for (idx, cat) in DownloadsCategory::ALL.iter().enumerate() {
+        if idx > 0 {
+            spans.push(Span::styled("  ", Style::new().fg(t.surface)));
+        }
+        let is_sel = *cat == app.download_category;
+        let count = match cat {
+            DownloadsCategory::All => {
+                app.active_count + app.queued_count + app.completed_count + app.failed_count
+            }
+            DownloadsCategory::Active => app.active_count,
+            DownloadsCategory::Queued => app.queued_count,
+            DownloadsCategory::Completed => app.completed_count,
+            DownloadsCategory::Failed => app.failed_count,
+        };
+
+        let label = format!(" {} {} ", cat.label(nf), count);
+        if is_sel {
+            spans.push(Span::styled(
+                label,
+                Style::new().fg(t.background).bg(t.secondary).bold(),
+            ));
+        } else {
+            spans.push(Span::styled(label, Style::new().fg(t.text_dim)));
+        }
+    }
+
+    spans.push(Span::styled("   ", Style::new()));
+    spans.push(Span::styled(" Tab ", Style::new().fg(t.surface).italic()));
+    spans.push(Span::styled(
+        "cycle filter ",
+        Style::new().fg(t.text_dim).italic(),
+    ));
+
+    let p = Paragraph::new(Line::from(spans))
+        .block(
+            Block::default()
+                .borders(Borders::BOTTOM)
+                .border_style(Style::new().fg(t.surface)),
+        )
+        .alignment(Alignment::Left);
+    f.render_widget(p, area);
+}
 
 fn status_display(
     item: &mangofetch_core::models::queue::QueueItemInfo,
@@ -803,6 +1241,68 @@ fn status_display(
             format!("{} Err: {}", ic(nf, "󰅚", "!"), truncate(message, 20)),
         ),
     }
+}
+
+fn render_add_confirm_modal(f: &mut Frame, app: &App) {
+    let t = &app.theme;
+    let area = centered_rect(60, 45, f.area());
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" 🧐 Confirm Download ")
+        .border_style(Style::new().fg(t.accent))
+        .bg(t.background);
+    f.render_widget(block, area);
+
+    let chunks = Layout::vertical([
+        Constraint::Min(3),    // Content
+        Constraint::Length(3), // Actions
+    ])
+    .margin(2)
+    .split(area);
+
+    if app.is_fetching_preview {
+        let loading = Paragraph::new("\n\n  🔍 Fetching media info...\n  Please wait.")
+            .style(Style::new().fg(t.text_dim))
+            .alignment(Alignment::Center);
+        f.render_widget(loading, chunks[0]);
+    } else if let Some(err) = &app.preview_error {
+        let error = Paragraph::new(format!(
+            "\n  ❌ Error: {}\n\n  You can still try to download, but some info might be missing.",
+            err
+        ))
+        .style(Style::new().fg(t.error))
+        .wrap(Wrap { trim: true });
+        f.render_widget(error, chunks[0]);
+    } else if let Some(info) = &app.preview_info {
+        let lines = vec![
+            Line::from(vec![
+                Span::styled(" TITLE:    ", Style::new().fg(t.text_dim)),
+                Span::styled(&info.title, Style::new().fg(t.text).bold()),
+            ]),
+            Line::from(vec![
+                Span::styled(" PLATFORM: ", Style::new().fg(t.text_dim)),
+                Span::styled(&info.platform, Style::new().fg(t.accent)),
+            ]),
+            Line::from(vec![
+                Span::styled(" URL:      ", Style::new().fg(t.text_dim)),
+                Span::styled(&info.url, Style::new().fg(t.text_dim)),
+            ]),
+        ];
+
+        let info_p = Paragraph::new(lines).wrap(Wrap { trim: true });
+        f.render_widget(info_p, chunks[0]);
+    }
+
+    let help = Paragraph::new(Line::from(vec![
+        Span::styled("  [Enter] ", Style::new().fg(t.success).bold()),
+        Span::raw(" Confirm & Download    "),
+        Span::styled(" [Esc] ", Style::new().fg(t.error).bold()),
+        Span::raw(" Cancel"),
+    ]))
+    .alignment(Alignment::Center);
+    f.render_widget(help, chunks[1]);
 }
 
 fn centered_rect(pct_x: u16, pct_y: u16, r: Rect) -> Rect {

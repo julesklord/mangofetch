@@ -26,6 +26,7 @@ pub async fn handle_events(app: &mut App) -> std::io::Result<()> {
     match app.mode {
         Mode::Command => handle_command_mode(app, key.code),
         Mode::AddUrl => handle_add_url_mode(app, key).await,
+        Mode::AddConfirm => handle_add_confirm_mode(app, key.code).await,
         Mode::ConfirmDelete => handle_confirm_delete(app, key.code).await,
         Mode::Normal => handle_normal_mode(app, key.code, key.modifiers).await,
     }
@@ -90,25 +91,52 @@ async fn handle_add_url_mode(app: &mut App, key: crossterm::event::KeyEvent) {
         KeyCode::Tab => app.add_modal_next_field(),
         KeyCode::Enter if !app.url_input.is_empty() => {
             let url = app.url_input.clone();
-            let quality = if app.quality_input.is_empty() {
-                None
-            } else {
-                Some(app.quality_input.clone())
-            };
-            let queue = app.queue.clone();
+            app.set_status(format!("Fetching info: {}", &url));
+            app.mode = Mode::AddConfirm;
+            app.is_fetching_preview = true;
+            app.preview_info = None;
+            app.preview_error = None;
+
+            let tx = app.msg_tx.clone();
             let registry = app.registry.clone();
-            app.set_status(format!("Queueing: {}", &url));
-            app.push_log(format!(
-                "[{}] Added: {}",
-                chrono::Local::now().format("%H:%M:%S"),
-                &url
-            ));
-            app.close_add_modal();
             tokio::spawn(async move {
-                let _ = crate::engine::enqueue_download_with_quality(
-                    &url, None, quality, registry, queue,
-                )
-                .await;
+                let downloader = registry.find_platform(&url);
+                if let Some(dl) = downloader {
+                    let info = mangofetch_core::core::manager::queue::fetch_and_cache_info(
+                        &url,
+                        &*dl,
+                        dl.name(),
+                    )
+                    .await;
+                    match info {
+                        Ok(i) => {
+                            let item_info = mangofetch_core::models::queue::QueueItemInfo {
+                                id: 0,
+                                url: url.clone(),
+                                platform: dl.name().to_string(),
+                                title: i.title,
+                                status: mangofetch_core::models::queue::QueueStatus::Queued,
+                                percent: 0.0,
+                                speed_bytes_per_sec: 0.0,
+                                downloaded_bytes: 0,
+                                total_bytes: None,
+                                phase: "Pending".to_string(),
+                                file_path: None,
+                                file_size_bytes: None,
+                                file_count: None,
+                                thumbnail_url: i.thumbnail_url,
+                            };
+                            let _ = tx.send(super::app::AppMsg::PreviewFetched(Ok(item_info)));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(super::app::AppMsg::PreviewFetched(Err(e.to_string())));
+                        }
+                    }
+                } else {
+                    let _ = tx.send(super::app::AppMsg::PreviewFetched(Err(
+                        "Platform not supported".to_string(),
+                    )));
+                }
             });
         }
         KeyCode::Char('v') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -133,6 +161,44 @@ async fn handle_add_url_mode(app: &mut App, key: crossterm::event::KeyEvent) {
                 app.url_input.pop();
             } else {
                 app.quality_input.pop();
+            }
+        }
+        _ => {}
+    }
+}
+
+async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
+    match code {
+        KeyCode::Esc => {
+            app.mode = Mode::Normal;
+            app.preview_info = None;
+            app.preview_error = None;
+        }
+        KeyCode::Enter if app.preview_info.is_some() => {
+            if let Some(info) = app.preview_info.take() {
+                let url = info.url.clone();
+                let quality = if app.quality_input.is_empty() {
+                    None
+                } else {
+                    Some(app.quality_input.clone())
+                };
+                let queue = app.queue.clone();
+                let registry = app.registry.clone();
+
+                app.push_log(format!(
+                    "[{}] Added: {}",
+                    chrono::Local::now().format("%H:%M:%S"),
+                    info.title
+                ));
+                app.close_add_modal();
+                app.mode = Mode::Normal;
+
+                tokio::spawn(async move {
+                    let _ = crate::engine::enqueue_download_with_quality(
+                        &url, None, quality, registry, queue,
+                    )
+                    .await;
+                });
             }
         }
         _ => {}
@@ -168,32 +234,60 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
         KeyCode::Char('?') => app.toggle_help(),
 
         // Tab navigation
-        KeyCode::Tab => app.next_tab(),
+        KeyCode::Tab => {
+            if app.active_tab == Tab::Queue || app.active_tab == Tab::History {
+                app.next_category();
+            } else {
+                app.next_tab();
+            }
+        }
         KeyCode::BackTab => app.prev_tab(),
         KeyCode::Char('1') => {
+            app.active_tab = Tab::Home;
+        }
+        KeyCode::Char('2') => {
             app.active_tab = Tab::Queue;
             app.refresh_data();
         }
-        KeyCode::Char('2') => {
+        KeyCode::Char('3') => {
             app.active_tab = Tab::History;
             app.refresh_data();
         }
-        KeyCode::Char('3') => {
-            app.active_tab = Tab::Logs;
-        }
         KeyCode::Char('4') => {
             app.active_tab = Tab::Settings;
+        }
+        KeyCode::Char('5') => {
+            app.active_tab = Tab::About;
+        }
+        KeyCode::Char('6') => {
+            app.active_tab = Tab::Logs;
         }
 
         // Navigation
         KeyCode::Up | KeyCode::Char('k') => match app.active_tab {
             Tab::Settings => app.prev_setting(),
             Tab::Logs => app.scroll_logs_up(),
+            Tab::Home => {
+                app.home_index = app.home_index.saturating_sub(1);
+            }
+            Tab::About => {
+                app.about_index = app.about_index.saturating_sub(1);
+            }
             _ => app.prev_item(),
         },
         KeyCode::Down | KeyCode::Char('j') => match app.active_tab {
             Tab::Settings => app.next_setting(),
             Tab::Logs => app.scroll_logs_down(),
+            Tab::Home => {
+                if app.home_index < 3 {
+                    app.home_index += 1;
+                }
+            }
+            Tab::About => {
+                if app.about_index < 4 {
+                    app.about_index += 1;
+                }
+            }
             _ => app.next_item(),
         },
         KeyCode::Char('G') => {
@@ -212,9 +306,11 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
         }
 
         // Actions
-        KeyCode::Enter if app.active_tab == Tab::Settings => {
-            app.toggle_setting();
-        }
+        KeyCode::Enter => match app.active_tab {
+            Tab::Settings => app.toggle_setting(),
+            Tab::Home => app.execute_home_action().await,
+            _ => {}
+        },
         KeyCode::Char('p') => app.pause_selected().await,
         KeyCode::Char('r') => app.resume_selected().await,
         KeyCode::Char('x') | KeyCode::Delete if app.table_state.selected().is_some() => {

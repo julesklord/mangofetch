@@ -23,6 +23,10 @@ pub struct RecoveryItem {
     pub format_id: Option<String>,
     #[serde(default)]
     pub referer: Option<String>,
+    #[serde(default)]
+    pub file_path: Option<String>,
+    #[serde(default)]
+    pub file_size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -32,6 +36,11 @@ struct RecoveryFile {
 }
 
 static STORE: OnceLock<Mutex<HashMap<u64, RecoveryItem>>> = OnceLock::new();
+static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+pub fn get_next_id() -> u64 {
+    NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+}
 
 fn store() -> &'static Mutex<HashMap<u64, RecoveryItem>> {
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
@@ -91,9 +100,14 @@ pub fn init_from_disk() {
     };
     let mut guard = store().lock().unwrap();
     guard.clear();
+    let mut max_id = 0;
     for item in parsed.items {
+        if item.id > max_id {
+            max_id = item.id;
+        }
         guard.insert(item.id, item);
     }
+    NEXT_ID.store(max_id + 1, std::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn persist(item: RecoveryItem) {

@@ -68,7 +68,10 @@ impl DownloadReporter for TuiReporter {
         let pct = info.percent.round() as u64;
         if pct.is_multiple_of(10) || pct == 100 {
             let speed = if info.speed_bytes_per_sec > 0.0 {
-                format!("{}/s", format_bytes_compact(info.speed_bytes_per_sec as u64))
+                format!(
+                    "{}/s",
+                    format_bytes_compact(info.speed_bytes_per_sec as u64)
+                )
             } else {
                 "--".into()
             };
