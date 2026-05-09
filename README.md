@@ -2,9 +2,7 @@
 
 **Brutally fast. Extensible. Pure Rust.**  
 _A high-performance, asynchronous download engine for the terminal._
-
 ---
-
 <p align="center">
   <img src="docs/assets/shot.png" alt="MangoFetch in action" width="900" />
 </p>
