@@ -154,4 +154,76 @@ impl Theme {
             progress: Color::Rgb(230, 60, 80),
         }
     }
+
+    /// ⭐ Starfruit — bright yellow & green edges
+    pub fn starfruit() -> Self {
+        Self {
+            accent: Color::Rgb(255, 255, 0),     // bright yellow
+            secondary: Color::Rgb(173, 255, 47), // green yellow
+            highlight: Color::Rgb(40, 40, 0),
+            background: Color::Rgb(12, 12, 0),
+            surface: Color::Rgb(30, 30, 10),
+            surface_dim: Color::Rgb(20, 20, 5),
+            text: Color::Rgb(255, 255, 220),
+            text_dim: Color::Rgb(180, 180, 100),
+            success: Color::Rgb(50, 205, 50),
+            warning: Color::Rgb(255, 165, 0),
+            error: Color::Rgb(255, 69, 0),
+            progress: Color::Rgb(255, 255, 0),
+        }
+    }
+
+    /// 🫐 Açai — deep purple & black
+    pub fn acai() -> Self {
+        Self {
+            accent: Color::Rgb(75, 0, 130),      // indigo
+            secondary: Color::Rgb(138, 43, 226), // blue violet
+            highlight: Color::Rgb(20, 0, 40),
+            background: Color::Rgb(10, 5, 15),
+            surface: Color::Rgb(25, 10, 35),
+            surface_dim: Color::Rgb(15, 5, 20),
+            text: Color::Rgb(230, 210, 250),
+            text_dim: Color::Rgb(140, 110, 180),
+            success: Color::Rgb(0, 255, 127),
+            warning: Color::Rgb(255, 140, 0),
+            error: Color::Rgb(255, 20, 147),
+            progress: Color::Rgb(138, 43, 226),
+        }
+    }
+
+    /// 🍇 Mangosteen — dark purple & pure white
+    pub fn mangosteen() -> Self {
+        Self {
+            accent: Color::Rgb(255, 255, 255), // white flesh
+            secondary: Color::Rgb(80, 0, 80),  // dark purple skin
+            highlight: Color::Rgb(40, 0, 40),
+            background: Color::Rgb(20, 5, 20),
+            surface: Color::Rgb(50, 10, 50),
+            surface_dim: Color::Rgb(35, 5, 35),
+            text: Color::Rgb(255, 240, 255),
+            text_dim: Color::Rgb(180, 140, 180),
+            success: Color::Rgb(144, 238, 144),
+            warning: Color::Rgb(255, 215, 0),
+            error: Color::Rgb(255, 105, 180),
+            progress: Color::Rgb(255, 255, 255),
+        }
+    }
+
+    /// 🥝 Kiwi — fuzzy brown & bright green
+    pub fn kiwi() -> Self {
+        Self {
+            accent: Color::Rgb(154, 205, 50),   // yellow green
+            secondary: Color::Rgb(139, 69, 19), // saddle brown
+            highlight: Color::Rgb(30, 40, 10),
+            background: Color::Rgb(15, 15, 5),
+            surface: Color::Rgb(40, 35, 15),
+            surface_dim: Color::Rgb(25, 22, 10),
+            text: Color::Rgb(240, 255, 210),
+            text_dim: Color::Rgb(160, 150, 100),
+            success: Color::Rgb(50, 205, 50),
+            warning: Color::Rgb(255, 215, 0),
+            error: Color::Rgb(255, 99, 71),
+            progress: Color::Rgb(154, 205, 50),
+        }
+    }
 }

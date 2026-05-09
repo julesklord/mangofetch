@@ -14,7 +14,7 @@ You can find your configuration file at:
 
 | Option | Description | Values |
 | :--- | :--- | :--- |
-| **TUI Theme** | The color palette used in interactive mode. | `mango`, `pitaya`, `coconut`, `guava`, `papaya`, `passionfruit`, `lychee` |
+| **TUI Theme** | The color palette used in interactive mode. | `mango`, `pitaya`, `coconut`, `guava`, `papaya`, `passionfruit`, `lychee`, `starfruit`, `acai`, `mangosteen`, `kiwi` |
 | **Nerd Fonts** | Enables high-quality icons in the terminal. | `ON` / `OFF` |
 | **Language** | System language (Core engine). | `en`, `es`, etc. |
 

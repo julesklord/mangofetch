@@ -19,9 +19,20 @@ _A high-performance, asynchronous download engine for the terminal._
 
 ## Overview
 
-**MangoFetch** is a highly concurrent, memory-safe media download engine. It eschews bloated graphical interfaces in favor of a raw, low-latency command-line interface. Built on top of **Tokio** and **Reqwest**, it is designed to maximize network throughput and handle massive archival batches without blocking the main thread.
+**MangoFetch** is a highly concurrent, memory-safe media download engine. Built on top of **Tokio** and **Reqwest**, it is designed to maximize network throughput and handle massive archival batches without blocking the main thread. 
 
-> **Lineage and Credit:** MangoFetch is an independent, terminal-focused evolution of the [**OmniGet**](https://github.com/tonhowtf/omniget) project by tonhowft. While MangoFetch has been heavily refactored and optimized for pure CLI usage and extreme performance, the robust underlying core engine owes its existence to the brilliant foundational work done in OmniGet.
+As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
+
+---
+
+## ✨ Key Features (v0.5.0)
+
+*   **1000+ Platforms**: Deep integration with `yt-dlp` to support almost every video site.
+*   **Interactive TUI**: A full-screen dashboard with **Tropical Fruit Themes** (Mango, Pitaya, Guava, and more!).
+*   **Mouse Support**: Scroll through queues and click tabs directly in your terminal.
+*   **Vim-Style Commands**: Power users can use `:` commands for ultra-fast operations.
+*   **P2P & Torrents**: Native support for magnet links and peer-to-peer file sharing.
+*   **Smart Engine**: Multi-segment downloads, staggered starts, and automatic metadata embedding.
 
 ---
 
@@ -96,7 +107,12 @@ stateDiagram-v2
 
 ## 🕹️ Command Reference
 
-MangoFetch is designed for speed. While the full `mangofetch` commands provide clarity, an upcoming release will introduce the `mango` binary and ultra-short aliases for power users.
+For a complete breakdown of all commands, flags, and TUI shortcuts, please visit our **[Official Wiki](docs/wiki/Home.md)**.
+
+*   🚀 **[Installation Guide](docs/wiki/Installation.md)**
+*   🛠️ **[CLI Command Reference](docs/wiki/CLI-Guide.md)**
+*   🖥️ **[TUI Interactive Guide](docs/wiki/TUI-Experience.md)**
+*   🏗️ **[Technical Architecture](docs/wiki/Architecture.md)**
 
 | Full Command                          | Short Alias _(Upcoming)_ | Description                                             |
 | :------------------------------------ | :----------------------- | :------------------------------------------------------ |
@@ -144,8 +160,9 @@ cargo build --release
 | **v0.2.0** | ✅     | Standalone rewrite — GUI removed, core refactored               |
 | **v0.3.1** | ✅     | Rebranding cleanup, test fixes, and documentation overhaul      |
 | **v0.4.0** | ✅     | **The TUI Release:** Full-screen interactive terminal interface |
-| **v0.5.0** | ⏳     | Plugin management and community extractors via SDK              |
-| **v0.6.0** | ⏳     | Decentralized P2P file sharing implementation                   |
+| **v0.5.0** | ✅     | **UX & Polish:** Tropical themes, mouse support, dynamic settings |
+| **v0.6.0** | ⏳     | Plugin management and community extractors via SDK              |
+| **v0.7.0** | ⏳     | Decentralized P2P file sharing implementation                   |
 
 ---
 

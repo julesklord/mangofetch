@@ -215,7 +215,7 @@ impl SettingKind {
 
     pub fn description(self) -> &'static str {
         match self {
-            SettingKind::TuiTheme => "mango │ pitaya │ coconut │ dracula",
+            SettingKind::TuiTheme => "Cycle through 11 tropical fruit themes",
             SettingKind::UseNerdFonts => "Enables icons (requires patched terminal)",
             SettingKind::MaxDownloads => "Max simultaneous downloads",
             SettingKind::VideoQuality => "best │ 1080p │ 720p │ 480p │ 360p",
@@ -380,6 +380,10 @@ impl App {
             "papaya" => Theme::papaya(),
             "passionfruit" => Theme::passionfruit(),
             "lychee" => Theme::lychee(),
+            "starfruit" => Theme::starfruit(),
+            "acai" => Theme::acai(),
+            "mangosteen" => Theme::mangosteen(),
+            "kiwi" => Theme::kiwi(),
             _ => Theme::mango(),
         }
     }
@@ -523,9 +527,10 @@ impl App {
 
     pub fn toggle_setting(&mut self) {
         let mut settings = AppSettings::load_from_disk();
-        match self.settings_index {
-            0 => {
-                // Cycle theme
+        let kind = SettingKind::ALL[self.settings_index % SettingKind::ALL.len()];
+
+        match kind {
+            SettingKind::TuiTheme => {
                 let next = match settings.appearance.tui_theme.as_str() {
                     "mango" => "pitaya",
                     "pitaya" => "coconut",
@@ -533,22 +538,21 @@ impl App {
                     "guava" => "papaya",
                     "papaya" => "passionfruit",
                     "passionfruit" => "lychee",
+                    "lychee" => "starfruit",
+                    "starfruit" => "acai",
+                    "acai" => "mangosteen",
+                    "mangosteen" => "kiwi",
+                    "kiwi" => "mango",
                     _ => "mango",
                 };
                 settings.appearance.tui_theme = next.to_string();
                 self.theme = Self::make_theme(next);
-                self.set_status(format!("Theme: {}", next));
             }
-            1 => {
+            SettingKind::UseNerdFonts => {
                 settings.appearance.use_nerd_fonts = !settings.appearance.use_nerd_fonts;
                 self.use_nerd_fonts = settings.appearance.use_nerd_fonts;
-                self.set_status(format!(
-                    "Nerd Fonts: {}",
-                    if self.use_nerd_fonts { "ON" } else { "OFF" }
-                ));
             }
-            2 => {
-                // Cycle max concurrent downloads: 1 → 2 → 3 → 5
+            SettingKind::MaxDownloads => {
                 settings.advanced.max_concurrent_downloads =
                     match settings.advanced.max_concurrent_downloads {
                         1 => 2,
@@ -556,13 +560,8 @@ impl App {
                         3 => 5,
                         _ => 1,
                     };
-                self.set_status(format!(
-                    "Max downloads: {}",
-                    settings.advanced.max_concurrent_downloads
-                ));
             }
-            3 => {
-                // Cycle video quality
+            SettingKind::VideoQuality => {
                 settings.download.video_quality = match settings.download.video_quality.as_str() {
                     "best" => "1080p",
                     "1080p" => "720p",
@@ -571,108 +570,35 @@ impl App {
                     _ => "best",
                 }
                 .to_string();
-                self.set_status(format!("Quality: {}", settings.download.video_quality));
             }
-            4 => {
+            SettingKind::OrganizeByPlatform => {
                 settings.download.organize_by_platform = !settings.download.organize_by_platform;
-                self.set_status(format!(
-                    "Organize by Platform: {}",
-                    if settings.download.organize_by_platform {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            5 => {
+            SettingKind::SkipExisting => {
                 settings.download.skip_existing = !settings.download.skip_existing;
-                self.set_status(format!(
-                    "Skip existing: {}",
-                    if settings.download.skip_existing {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            6 => {
+            SettingKind::DownloadSubtitles => {
                 settings.download.download_subtitles = !settings.download.download_subtitles;
-                self.set_status(format!(
-                    "Download Subtitles: {}",
-                    if settings.download.download_subtitles {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            7 => {
+            SettingKind::DownloadAttachments => {
                 settings.download.download_attachments = !settings.download.download_attachments;
-                self.set_status(format!(
-                    "Download Attachments: {}",
-                    if settings.download.download_attachments {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            8 => {
+            SettingKind::DownloadDescriptions => {
                 settings.download.download_descriptions = !settings.download.download_descriptions;
-                self.set_status(format!(
-                    "Download Descriptions: {}",
-                    if settings.download.download_descriptions {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            9 => {
+            SettingKind::SponsorBlock => {
                 settings.download.youtube_sponsorblock = !settings.download.youtube_sponsorblock;
-                self.set_status(format!(
-                    "SponsorBlock: {}",
-                    if settings.download.youtube_sponsorblock {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            10 => {
+            SettingKind::SplitByChapters => {
                 settings.download.split_by_chapters = !settings.download.split_by_chapters;
-                self.set_status(format!(
-                    "Split by chapters: {}",
-                    if settings.download.split_by_chapters {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            11 => {
+            SettingKind::EmbedMetadata => {
                 settings.download.embed_metadata = !settings.download.embed_metadata;
-                self.set_status(format!(
-                    "Embed Metadata: {}",
-                    if settings.download.embed_metadata {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            12 => {
+            SettingKind::EmbedThumbnail => {
                 settings.download.embed_thumbnail = !settings.download.embed_thumbnail;
-                self.set_status(format!(
-                    "Embed Thumbnail: {}",
-                    if settings.download.embed_thumbnail {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
             }
-            13 => {
+            SettingKind::MaxConcurrentSegments => {
                 settings.advanced.max_concurrent_segments =
                     match settings.advanced.max_concurrent_segments {
                         8 => 16,
@@ -680,79 +606,39 @@ impl App {
                         32 => 64,
                         _ => 8,
                     };
-                self.set_status(format!(
-                    "Max Segments: {}",
-                    settings.advanced.max_concurrent_segments
-                ));
             }
-            14 => {
+            SettingKind::MaxRetries => {
+                settings.advanced.max_retries = (settings.advanced.max_retries + 1) % 10;
+            }
+            SettingKind::ConcurrentFragments => {
                 settings.advanced.concurrent_fragments =
                     match settings.advanced.concurrent_fragments {
                         4 => 8,
                         8 => 16,
                         _ => 4,
                     };
-                self.set_status(format!(
-                    "Max Fragments: {}",
-                    settings.advanced.concurrent_fragments
-                ));
             }
-            15 => {
+            SettingKind::StaggerDelay => {
                 settings.advanced.stagger_delay_ms = match settings.advanced.stagger_delay_ms {
                     0 => 100,
                     100 => 250,
                     250 => 500,
                     _ => 0,
                 };
-                self.set_status(format!(
-                    "Stagger Delay: {}ms",
-                    settings.advanced.stagger_delay_ms
-                ));
             }
-            16 => {
-                settings.advanced.torrent_listen_port = match settings.advanced.torrent_listen_port
-                {
-                    6881 => 8881,
-                    8881 => 9881,
-                    _ => 6881,
-                };
-                self.set_status(format!(
-                    "Torrent Port: {}",
-                    settings.advanced.torrent_listen_port
-                ));
+            SettingKind::ClipboardDetection => {
+                settings.download.clipboard_detection = !settings.download.clipboard_detection;
             }
-            17 => {
+            SettingKind::ProxyEnabled => {
                 settings.proxy.enabled = !settings.proxy.enabled;
-                self.set_status(format!(
-                    "Proxy: {}",
-                    if settings.proxy.enabled { "ON" } else { "OFF" }
-                ));
             }
-            18 => {
-                settings.telegram.fix_file_extensions = !settings.telegram.fix_file_extensions;
-                self.set_status(format!(
-                    "Fix TG extensions: {}",
-                    if settings.telegram.fix_file_extensions {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
+            SettingKind::PortableMode => {
+                settings.portable_mode = !settings.portable_mode;
             }
-            19 => {
-                settings.start_with_windows = !settings.start_with_windows;
-                self.set_status(format!(
-                    "Start with Windows: {}",
-                    if settings.start_with_windows {
-                        "ON"
-                    } else {
-                        "OFF"
-                    }
-                ));
-            }
-            _ => {}
         }
+
         let _ = settings.save_to_disk();
+        self.set_status(format!("Updated: {}", kind.label()));
     }
 
     // ── Message processing ───────────────────────────────────────────────────
