@@ -1,4 +1,5 @@
 use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -12,7 +13,7 @@ pub struct TerminalHandler {
 impl TerminalHandler {
     pub fn new() -> io::Result<Self> {
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         enable_raw_mode()?;
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
@@ -27,7 +28,7 @@ impl TerminalHandler {
 impl Drop for TerminalHandler {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
         let _ = self.terminal.show_cursor();
     }
 }

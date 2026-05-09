@@ -6,31 +6,83 @@ pub async fn handle_events(app: &mut App) -> std::io::Result<()> {
     if !event::poll(Duration::from_millis(50))? {
         return Ok(());
     }
-    let Event::Key(key) = event::read()? else {
-        return Ok(());
-    };
-    if key.kind != KeyEventKind::Press {
-        return Ok(());
-    }
 
-    // Splash: any key starts
-    if matches!(app.state, AppState::Splash) {
-        if key.code == KeyCode::Char('q') {
-            app.quit();
-        } else {
-            app.start();
+    match event::read()? {
+        Event::Key(key) => {
+            if key.kind != KeyEventKind::Press {
+                return Ok(());
+            }
+
+            // Splash: any key starts
+            if matches!(app.state, AppState::Splash) {
+                if key.code == KeyCode::Char('q') {
+                    app.quit();
+                } else {
+                    app.start();
+                }
+                return Ok(());
+            }
+
+            match app.mode {
+                Mode::Command => handle_command_mode(app, key.code),
+                Mode::AddUrl => handle_add_url_mode(app, key).await,
+                Mode::AddConfirm => handle_add_confirm_mode(app, key.code).await,
+                Mode::ConfirmDelete => handle_confirm_delete(app, key.code).await,
+                Mode::Normal => handle_normal_mode(app, key.code, key.modifiers).await,
+            }
         }
-        return Ok(());
-    }
-
-    match app.mode {
-        Mode::Command => handle_command_mode(app, key.code),
-        Mode::AddUrl => handle_add_url_mode(app, key).await,
-        Mode::AddConfirm => handle_add_confirm_mode(app, key.code).await,
-        Mode::ConfirmDelete => handle_confirm_delete(app, key.code).await,
-        Mode::Normal => handle_normal_mode(app, key.code, key.modifiers).await,
+        Event::Mouse(mouse) => {
+            if matches!(app.state, AppState::Splash) {
+                app.start();
+                return Ok(());
+            }
+            handle_mouse_event(app, mouse).await;
+        }
+        _ => {}
     }
     Ok(())
+}
+
+async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) {
+    use crossterm::event::MouseEventKind;
+    match mouse.kind {
+        MouseEventKind::ScrollDown => {
+            if app.active_tab == Tab::Logs {
+                app.log_scroll_down();
+            } else {
+                app.next_item();
+            }
+        }
+        MouseEventKind::ScrollUp => {
+            if app.active_tab == Tab::Logs {
+                app.log_scroll_up();
+            } else {
+                app.prev_item();
+            }
+        }
+        MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+            // Simple logic: if click is in top row, maybe switch tabs?
+            // (Hard to do perfectly without area context, but we can try)
+            if mouse.row < 3 {
+                let col = mouse.column;
+                // Rough estimate of tab positions
+                if col < 10 {
+                    app.active_tab = Tab::Home;
+                } else if col < 20 {
+                    app.active_tab = Tab::Queue;
+                } else if col < 30 {
+                    app.active_tab = Tab::History;
+                } else if col < 40 {
+                    app.active_tab = Tab::Settings;
+                } else if col < 50 {
+                    app.active_tab = Tab::About;
+                } else if col < 60 {
+                    app.active_tab = Tab::Logs;
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn handle_command_mode(app: &mut App, code: KeyCode) {
