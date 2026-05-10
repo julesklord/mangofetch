@@ -302,3 +302,45 @@ fn validate_words(s: &str) -> bool {
     }
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_code() {
+        assert!(is_valid_code("bulbasaur-ivysaur-venusaur-charmander"));
+        assert!(is_valid_code("BULBASAUR-ivysaur-VENUSAUR-charmander"));
+        assert!(is_valid_code("blaziken-mudkip-marshtomp-swampert"));
+    }
+
+    #[test]
+    fn test_invalid_length() {
+        assert!(!is_valid_code(""));
+        assert!(!is_valid_code("bulbasaur"));
+        assert!(!is_valid_code("bulbasaur-ivysaur"));
+        assert!(!is_valid_code("bulbasaur-ivysaur-venusaur"));
+        assert!(!is_valid_code("bulbasaur-ivysaur-venusaur-charmander-charmeleon"));
+    }
+
+    #[test]
+    fn test_invalid_words() {
+        assert!(!is_valid_code("bulbasaur-ivysaur-venusaur-agumon"));
+        assert!(!is_valid_code("123-ivysaur-venusaur-charmander"));
+        assert!(!is_valid_code("bulbasaur-ivysaur-venusaur-"));
+    }
+
+    #[test]
+    fn test_duplicate_words() {
+        assert!(!is_valid_code("bulbasaur-bulbasaur-venusaur-charmander"));
+        assert!(!is_valid_code("bulbasaur-ivysaur-venusaur-ivysaur"));
+    }
+
+    #[test]
+    fn test_generate_code_validity() {
+        for _ in 0..100 {
+            let code = generate_code();
+            assert!(is_valid_code(&code), "Generated code {} is invalid", code);
+        }
+    }
+}
