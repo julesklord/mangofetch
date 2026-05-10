@@ -1992,87 +1992,93 @@ fn parse_progress_line(line: &str) -> Option<f64> {
 
 async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<PathBuf> {
     let video_id = extract_id_from_url(url).unwrap_or_default();
-    let media_extensions: &[&str] = &[
-        "mp4", "mkv", "webm", "m4a", "mp3", "ogg", "opus", "flac", "avi", "mov", "ts", "m4v",
-        "3gp", "aac", "wav",
-    ];
-    let now = std::time::SystemTime::now();
-    let recency_limit = std::time::Duration::from_secs(1800);
+    let output_dir_owned = output_dir.to_path_buf();
 
-    std::fs::create_dir_all(output_dir)?;
-    let read_dir = std::fs::read_dir(output_dir)?;
-    let mut candidates: Vec<(PathBuf, std::time::SystemTime, bool)> = Vec::new();
+    tokio::task::spawn_blocking(move || {
+        let media_extensions: &[&str] = &[
+            "mp4", "mkv", "webm", "m4a", "mp3", "ogg", "opus", "flac", "avi", "mov", "ts", "m4v",
+            "3gp", "aac", "wav",
+        ];
+        let now = std::time::SystemTime::now();
+        let recency_limit = std::time::Duration::from_secs(1800);
 
-    for entry in read_dir.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
+        std::fs::create_dir_all(&output_dir_owned)?;
+        let read_dir = std::fs::read_dir(&output_dir_owned)?;
+        let mut candidates: Vec<(PathBuf, std::time::SystemTime, bool)> = Vec::new();
 
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
-            continue;
-        }
-
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let is_media = media_extensions
-            .iter()
-            .any(|&e| ext.eq_ignore_ascii_case(e));
-        if !is_media {
-            continue;
-        }
-
-        if let Ok(meta) = entry.metadata() {
-            if meta.len() == 0 {
-                continue;
-            }
-            if let Ok(modified) = meta.modified() {
-                let is_recent = now.duration_since(modified).unwrap_or_default() < recency_limit;
-                let matches_id = !video_id.is_empty() && name.contains(&video_id);
-
-                if matches_id || is_recent {
-                    candidates.push((path, modified, matches_id));
-                }
-            }
-        }
-    }
-
-    candidates.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| b.1.cmp(&a.1)));
-
-    if let Some((p, _, _)) = candidates.into_iter().next() {
-        return Ok(p);
-    }
-
-    let fallback_limit = std::time::Duration::from_secs(120);
-    let mut newest: Option<(PathBuf, std::time::SystemTime)> = None;
-    if let Ok(entries) = std::fs::read_dir(output_dir) {
-        for entry in entries.flatten() {
+        for entry in read_dir.flatten() {
             let path = entry.path();
             if !path.is_file() {
                 continue;
             }
+
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
                 continue;
             }
+
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let is_media = media_extensions
+                .iter()
+                .any(|&e| ext.eq_ignore_ascii_case(e));
+            if !is_media {
+                continue;
+            }
+
             if let Ok(meta) = entry.metadata() {
                 if meta.len() == 0 {
                     continue;
                 }
                 if let Ok(modified) = meta.modified() {
-                    if now.duration_since(modified).unwrap_or_default() < fallback_limit
-                        && newest.as_ref().is_none_or(|(_, t)| modified > *t)
-                    {
-                        newest = Some((path, modified));
+                    let is_recent =
+                        now.duration_since(modified).unwrap_or_default() < recency_limit;
+                    let matches_id = !video_id.is_empty() && name.contains(&video_id);
+
+                    if matches_id || is_recent {
+                        candidates.push((path, modified, matches_id));
                     }
                 }
             }
         }
-    }
 
-    newest
-        .map(|(p, _)| p)
-        .ok_or_else(|| anyhow!("Downloaded file not found in {:?}", output_dir))
+        candidates.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| b.1.cmp(&a.1)));
+
+        if let Some((p, _, _)) = candidates.into_iter().next() {
+            return Ok(p);
+        }
+
+        let fallback_limit = std::time::Duration::from_secs(120);
+        let mut newest: Option<(PathBuf, std::time::SystemTime)> = None;
+        if let Ok(entries) = std::fs::read_dir(&output_dir_owned) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
+                    continue;
+                }
+                if let Ok(meta) = entry.metadata() {
+                    if meta.len() == 0 {
+                        continue;
+                    }
+                    if let Ok(modified) = meta.modified() {
+                        if now.duration_since(modified).unwrap_or_default() < fallback_limit
+                            && newest.as_ref().is_none_or(|(_, t)| modified > *t)
+                        {
+                            newest = Some((path, modified));
+                        }
+                    }
+                }
+            }
+        }
+
+        newest
+            .map(|(p, _)| p)
+            .ok_or_else(|| anyhow!("Downloaded file not found in {:?}", output_dir_owned))
+    })
+    .await?
 }
 
 pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
