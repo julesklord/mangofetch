@@ -74,3 +74,97 @@ pub fn clear_all() {
         g.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::thread::sleep;
+
+    static TEST_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn get_lock() -> std::sync::MutexGuard<'static, ()> {
+        TEST_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
+
+    #[test]
+    fn test_push_line_and_get() {
+        let _guard = get_lock();
+        let id = 1;
+        clear(id);
+
+        let emitted = push_line(id, "first line");
+        assert!(emitted, "First line should emit");
+
+        let lines = get(id);
+        assert_eq!(lines, vec!["first line"]);
+
+        let emitted2 = push_line(id, "second line");
+        assert!(!emitted2, "Second line within throttle should not emit");
+
+        let lines2 = get(id);
+        assert_eq!(lines2, vec!["first line", "second line"]);
+    }
+
+    #[test]
+    fn test_max_lines_limit() {
+        let _guard = get_lock();
+        let id = 2;
+        clear(id);
+
+        for i in 0..(MAX_LINES_PER_DOWNLOAD + 5) {
+            push_line(id, &format!("line {}", i));
+        }
+
+        let lines = get(id);
+        assert_eq!(lines.len(), MAX_LINES_PER_DOWNLOAD);
+        // Should have dropped 0..4, so first is 5
+        assert_eq!(lines.first().unwrap(), "line 5");
+        assert_eq!(lines.last().unwrap(), &format!("line {}", MAX_LINES_PER_DOWNLOAD + 4));
+    }
+
+    #[test]
+    fn test_emit_throttle() {
+        let _guard = get_lock();
+        let id = 3;
+        clear(id);
+
+        assert!(push_line(id, "line 1"));
+        assert!(!push_line(id, "line 2")); // Within throttle
+
+        sleep(Duration::from_millis(EMIT_THROTTLE_MS + 10));
+
+        assert!(push_line(id, "line 3")); // Outside throttle
+    }
+
+    #[test]
+    fn test_clear() {
+        let _guard = get_lock();
+        let id = 4;
+        clear(id);
+
+        push_line(id, "line");
+        assert_eq!(get(id).len(), 1);
+
+        clear(id);
+        assert!(get(id).is_empty());
+    }
+
+    #[test]
+    fn test_clear_all() {
+        let _guard = get_lock();
+        let id1 = 5;
+        let id2 = 6;
+
+        push_line(id1, "line");
+        push_line(id2, "line");
+
+        assert_eq!(get(id1).len(), 1);
+        assert_eq!(get(id2).len(), 1);
+
+        clear_all();
+
+        assert!(get(id1).is_empty());
+        assert!(get(id2).is_empty());
+    }
+}
