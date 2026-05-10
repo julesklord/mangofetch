@@ -38,3 +38,34 @@ pub fn validate_output_dir(output_dir: &str) -> Result<(), PathLimitError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_output_dir_short_path() {
+        assert!(validate_output_dir("C:\\short\\path").is_ok());
+    }
+
+    #[test]
+    fn test_validate_output_dir_exact_limit() {
+        let exact_len = MAX_PATH_LEN - MIN_FILENAME_RESERVE - SEPARATOR_RESERVE;
+        let path = "a".repeat(exact_len);
+        assert!(validate_output_dir(&path).is_ok());
+    }
+
+    #[test]
+    fn test_validate_output_dir_over_limit() {
+        let over_len = MAX_PATH_LEN - MIN_FILENAME_RESERVE - SEPARATOR_RESERVE + 1;
+        let path = "a".repeat(over_len);
+        let result = validate_output_dir(&path);
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert_eq!(e.limit, MAX_PATH_LEN);
+            assert_eq!(e.current, over_len + SEPARATOR_RESERVE);
+            assert_eq!(e.reserve, MIN_FILENAME_RESERVE);
+        }
+    }
+}
