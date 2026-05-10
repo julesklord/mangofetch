@@ -7,22 +7,20 @@ fn enhanced_path() -> Option<String> {
             let sep = if cfg!(windows) { ";" } else { ":" };
             let current = std::env::var("PATH").unwrap_or_default();
 
-            #[allow(unused_mut)]
-            let mut extra_dirs: Vec<String> = vec![bin_dir.display().to_string()];
-
-            #[cfg(target_os = "macos")]
-            {
-                extra_dirs.push("/opt/homebrew/bin".into());
-                extra_dirs.push("/usr/local/bin".into());
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-                if let Some(home) = dirs::home_dir() {
-                    extra_dirs.push(home.join(".local").join("bin").display().to_string());
-                }
-                extra_dirs.push("/usr/local/bin".into());
-            }
+            let extra_dirs: Vec<String> = vec![
+                Some(bin_dir.display().to_string()),
+                #[cfg(target_os = "macos")]
+                Some("/opt/homebrew/bin".into()),
+                #[cfg(target_os = "macos")]
+                Some("/usr/local/bin".into()),
+                #[cfg(target_os = "linux")]
+                dirs::home_dir().map(|h| h.join(".local").join("bin").display().to_string()),
+                #[cfg(target_os = "linux")]
+                Some("/usr/local/bin".into()),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
 
             Some(format!("{}{}{}", extra_dirs.join(sep), sep, current))
         })
