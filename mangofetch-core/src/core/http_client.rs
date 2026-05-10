@@ -119,3 +119,81 @@ where
 
     Ok(buffer)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::settings::ProxySettings;
+
+    #[test]
+    fn test_proxy_url_generation() {
+        // Disabled
+        init_proxy(ProxySettings {
+            enabled: false,
+            proxy_type: "http".into(),
+            host: "127.0.0.1".into(),
+            port: 8080,
+            username: "".into(),
+            password: "".into(),
+        });
+        assert_eq!(proxy_url(), None);
+
+        // Missing host
+        init_proxy(ProxySettings {
+            enabled: true,
+            proxy_type: "http".into(),
+            host: "".into(),
+            port: 8080,
+            username: "".into(),
+            password: "".into(),
+        });
+        assert_eq!(proxy_url(), None);
+
+        // HTTP proxy without auth
+        init_proxy(ProxySettings {
+            enabled: true,
+            proxy_type: "http".into(),
+            host: "127.0.0.1".into(),
+            port: 8080,
+            username: "".into(),
+            password: "".into(),
+        });
+        assert_eq!(proxy_url(), Some("http://127.0.0.1:8080".into()));
+
+        // SOCKS5 proxy with auth
+        init_proxy(ProxySettings {
+            enabled: true,
+            proxy_type: "socks5".into(),
+            host: "127.0.0.1".into(),
+            port: 1080,
+            username: "user".into(),
+            password: "password".into(),
+        });
+        assert_eq!(
+            proxy_url(),
+            Some("socks5://user:password@127.0.0.1:1080".into())
+        );
+
+        // HTTPS proxy without auth
+        init_proxy(ProxySettings {
+            enabled: true,
+            proxy_type: "https".into(),
+            host: "127.0.0.1".into(),
+            port: 443,
+            username: "".into(),
+            password: "".into(),
+        });
+        assert_eq!(proxy_url(), Some("https://127.0.0.1:443".into()));
+
+        // Unknown proxy type (falls back to http)
+        init_proxy(ProxySettings {
+            enabled: true,
+            proxy_type: "unknown".into(),
+            host: "127.0.0.1".into(),
+            port: 8080,
+            username: "".into(),
+            password: "".into(),
+        });
+        assert_eq!(proxy_url(), Some("http://127.0.0.1:8080".into()));
+    }
+}
