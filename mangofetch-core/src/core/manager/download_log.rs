@@ -74,3 +74,75 @@ pub fn clear_all() {
         g.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
+    use std::time::Duration;
+    use std::sync::Mutex;
+
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn test_push_and_get() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id = 1001;
+        assert!(push_line(id, "line 1")); // First line should be emitted
+        assert!(!push_line(id, "line 2")); // Should be throttled
+        let lines = get(id);
+        assert_eq!(lines, vec!["line 1".to_string(), "line 2".to_string()]);
+    }
+
+    #[test]
+    fn test_emit_throttling() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id = 1002;
+        assert!(push_line(id, "first")); // emits
+        assert!(!push_line(id, "second")); // throttled
+
+        // Wait for throttle to expire
+        thread::sleep(Duration::from_millis(EMIT_THROTTLE_MS + 10));
+        assert!(push_line(id, "third")); // emits again
+    }
+
+    #[test]
+    fn test_max_lines_limit() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id = 1003;
+        for i in 0..(MAX_LINES_PER_DOWNLOAD + 10) {
+            push_line(id, &format!("line {}", i));
+        }
+        let lines = get(id);
+        assert_eq!(lines.len(), MAX_LINES_PER_DOWNLOAD);
+        // The first 10 lines should have been popped
+        assert_eq!(lines.first().unwrap(), "line 10");
+        assert_eq!(lines.last().unwrap(), &format!("line {}", MAX_LINES_PER_DOWNLOAD + 9));
+    }
+
+    #[test]
+    fn test_clear() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id = 1004;
+        push_line(id, "test");
+        assert_eq!(get(id).len(), 1);
+        clear(id);
+        assert_eq!(get(id).len(), 0);
+    }
+
+    #[test]
+    fn test_clear_all() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id1 = 1005;
+        let id2 = 1006;
+        push_line(id1, "test1");
+        push_line(id2, "test2");
+        assert_eq!(get(id1).len(), 1);
+        assert_eq!(get(id2).len(), 1);
+
+        clear_all();
+
+        assert_eq!(get(id1).len(), 0);
+        assert_eq!(get(id2).len(), 0);
+    }
+}
