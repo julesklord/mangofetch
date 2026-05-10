@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::anyhow;
+use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -1853,12 +1854,12 @@ pub async fn download_video(
 }
 
 async fn cleanup_part_files(dir: &Path) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
+    if let Ok(mut entries) = fs::read_dir(dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             if name.ends_with(".part") || name.ends_with(".ytdl") {
-                let _ = std::fs::remove_file(entry.path());
+                let _ = fs::remove_file(entry.path()).await;
             }
         }
     }
