@@ -30,14 +30,19 @@ pub async fn copy_file_to_clipboard(path: &Path) -> anyhow::Result<()> {
     }
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn escape_applescript_string(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 #[cfg(target_os = "macos")]
 async fn copy_file_macos(path: &str) -> anyhow::Result<()> {
-    let path = path.to_string();
+    let escaped_path = escape_applescript_string(path);
     let output = tokio::task::spawn_blocking(move || {
         crate::core::process::std_command("osascript")
             .args([
                 "-e",
-                &format!("set the clipboard to POSIX file \"{}\"", path),
+                &format!("set the clipboard to POSIX file \"{}\"", escaped_path),
             ])
             .output()
     })
@@ -171,4 +176,28 @@ async fn copy_file_windows(path: &str) -> anyhow::Result<()> {
 
     tracing::info!("[clipboard] copied file to clipboard (Windows): {}", path);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_applescript_string() {
+        {
+            assert_eq!(escape_applescript_string("path/to/file"), "path/to/file");
+            assert_eq!(
+                escape_applescript_string("path/with/\"quote\""),
+                "path/with/\\\"quote\\\""
+            );
+            assert_eq!(
+                escape_applescript_string("path/with/back\\slash"),
+                "path/with/back\\\\slash"
+            );
+            assert_eq!(
+                escape_applescript_string("path/with/\"quote\" and back\\slash"),
+                "path/with/\\\"quote\\\" and back\\\\slash"
+            );
+        }
+    }
 }
