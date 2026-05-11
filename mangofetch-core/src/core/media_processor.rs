@@ -1,63 +1,58 @@
 use crate::core::hls_downloader::HlsDownloadResult;
 use tokio_util::sync::CancellationToken;
 
+pub struct HlsDownloadOptions<'a> {
+    pub m3u8_url: &'a str,
+    pub output: &'a str,
+    pub referer: &'a str,
+    pub bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
+    pub cancel_token: CancellationToken,
+    pub max_concurrent: u32,
+    pub max_retries: u32,
+    pub client: Option<reqwest::Client>,
+    pub max_height: Option<u32>,
+}
+
 pub struct MediaProcessor;
 
 impl MediaProcessor {
-    #[allow(clippy::too_many_arguments)]
     pub async fn download_hls(
-        m3u8_url: &str,
-        output: &str,
-        referer: &str,
-        bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
-        cancel_token: CancellationToken,
-        max_concurrent: u32,
-        max_retries: u32,
-        client: Option<reqwest::Client>,
+        options: HlsDownloadOptions<'_>,
     ) -> anyhow::Result<HlsDownloadResult> {
-        let downloader = match client {
+        let downloader = match options.client {
             Some(c) => crate::core::hls_downloader::HlsDownloader::with_client(c),
             None => crate::core::hls_downloader::HlsDownloader::new(),
         };
         downloader
             .download(
-                m3u8_url,
-                output,
-                referer,
-                bytes_tx,
-                cancel_token,
-                max_concurrent,
-                max_retries,
+                options.m3u8_url,
+                options.output,
+                options.referer,
+                options.bytes_tx,
+                options.cancel_token,
+                options.max_concurrent,
+                options.max_retries,
             )
             .await
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn download_hls_with_quality(
-        m3u8_url: &str,
-        output: &str,
-        referer: &str,
-        bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
-        cancel_token: CancellationToken,
-        max_concurrent: u32,
-        max_retries: u32,
-        client: Option<reqwest::Client>,
-        max_height: Option<u32>,
+        options: HlsDownloadOptions<'_>,
     ) -> anyhow::Result<HlsDownloadResult> {
-        let downloader = match client {
+        let downloader = match options.client {
             Some(c) => crate::core::hls_downloader::HlsDownloader::with_client(c),
             None => crate::core::hls_downloader::HlsDownloader::new(),
         };
         downloader
             .download_with_quality(
-                m3u8_url,
-                output,
-                referer,
-                bytes_tx,
-                cancel_token,
-                max_concurrent,
-                max_retries,
-                max_height,
+                options.m3u8_url,
+                options.output,
+                options.referer,
+                options.bytes_tx,
+                options.cancel_token,
+                options.max_concurrent,
+                options.max_retries,
+                options.max_height,
             )
             .await
     }
