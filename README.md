@@ -23,6 +23,29 @@ As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User 
 
 ---
 
+## 🛠️ Installation
+
+### Via Cargo (Recommended)
+
+The fastest way to install the CLI directly to your system path:
+
+```zsh
+cargo install mangofetch-cli
+```
+
+### From Source
+
+For developers who want the absolute bleeding edge or wish to modify the core:
+
+```zsh
+git clone https://github.com/julesklord/mangofetch-cli.git
+cd mangofetch-cli
+cargo build --release
+# The compiled binary will be available at: target/release/mangofetch
+```
+
+---
+
 ## ✨ Key Features (v0.5.0)
 
 *   **1000+ Platforms**: Deep integration with `yt-dlp` to support almost every video site.
@@ -127,28 +150,6 @@ For a complete breakdown of all commands, flags, and TUI shortcuts, please visit
 
 ---
 
-## 🛠️ Installation
-
-### Via Cargo (Recommended)
-
-The fastest way to install the CLI directly to your system path:
-
-```zsh
-cargo install mangofetch-cli
-```
-
-### From Source
-
-For developers who want the absolute bleeding edge or wish to modify the core:
-
-```zsh
-git clone https://github.com/julesklord/mangofetch-cli.git
-cd mangofetch-cli
-cargo build --release
-# The compiled binary will be available at: target/release/mangofetch
-```
-
----
 
 ## 🗺️ Roadmap & Milestones
 
