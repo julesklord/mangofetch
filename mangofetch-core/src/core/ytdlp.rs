@@ -688,7 +688,7 @@ async fn find_ffmpeg_location_cached() -> Option<String> {
 /// yt-dlp rewrites `--cookies` files after every run, which corrupts the
 /// original cookies written by the Chrome extension. We copy the source
 /// file to a sibling temp file so yt-dlp mutates the copy, not the original.
-fn extension_cookie_file() -> Option<std::path::PathBuf> {
+async fn extension_cookie_file() -> Option<std::path::PathBuf> {
     let source = ext_cookie_path();
     let metadata = std::fs::metadata(&source).ok()?;
     let modified = metadata.modified().ok()?;
@@ -696,7 +696,7 @@ fn extension_cookie_file() -> Option<std::path::PathBuf> {
         return None;
     }
     let copy = source.with_file_name("chrome-extension-cookies-session.txt");
-    std::fs::copy(&source, &copy).ok()?;
+    tokio::fs::copy(&source, &copy).await.ok()?;
     Some(copy)
 }
 
@@ -878,7 +878,7 @@ pub async fn get_video_info(
             manual_cookie_header_setting()
         };
         let extension_cookies = if manual_cookie_header.is_none() {
-            extension_cookie_file()
+            extension_cookie_file().await
         } else {
             None
         };
@@ -1248,7 +1248,7 @@ pub async fn download_video(
 
     let ext_cookies =
         if cookie_file.is_none() && global_cookie_file.is_none() && !manual_cookie_enabled {
-            extension_cookie_file()
+            extension_cookie_file().await
         } else {
             None
         };
