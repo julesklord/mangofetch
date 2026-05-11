@@ -170,9 +170,6 @@ pub fn ext_cookie_path() -> PathBuf {
 
 pub fn ext_cookie_path_if_fresh() -> Option<PathBuf> {
     let source = ext_cookie_path();
-    if !source.exists() {
-        return None;
-    }
     let metadata = std::fs::metadata(&source).ok()?;
     let modified = metadata.modified().ok()?;
     if modified.elapsed().unwrap_or_default() >= std::time::Duration::from_secs(604800) {
@@ -693,9 +690,6 @@ async fn find_ffmpeg_location_cached() -> Option<String> {
 /// file to a sibling temp file so yt-dlp mutates the copy, not the original.
 fn extension_cookie_file() -> Option<std::path::PathBuf> {
     let source = ext_cookie_path();
-    if !source.exists() {
-        return None;
-    }
     let metadata = std::fs::metadata(&source).ok()?;
     let modified = metadata.modified().ok()?;
     if modified.elapsed().unwrap_or_default() >= std::time::Duration::from_secs(604800) {
