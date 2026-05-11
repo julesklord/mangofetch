@@ -230,8 +230,11 @@ impl AppSettings {
             Some(d) => d,
             None => return Self::default(),
         };
-        let store_path = data_dir.join("settings.json");
-        let content = match std::fs::read_to_string(&store_path) {
+        Self::load_from_path(&data_dir.join("settings.json"))
+    }
+
+    pub fn load_from_path(store_path: &std::path::Path) -> Self {
+        let content = match std::fs::read_to_string(store_path) {
             Ok(c) => c,
             Err(_) => return Self::default(),
         };
@@ -248,10 +251,12 @@ impl AppSettings {
     pub fn save_to_disk(&self) -> anyhow::Result<()> {
         let data_dir = crate::core::paths::app_data_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find app data dir"))?;
-        let store_path = data_dir.join("settings.json");
+        self.save_to_path(&data_dir.join("settings.json"))
+    }
 
+    pub fn save_to_path(&self, store_path: &std::path::Path) -> anyhow::Result<()> {
         let mut json = if store_path.exists() {
-            let content = std::fs::read_to_string(&store_path)?;
+            let content = std::fs::read_to_string(store_path)?;
             serde_json::from_str::<serde_json::Value>(&content).unwrap_or(serde_json::json!({}))
         } else {
             serde_json::json!({})
@@ -264,5 +269,77 @@ impl AppSettings {
         let serialized = serde_json::to_string_pretty(&json)?;
         std::fs::write(store_path, serialized)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_load_default_when_no_file() {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let path = std::env::temp_dir().join(&uuid).join("settings.json");
+        let settings = AppSettings::load_from_path(&path);
+        assert_eq!(settings.appearance.theme, "system");
+    }
+
+    #[test]
+    fn test_save_and_load_settings() {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let dir = std::env::temp_dir().join(&uuid);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+
+        let mut settings = AppSettings::default();
+        settings.appearance.theme = "dark".into();
+        settings.save_to_path(&path).unwrap();
+
+        let loaded = AppSettings::load_from_path(&path);
+        assert_eq!(loaded.appearance.theme, "dark");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_load_invalid_json() {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let dir = std::env::temp_dir().join(&uuid);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+
+        fs::write(&path, "{ invalid json }").unwrap();
+
+        let settings = AppSettings::load_from_path(&path);
+        assert_eq!(settings.appearance.theme, "system"); // Should return default
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_save_preserves_other_keys() {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let dir = std::env::temp_dir().join(&uuid);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+
+        // Create initial JSON with an extra key
+        let initial_json = serde_json::json!({
+            "other_plugin_data": { "key": "value" },
+            "app_settings": {}
+        });
+        fs::write(&path, serde_json::to_string(&initial_json).unwrap()).unwrap();
+
+        // Save settings
+        let settings = AppSettings::default();
+        settings.save_to_path(&path).unwrap();
+
+        // Verify other key is preserved
+        let content = fs::read_to_string(&path).unwrap();
+        let saved_json: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        assert!(saved_json.get("other_plugin_data").is_some());
+        assert_eq!(saved_json["other_plugin_data"]["key"], "value");
+        assert!(saved_json.get("app_settings").is_some());
+        let _ = fs::remove_dir_all(dir);
     }
 }
