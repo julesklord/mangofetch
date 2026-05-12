@@ -49,6 +49,7 @@ While in the **Queue** or **History** tabs:
 *   **`p`**: Pause the selected download.
 *   **`r`**: Resume the selected download.
 *   **`x`**: Remove the selected item (requires confirmation).
+*   **`a`**: Open the **Add Download** modal (Paste URL).
 *   **`?`**: Toggle the **Help Modal**.
 
 > [!SCREENSHOT_PLACEHOLDER: TUI Help Modal Overlay]
