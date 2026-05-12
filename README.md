@@ -5,7 +5,7 @@
     </td>
     <td valign="top">
       <h1>🥭 mangofetch</h1>
-      <p><strong>Brutally fast. Extensible. Pure Rust.</strong><br/>
+      <p><strong>Fast, Tropical, Pure Rust.</strong><br/>
       <em>TUI/CLI app for fetch everything you want from internet</em></p>
       <p>
         <a href="https://crates.io/crates/mangofetch-cli"><img src="https://img.shields.io/crates/v/mangofetch-cli?style=plastic&color=orange" alt="Crates.io"></a>
@@ -51,8 +51,10 @@ With the release of **v0.5.1**, MangoFetch transcends traditional CLI tools by i
 
 As of **v0.5.1**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
 
+___
+
 <p align="center">
-  <img src="docs/assets/shot2_down_view.png" alt="MangoFetch in action" width="900" />
+  <img src="docs/assets/mangofetch_demo.webp" alt="MangoFetch demo" width="550" />
 </p>
 
 ---
