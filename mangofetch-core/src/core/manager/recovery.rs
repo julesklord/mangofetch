@@ -133,3 +133,192 @@ pub fn clear_all() {
     guard.clear();
     write_to_disk(&guard);
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use crate::models::queue::QueueStatus;
+
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    struct TestEnv {
+        dir: std::path::PathBuf,
+    }
+
+    impl TestEnv {
+        fn new() -> Self {
+            let id = uuid::Uuid::new_v4();
+            let dir = std::env::temp_dir().join(format!("mangofetch_recovery_test_{}", id));
+            std::fs::create_dir_all(&dir).unwrap();
+            std::env::set_var("MANGOFETCH_DATA_DIR", &dir);
+            Self { dir }
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+            std::env::remove_var("MANGOFETCH_DATA_DIR");
+        }
+    }
+
+    fn clear_global_store() {
+        let mut guard = store().lock().unwrap();
+        guard.clear();
+    }
+
+    #[test]
+    fn test_persist_and_list() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let _env = TestEnv::new();
+        clear_global_store();
+
+        let item = RecoveryItem {
+            id: 1,
+            url: "http://example.com".to_string(),
+            title: "Test Video".to_string(),
+            platform: "test".to_string(),
+            output_dir: "/tmp".to_string(),
+            status: QueueStatus::Queued,
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: None,
+            file_path: None,
+            file_size_bytes: None,
+        };
+
+        persist(item.clone());
+
+        let items = list();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, 1);
+        assert_eq!(items[0].title, "Test Video");
+
+        let path = file_path().unwrap();
+        assert!(path.exists());
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("Test Video"));
+    }
+
+    #[test]
+    fn test_remove() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let _env = TestEnv::new();
+        clear_global_store();
+
+        let item = RecoveryItem {
+            id: 2,
+            url: "http://example.com/2".to_string(),
+            title: "Test Video 2".to_string(),
+            platform: "test".to_string(),
+            output_dir: "/tmp".to_string(),
+            status: QueueStatus::Queued,
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: None,
+            file_path: None,
+            file_size_bytes: None,
+        };
+
+        persist(item);
+        assert_eq!(list().len(), 1);
+
+        remove(2);
+        assert_eq!(list().len(), 0);
+
+        let path = file_path().unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: RecoveryFile = serde_json::from_str(&content).unwrap();
+        assert!(parsed.items.is_empty());
+    }
+
+    #[test]
+    fn test_init_from_disk() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let _env = TestEnv::new();
+        clear_global_store();
+
+        let item = RecoveryItem {
+            id: 3,
+            url: "http://example.com/3".to_string(),
+            title: "Disk Test".to_string(),
+            platform: "test".to_string(),
+            output_dir: "/tmp".to_string(),
+            status: QueueStatus::Active,
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: None,
+            file_path: None,
+            file_size_bytes: None,
+        };
+
+        persist(item);
+
+        clear_global_store();
+        assert_eq!(list().len(), 0);
+
+        init_from_disk();
+        let items = list();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, 3);
+        assert_eq!(items[0].title, "Disk Test");
+
+        assert_eq!(get_next_id(), 4);
+    }
+
+    #[test]
+    fn test_clear_all() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let _env = TestEnv::new();
+        clear_global_store();
+
+        let item1 = RecoveryItem {
+            id: 4,
+            url: "http://example.com/4".to_string(),
+            title: "Test 4".to_string(),
+            platform: "test".to_string(),
+            output_dir: "/tmp".to_string(),
+            status: QueueStatus::Queued,
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: None,
+            file_path: None,
+            file_size_bytes: None,
+        };
+
+        let item2 = RecoveryItem {
+            id: 5,
+            url: "http://example.com/5".to_string(),
+            title: "Test 5".to_string(),
+            platform: "test".to_string(),
+            output_dir: "/tmp".to_string(),
+            status: QueueStatus::Queued,
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: None,
+            file_path: None,
+            file_size_bytes: None,
+        };
+
+        persist(item1);
+        persist(item2);
+        assert_eq!(list().len(), 2);
+
+        clear_all();
+        assert_eq!(list().len(), 0);
+
+        let path = file_path().unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: RecoveryFile = serde_json::from_str(&content).unwrap();
+        assert!(parsed.items.is_empty());
+    }
+}

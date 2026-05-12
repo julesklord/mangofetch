@@ -207,7 +207,7 @@ impl HlsDownloader {
             PathBuf::from(p)
         };
         if let Some(parent) = output.parent() {
-            std::fs::create_dir_all(parent)?;
+            tokio::fs::create_dir_all(parent).await?;
         }
 
         let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize);

@@ -1,63 +1,58 @@
 use crate::core::hls_downloader::HlsDownloadResult;
 use tokio_util::sync::CancellationToken;
 
+pub struct HlsDownloadOptions<'a> {
+    pub m3u8_url: &'a str,
+    pub output: &'a str,
+    pub referer: &'a str,
+    pub bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
+    pub cancel_token: CancellationToken,
+    pub max_concurrent: u32,
+    pub max_retries: u32,
+    pub client: Option<reqwest::Client>,
+    pub max_height: Option<u32>,
+}
+
 pub struct MediaProcessor;
 
 impl MediaProcessor {
-    #[allow(clippy::too_many_arguments)]
     pub async fn download_hls(
-        m3u8_url: &str,
-        output: &str,
-        referer: &str,
-        bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
-        cancel_token: CancellationToken,
-        max_concurrent: u32,
-        max_retries: u32,
-        client: Option<reqwest::Client>,
+        options: HlsDownloadOptions<'_>,
     ) -> anyhow::Result<HlsDownloadResult> {
-        let downloader = match client {
+        let downloader = match options.client {
             Some(c) => crate::core::hls_downloader::HlsDownloader::with_client(c),
             None => crate::core::hls_downloader::HlsDownloader::new(),
         };
         downloader
             .download(
-                m3u8_url,
-                output,
-                referer,
-                bytes_tx,
-                cancel_token,
-                max_concurrent,
-                max_retries,
+                options.m3u8_url,
+                options.output,
+                options.referer,
+                options.bytes_tx,
+                options.cancel_token,
+                options.max_concurrent,
+                options.max_retries,
             )
             .await
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn download_hls_with_quality(
-        m3u8_url: &str,
-        output: &str,
-        referer: &str,
-        bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
-        cancel_token: CancellationToken,
-        max_concurrent: u32,
-        max_retries: u32,
-        client: Option<reqwest::Client>,
-        max_height: Option<u32>,
+        options: HlsDownloadOptions<'_>,
     ) -> anyhow::Result<HlsDownloadResult> {
-        let downloader = match client {
+        let downloader = match options.client {
             Some(c) => crate::core::hls_downloader::HlsDownloader::with_client(c),
             None => crate::core::hls_downloader::HlsDownloader::new(),
         };
         downloader
             .download_with_quality(
-                m3u8_url,
-                output,
-                referer,
-                bytes_tx,
-                cancel_token,
-                max_concurrent,
-                max_retries,
-                max_height,
+                options.m3u8_url,
+                options.output,
+                options.referer,
+                options.bytes_tx,
+                options.cancel_token,
+                options.max_concurrent,
+                options.max_retries,
+                options.max_height,
             )
             .await
     }
@@ -132,33 +127,129 @@ impl MediaProcessor {
     }
 }
 
+pub trait CommandRunner {
+    fn check_command_success(&self, program: &str, args: &[&str]) -> bool;
+}
+
+pub struct RealCommandRunner;
+
+impl CommandRunner for RealCommandRunner {
+    fn check_command_success(&self, program: &str, args: &[&str]) -> bool {
+        crate::core::process::std_command(program)
+            .args(args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+}
+
+pub fn check_ffmpeg_with_runner(runner: &impl CommandRunner) -> bool {
+    runner.check_command_success("ffmpeg", &["-version"])
+}
+
 pub fn check_ffmpeg() -> bool {
-    crate::core::process::std_command("ffmpeg")
-        .arg("-version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    check_ffmpeg_with_runner(&RealCommandRunner)
+}
+
+pub fn check_ytdlp_with_runner(runner: &impl CommandRunner) -> bool {
+    runner.check_command_success("yt-dlp", &["--version"])
 }
 
 pub fn check_ytdlp() -> bool {
-    crate::core::process::std_command("yt-dlp")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    check_ytdlp_with_runner(&RealCommandRunner)
 }
 
-pub fn check_dependencies() -> Vec<String> {
+pub fn check_dependencies_with_runner(runner: &impl CommandRunner) -> Vec<String> {
     let mut missing = Vec::new();
-    if !check_ytdlp() {
+    if !check_ytdlp_with_runner(runner) {
         missing.push("yt-dlp".into());
     }
-    if !check_ffmpeg() {
+    if !check_ffmpeg_with_runner(runner) {
         missing.push("ffmpeg".into());
     }
     missing
+}
+
+pub fn check_dependencies() -> Vec<String> {
+    check_dependencies_with_runner(&RealCommandRunner)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+        use std::collections::HashMap;
+
+        struct MockCommandRunner {
+        // maps "program" -> success status
+        responses: HashMap<String, bool>,
+    }
+
+    impl MockCommandRunner {
+        fn new() -> Self {
+            Self {
+                responses: HashMap::new(),
+            }
+        }
+
+        fn set_response(mut self, program: &str, success: bool) -> Self {
+            self.responses.insert(program.to_string(), success);
+            self
+        }
+    }
+
+    impl CommandRunner for MockCommandRunner {
+        fn check_command_success(&self, program: &str, _args: &[&str]) -> bool {
+            *self.responses.get(program).unwrap_or(&false)
+        }
+    }
+
+    #[test]
+    fn test_check_dependencies_both_present() {
+        let runner = MockCommandRunner::new()
+            .set_response("ffmpeg", true)
+            .set_response("yt-dlp", true);
+
+        assert!(check_ffmpeg_with_runner(&runner));
+        assert!(check_ytdlp_with_runner(&runner));
+        let missing = check_dependencies_with_runner(&runner);
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn test_check_dependencies_ffmpeg_missing() {
+        let runner = MockCommandRunner::new()
+            .set_response("ffmpeg", false)
+            .set_response("yt-dlp", true);
+
+        assert!(!check_ffmpeg_with_runner(&runner));
+        assert!(check_ytdlp_with_runner(&runner));
+        let missing = check_dependencies_with_runner(&runner);
+        assert_eq!(missing, vec!["ffmpeg".to_string()]);
+    }
+
+    #[test]
+    fn test_check_dependencies_ytdlp_missing() {
+        let runner = MockCommandRunner::new()
+            .set_response("ffmpeg", true)
+            .set_response("yt-dlp", false);
+
+        assert!(check_ffmpeg_with_runner(&runner));
+        assert!(!check_ytdlp_with_runner(&runner));
+        let missing = check_dependencies_with_runner(&runner);
+        assert_eq!(missing, vec!["yt-dlp".to_string()]);
+    }
+
+    #[test]
+    fn test_check_dependencies_both_missing() {
+        let runner = MockCommandRunner::new()
+            .set_response("ffmpeg", false)
+            .set_response("yt-dlp", false);
+
+        assert!(!check_ffmpeg_with_runner(&runner));
+        assert!(!check_ytdlp_with_runner(&runner));
+        let missing = check_dependencies_with_runner(&runner);
+        assert_eq!(missing, vec!["yt-dlp".to_string(), "ffmpeg".to_string()]);
+    }
 }

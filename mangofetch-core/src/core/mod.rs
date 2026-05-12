@@ -15,6 +15,7 @@ pub mod logger;
 pub mod manager;
 pub mod media_processor;
 pub mod paths;
+pub mod pokemon_names;
 pub mod process;
 pub mod random_names;
 pub mod redirect;

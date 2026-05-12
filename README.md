@@ -1,10 +1,8 @@
 # 🥭 mangofetch
 
 **Brutally fast. Extensible. Pure Rust.**  
-_A state-of-the-art, fault-tolerant asynchronous media download engine for the modern terminal._
-
+_A high-performance, asynchronous download engine for the terminal._
 ---
-
 <p align="center">
   <img src="docs/assets/shot.png" alt="MangoFetch in action" width="900" />
 </p>
@@ -23,7 +21,30 @@ _A state-of-the-art, fault-tolerant asynchronous media download engine for the m
 
 With the release of **v0.5.0**, MangoFetch transcends traditional CLI tools by introducing a professional-grade **TUI (Terminal User Interface)**. This interface blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
 
-> **Lineage and Credit:** MangoFetch is an independent, terminal-focused evolution of the [**OmniGet**](https://github.com/tonhowtf/omniget) project by tonhowft. While MangoFetch has been heavily refactored and optimized for pure CLI usage and extreme performance, the robust underlying core engine owes its existence to the brilliant foundational work done in OmniGet.
+As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
+
+---
+
+## 🛠️ Installation
+
+### Via Cargo (Recommended)
+
+The fastest way to install the CLI directly to your system path:
+
+```zsh
+cargo install mangofetch-cli
+```
+
+### From Source
+
+For developers who want the absolute bleeding edge or wish to modify the core:
+
+```zsh
+git clone https://github.com/julesklord/mangofetch-cli.git
+cd mangofetch-cli
+cargo build --release
+# The compiled binary will be available at: target/release/mangofetch
+```
 
 ---
 
@@ -131,28 +152,6 @@ For a comprehensive breakdown of all execution flags, API arguments, and TUI key
 
 ---
 
-## 🛠️ Installation
-
-### Via Cargo (Recommended)
-
-The most efficient method to compile and install the CLI binary natively targeting your CPU architecture:
-
-```zsh
-cargo install mangofetch-cli
-```
-
-### From Source
-
-For engineers requiring the absolute bleeding-edge tree or looking to audit the source code:
-
-```zsh
-git clone https://github.com/julesklord/mangofetch-cli.git
-cd mangofetch-cli
-cargo build --release
-# The highly optimized binary will be located at: target/release/mangofetch
-```
-
----
 
 ## 🗺️ Roadmap & Milestones
 
