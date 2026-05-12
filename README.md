@@ -31,7 +31,7 @@ ___
   - [🛠️ Installation](#🛠️-installation)
     - [Via Cargo (Recommended)](#via-cargo-recommended)
     - [From Source](#from-source)
-  - [✨ Key Features (v0.5.0)](#key-features-v050)
+  - [✨ Key Features (v0.5.1)](#key-features-v050)
   - [🏗️ Technical Architecture](#🏗️-technical-architecture)
     - [Core Components](#core-components)
   - [⚙️ The Core Engine Lifecycle](#️-the-core-engine-lifecycle)
@@ -47,9 +47,9 @@ ___
 
 **MangoFetch** represents a paradigm shift in terminal-based media acquisition. Engineered with uncompromising standards for memory safety and concurrency, it eschews bloated graphical interfaces in favor of a raw, low-latency execution environment. Built upon the robust foundations of **Tokio** and **Reqwest**, the engine is explicitly designed to saturate network throughput and orchestrate massive archival batches seamlessly, completely decoupling asynchronous I/O operations from the main thread.
 
-With the release of **v0.5.0**, MangoFetch transcends traditional CLI tools by introducing a professional-grade **TUI (Terminal User Interface)**. This interface blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
+With the release of **v0.5.1**, MangoFetch transcends traditional CLI tools by introducing a professional-grade **TUI (Terminal User Interface)**. This interface blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
 
-As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
+As of **v0.5.1**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
 
 <p align="center">
   <img src="docs/assets/shot2_down_view.png" alt="MangoFetch in action" width="900" />
@@ -80,7 +80,7 @@ cargo build --release
 
 ---
 
-## ✨ Key Features (v0.5.0)
+## ✨ Key Features (v0.5.1)
 
 *   **1000+ Platforms**: Deep, zero-overhead integration with `yt-dlp` to support virtually any media portal on the internet.
 *   **Interactive TUI**: A highly responsive, full-screen dashboard powered by `ratatui`, featuring **11 Tropical Fruit Themes** (Mango, Pitaya, Guayaba, Passionfruit, and more).
@@ -193,7 +193,7 @@ For a comprehensive breakdown of all execution flags, API arguments, and TUI key
 | **v0.2.0** | ✅     | Standalone rewrite — GUI stripped, core engine highly optimized |
 | **v0.3.1** | ✅     | Rebranding cleanup, test matrix fixes, and documentation        |
 | **v0.4.0** | ✅     | **The TUI Release:** Full-screen interactive terminal interface |
-| **v0.5.0** | ✅     | **UX & Polish:** Tropical themes, pointer support, dynamic UI   |
+| **v0.5.1** | ✅     | **UX & Polish:** Tropical themes, pointer support, dynamic UI   |
 | **v0.6.0** | ⏳     | Plugin management and community extractors via FFI SDK          |
 | **v0.7.0** | ⏳     | Decentralized P2P swarm integration                             |
 
