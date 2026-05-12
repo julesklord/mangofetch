@@ -6,7 +6,7 @@
     <td valign="top">
       <h1>mangofetch</h1>
       <p><strong>Fast, Tropical, Pure Rust.</strong><br/>
-      <em>TUI/CLI app for fetch everything you want from internet</em></p>
+      <em>A headless, UI-agnostic download engine SDK & TUI/CLI frontend</em></p>
       <p>
         <a href="https://crates.io/crates/mangofetch-cli"><img src="https://img.shields.io/crates/v/mangofetch-cli?style=plastic&color=orange" alt="Crates.io"></a>
         <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=plastic" alt="License GPL-3.0"></a>
@@ -26,30 +26,27 @@
 ___
 
 <!--toc:start-->
-- [🥭 mangofetch](#🥭-mangofetch)
+- [mangofetch](#mangofetch)
   - [Overview](#overview)
-  - [🛠️ Installation](#🛠️-installation)
-    - [Via Cargo (Recommended)](#via-cargo-recommended)
-    - [From Source](#from-source)
-  - [✨ Key Features (v0.5.1)](#key-features-v050)
-  - [🏗️ Technical Architecture](#🏗️-technical-architecture)
-    - [Core Components](#core-components)
-  - [⚙️ The Core Engine Lifecycle](#️-the-core-engine-lifecycle)
-    - [Key Engineering Milestones](#key-engineering-milestones)
-  - [🕹️ Command Reference](#🕹️-command-reference)
-  - [🗺️ Roadmap & Milestones](#🗺️-roadmap-milestones)
-  - [🤝 Acknowledgments](#🤝-acknowledgments)
+  - [Using as a Rust SDK (mangofetch-core)](#using-as-a-rust-sdk-mangofetch-core)
+  - [CLI/TUI Installation](#clitui-installation)
+  - [Key Features (v0.5.1)](#key-features-v051)
+  - [Technical Architecture](#technical-architecture)
+  - [The Core Engine Lifecycle](#the-core-engine-lifecycle)
+  - [Command Reference](#command-reference)
+  - [Roadmap & Milestones](#roadmap--milestones)
+  - [Acknowledgments](#acknowledgments)
   - [Contributing](#contributing)
   - [License](#license)
 <!--toc:end-->
 
 ## Overview
 
-**MangoFetch** represents a paradigm shift in terminal-based media acquisition. Engineered with uncompromising standards for memory safety and concurrency, it eschews bloated graphical interfaces in favor of a raw, low-latency execution environment. Built upon the robust foundations of **Tokio** and **Reqwest**, the engine is explicitly designed to saturate network throughput and orchestrate massive archival batches seamlessly, completely decoupling asynchronous I/O operations from the main thread.
+**MangoFetch** represents a paradigm shift in media acquisition. Engineered with uncompromising standards for memory safety and concurrency, it completely decouples the heavy lifting of asynchronous file downloading from any graphical or terminal interface. 
 
-With the release of **v0.5.1**, MangoFetch transcends traditional CLI tools by introducing a professional-grade **TUI (Terminal User Interface)**. This interface blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
+At its heart lies **`mangofetch-core`**, a raw, low-latency, and **headless download engine**. Built upon **Tokio** and **Reqwest**, it exposes a universal API via clean Rust Traits to interact with YouTube, Torrents (Magnet), SoundCloud, Instagram, and over 1000+ platforms via dynamic `yt-dlp` and `ffmpeg` integration.
 
-As of **v0.5.1**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
+For end-users, MangoFetch ships with **`mangofetch-cli`**, our reference implementation. This professional-grade **TUI (Terminal User Interface)** blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
 
 ___
 
@@ -59,7 +56,25 @@ ___
 
 ---
 
-## 🛠️ Installation
+## Using as a Rust SDK (mangofetch-core)
+
+Unlike monolithic GUI downloaders, **MangoFetch is designed to be embedded**. If you are building a Discord bot, a web server, or your own custom GUI, you can drop `mangofetch-core` directly into your Rust project. 
+
+Add it to your `Cargo.toml`:
+```toml
+[dependencies]
+mangofetch-core = { git = "https://github.com/julesklord/mangofetch-cli" }
+```
+
+**Why use `mangofetch-core`?**
+* **UI-Agnostic Telemetry:** Progress reporting is handled entirely through standard `tokio::sync::mpsc` channels. No UI thread blocking, no tight coupling to webviews or terminal crates.
+* **Unified Trait System:** Whether it's a direct link, a magnet URI, or a TikTok video, you interface with them through the exact same `PlatformDownloader` trait.
+* **Zero-Touch Dependencies:** The engine automatically downloads, manages, and verifies external binaries like `yt-dlp` and `ffmpeg` within its sandbox. You don't have to worry about the user's `$PATH`.
+* **Resilient Queue:** A fault-tolerant download manager that handles retries, rate limits (429s), and network drops autonomously.
+
+---
+
+## CLI/TUI Installation
 
 ### Via Cargo (Recommended)
 
@@ -71,7 +86,7 @@ cargo install mangofetch-cli
 
 ### From Source
 
-For developers who want the absolute bleeding edge or wish to modify the core:
+For developers who want the absolute bleeding edge:
 
 ```zsh
 git clone https://github.com/julesklord/mangofetch-cli.git
@@ -82,9 +97,10 @@ cargo build --release
 
 ---
 
-## ✨ Key Features (v0.5.1)
+## Key Features (v0.5.1)
 
 *   **1000+ Platforms**: Deep, zero-overhead integration with `yt-dlp` to support virtually any media portal on the internet.
+*   **Headless Core**: A highly decoupled architecture allowing the download engine to be used as a standalone Rust crate.
 *   **Interactive TUI**: A highly responsive, full-screen dashboard powered by `ratatui`, featuring **11 Tropical Fruit Themes** (Mango, Pitaya, Guayaba, Passionfruit, and more).
 *   **Fluid Mouse Support**: Full support for pointer events—scroll through sprawling download queues and actuate tabs directly via mouse telemetry.
 *   **Vim-Style Commands**: For the ultimate power user, actuate ultra-fast, non-blocking operations via the `:` command buffer.
@@ -93,30 +109,31 @@ cargo build --release
 
 ---
 
-## 🏗️ Technical Architecture
+## Technical Architecture
 
 MangoFetch is rigorously organized as a modular workspace, enforcing strict separation of concerns. This architectural decision ensures the core engine remains portable, highly testable, and isolated from the rendering layer.
 
 ```mermaid
 graph TD
-    User([Terminal User]) -->|CLI Commands| CLI(mangofetch-cli)
+    User([Terminal / App User]) -->|CLI / Events| Frontend(CLI / Bot / Custom GUI)
 
     subgraph MangoFetch Workspace
-        CLI -->|Dispatch & Render| Core(mangofetch-core)
+        Frontend -->|Dispatch & Read MPSC| Core(mangofetch-core)
 
         subgraph Core Engine
-            Core --> Queue[Async Download Queue]
+            Core --> Manager[Manager: Queue & Recovery]
             Core --> Registry[Platform Registry]
-            Queue --> IO[Tokio Async I/O]
+            Manager --> IO[Tokio Async I/O]
             Registry --> Ext_Native[Native Extractors]
             Registry --> Ext_Generic[Generic Extractor]
         end
 
-        CLI -.->|Dynamic Linking| SDK(mangofetch-plugin-sdk)
+        Frontend -.->|Dynamic Linking| SDK(mangofetch-plugin-sdk)
     end
 
     Ext_Generic -->|Wraps| YTDLP[yt-dlp Binary]
     Ext_Native -->|Muxes Audio/Video| FFmpeg[FFmpeg Binary]
+    Ext_Native -->|BitTorrent / P2P| RQBit[librqbit]
     YTDLP -.-> Network((Internet))
     IO -.-> Network
     IO --> Disk[(Local Storage)]
@@ -125,18 +142,18 @@ graph TD
 ### Core Components
 
 - **`mangofetch-core`**: The UI-agnostic heartbeat of the system. It governs the asynchronous download queue, orchestrates connection pooling, and houses the platform-specific native extractors (YouTube, Instagram, TikTok, etc.). It intelligently encapsulates `yt-dlp` and `ffmpeg` for complex stream muxing, automatically provisioning these binaries if omitted from the host `$PATH`.
-- **`mangofetch-cli`**: A hyper-lightweight frontend built with `clap`. It acts as a highly optimized dispatcher consuming the core library, rendering real-time telemetry via a brutalist, information-dense ANSI interface or the interactive TUI.
+- **`mangofetch-cli`**: A hyper-lightweight frontend built with `clap` and `ratatui`. It acts as a highly optimized dispatcher consuming the core library, rendering real-time telemetry via a brutalist, information-dense ANSI interface or the interactive TUI.
 - **`mangofetch-plugin-sdk`**: A robust FFI-compatible SDK engineered to extend MangoFetch's capabilities dynamically at runtime via shared libraries (`.so` / `.dll`).
 
 ---
 
-## ⚙️ The Core Engine Lifecycle
+## The Core Engine Lifecycle
 
 The `mangofetch-core` queue is intrinsically fault-tolerant. Operating on a resilient asynchronous loop, if a single task in a 10,000-item batch encounters a network anomaly, the queue isolates the failure, initiates exponential backoff retries, and continues processing the matrix without stalling.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Queued : User Submits URL
+    [*] --> Queued : Submit URL
     Queued --> FetchingMetadata : Worker Thread Picks Item
     FetchingMetadata --> Active : Media Info Resolved
     FetchingMetadata --> Error : Network/Parse Failure
@@ -148,9 +165,13 @@ stateDiagram-v2
         Muxing --> [*]
     }
 
+    Active --> Paused : User Pauses
+    Paused --> Active : User Resumes
+    Active --> Seeding : BitTorrent Complete
+    Seeding --> Complete : Seed Goal Reached
     Active --> Complete : Success
     Active --> Error : Interruption / Connection Drop
-    Error --> Queued : Retry Logic Triggered
+    Error --> Queued : Retry Logic Triggered (Auto-Recovery)
     Complete --> [*]
 ```
 
@@ -162,14 +183,14 @@ stateDiagram-v2
 
 ---
 
-## 🕹️ Command Reference
+## Command Reference
 
 For a comprehensive breakdown of all execution flags, API arguments, and TUI keybindings, please consult our **[Official Engineering Wiki](docs/wiki/Home.md)**.
 
-*   🚀 **[Installation Guide](docs/wiki/Installation.md)**
-*   🛠️ **[CLI Command Reference](docs/wiki/CLI-Guide.md)**
-*   🖥️ **[TUI Interactive Guide](docs/wiki/TUI-Experience.md)**
-*   🏗️ **[Technical Architecture](docs/wiki/Architecture.md)**
+*   **[Installation Guide](docs/wiki/Installation.md)**
+*   **[CLI Command Reference](docs/wiki/CLI-Guide.md)**
+*   **[TUI Interactive Guide](docs/wiki/TUI-Experience.md)**
+*   **[Technical Architecture](docs/wiki/Architecture.md)**
 
 | Full Command                          | Short Alias _(Upcoming)_ | Description                                             |
 | :------------------------------------ | :----------------------- | :------------------------------------------------------ |
@@ -187,7 +208,7 @@ For a comprehensive breakdown of all execution flags, API arguments, and TUI key
 ---
 
 
-## 🗺️ Roadmap & Milestones
+## Roadmap & Milestones
 
 | Version    | Status | Milestone                                                       |
 | ---------- | ------ | --------------------------------------------------------------- |
@@ -201,7 +222,7 @@ For a comprehensive breakdown of all execution flags, API arguments, and TUI key
 
 ---
 
-## 🤝 Acknowledgments
+## Acknowledgments
 
 - **[OmniGet](https://github.com/tonhowtf/omniget)** — The absolute backbone of this project. A huge shoutout to _tonhowft_ for architecting the original extraction logic and queue engine that MangoFetch builds upon.
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The incredible extraction engine handling the heavy lifting for over a thousand unsupported platforms.
@@ -213,6 +234,6 @@ Pull requests are fiercely welcomed. We adhere to rigorous engineering standards
 ## License
 
 <p align="center">
-  Engineered with 🦀 and 🥭 by <a href="https://github.com/julesklord">Jules Martins</a>.<br>
+  Engineered by <a href="https://github.com/julesklord">Jules Martins</a>.<br>
   Released under the terms of the GPL-3.0 License.
 </p>
