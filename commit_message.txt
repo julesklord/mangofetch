@@ -1,5 +1,0 @@
-💡 What: Replaced synchronous `std::fs::create_dir_all` with its async counterpart `tokio::fs::create_dir_all`.
-
-🎯 Why: The previous synchronous filesystem call in the `HlsDownloader` was being invoked directly from within the Tokio async execution context, which blocks the thread and can lead to performance regressions by delaying other pending async tasks.
-
-📊 Measured Improvement: I attempted to create an in-tree benchmark for this, but the cargo targeting format required complex `Cargo.toml` modifications which I ultimately abandoned to avoid polluting the dependency tree. It is a well-known fact that synchronous filesystem calls directly block the async execution thread, which decreases throughput and event-loop efficiency compared to handing the operation over to the dedicated blocking thread pool using `tokio::fs`.
