@@ -54,7 +54,7 @@ As of **v0.5.1**, MangoFetch features a professional-grade **TUI (Terminal User 
 ___
 
 <p align="center">
-  <img src="docs/assets/mangofetch_demo.webp" alt="MangoFetch demo" width="610" />
+  <img src="docs/assets/mangofetch_demo.webp" alt="MangoFetch demo" width="680" />
 </p>
 
 ---
