@@ -4,7 +4,7 @@
       <img src="docs/assets/logo.svg" width="180" alt="MangoFetch logo">
     </td>
     <td valign="top">
-      <h1>🥭 mangofetch</h1>
+      <h1>mangofetch</h1>
       <p><strong>Fast, Tropical, Pure Rust.</strong><br/>
       <em>TUI/CLI app for fetch everything you want from internet</em></p>
       <p>
