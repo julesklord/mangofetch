@@ -1,19 +1,47 @@
-# 🥭 mangofetch
+<table border="0">
+  <tr>
+    <td width="200" align="center" valign="top">
+      <img src="docs/assets/logo.svg" width="180" alt="MangoFetch logo">
+    </td>
+    <td valign="top">
+      <h1>🥭 mangofetch</h1>
+      <p><strong>Brutally fast. Extensible. Pure Rust.</strong><br/>
+      <em>TUI/CLI app for fetch everything you want from internet</em></p>
+      <p>
+        <a href="https://crates.io/crates/mangofetch-cli"><img src="https://img.shields.io/crates/v/mangofetch-cli?style=plastic&color=orange" alt="Crates.io"></a>
+        <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=plastic" alt="License GPL-3.0"></a>
+        <img src="https://img.shields.io/badge/Built%20With-Rust-red?style=plastic&logo=rust" alt="Built with Rust">
+        <img src="https://img.shields.io/badge/Architecture-Asynchronous-brightgreen?style=plastic" alt="Async">
+        <img src="https://img.shields.io/badge/Concurrency-Tokio-purple?style=plastic" alt="Tokio">
+      </p>
+    </td>
+  </tr>
+</table>
 
-**Brutally fast. Extensible. Pure Rust.**  
-_A high-performance, asynchronous download engine for the terminal._
 ---
 <p align="center">
   <img src="docs/assets/shot.png" alt="MangoFetch in action" width="900" />
 </p>
 
-<p align="center">
-  <a href="https://crates.io/crates/mangofetch-cli"><img src="https://img.shields.io/crates/v/mangofetch-cli?style=plastic&color=orange" alt="Crates.io" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=plastic" alt="License GPL-3.0" /></a>
-  <img src="https://img.shields.io/badge/Built%20With-Rust-red?style=plastic&logo=rust" alt="Built with Rust" />
-  <img src="https://img.shields.io/badge/Architecture-Asynchronous-brightgreen?style=plastic" alt="Async" />
-  <img src="https://img.shields.io/badge/Concurrency-Tokio-purple?style=plastic" alt="Tokio" />
-</p>
+___
+
+<!--toc:start-->
+- [🥭 mangofetch](#🥭-mangofetch)
+  - [Overview](#overview)
+  - [🛠️ Installation](#🛠️-installation)
+    - [Via Cargo (Recommended)](#via-cargo-recommended)
+    - [From Source](#from-source)
+  - [✨ Key Features (v0.5.0)](#key-features-v050)
+  - [🏗️ Technical Architecture](#🏗️-technical-architecture)
+    - [Core Components](#core-components)
+  - [⚙️ The Core Engine Lifecycle](#️-the-core-engine-lifecycle)
+    - [Key Engineering Milestones](#key-engineering-milestones)
+  - [🕹️ Command Reference](#🕹️-command-reference)
+  - [🗺️ Roadmap & Milestones](#🗺️-roadmap-milestones)
+  - [🤝 Acknowledgments](#🤝-acknowledgments)
+  - [Contributing](#contributing)
+  - [License](#license)
+<!--toc:end-->
 
 ## Overview
 
@@ -22,6 +50,10 @@ _A high-performance, asynchronous download engine for the terminal._
 With the release of **v0.5.0**, MangoFetch transcends traditional CLI tools by introducing a professional-grade **TUI (Terminal User Interface)**. This interface blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
 
 As of **v0.5.0**, MangoFetch features a professional-grade **TUI (Terminal User Interface)** with tropical fruit themes, mouse support, and an advanced dynamic settings engine.
+
+<p align="center">
+  <img src="docs/assets/shot2_down_view.png" alt="MangoFetch in action" width="900" />
+</p>
 
 ---
 
