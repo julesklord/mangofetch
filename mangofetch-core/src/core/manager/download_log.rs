@@ -95,6 +95,14 @@ mod tests {
     }
 
     #[test]
+    fn test_get_nonexistent() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id = 9999;
+        let lines = get(id);
+        assert!(lines.is_empty());
+    }
+
+    #[test]
     fn test_emit_throttling() {
         let _guard = TEST_MUTEX.lock().unwrap();
         let id = 1002;
