@@ -42,11 +42,9 @@ ___
 
 ## Overview
 
-**MangoFetch** represents a paradigm shift in media acquisition. Engineered with uncompromising standards for memory safety and concurrency, it completely decouples the heavy lifting of asynchronous file downloading from any graphical or terminal interface. 
-
 At its heart lies **`mangofetch-core`**, a raw, low-latency, and **headless download engine**. Built upon **Tokio** and **Reqwest**, it exposes a universal API via clean Rust Traits to interact with YouTube, Torrents (Magnet), SoundCloud, Instagram, and over 1000+ platforms via dynamic `yt-dlp` and `ffmpeg` integration.
 
-For end-users, MangoFetch ships with **`mangofetch-cli`**, our reference implementation. This professional-grade **TUI (Terminal User Interface)** blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
+For end-users, MangoFetch ships with **`mangofetch-cli`**, our reference implementation.
 
 ___
 
