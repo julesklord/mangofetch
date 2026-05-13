@@ -42,3 +42,23 @@ pub fn format_duration(seconds: u64) -> String {
         format!("{}h {}m", hours, minutes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_truncate_text() {
+        assert_eq!(truncate_text("hello", 10), "hello");
+        assert_eq!(truncate_text("hello", 5), "hello");
+        assert_eq!(truncate_text("hello", 4), "h...");
+        assert_eq!(truncate_text("hello", 3), "...");
+        assert_eq!(truncate_text("hello", 2), "..");
+        assert_eq!(truncate_text("hello", 1), ".");
+        assert_eq!(truncate_text("hello", 0), "");
+
+        // Multi-byte chars
+        assert_eq!(truncate_text("👋🌍こんにちは", 5), "👋🌍...");
+        assert_eq!(truncate_text("👋🌍こんにちは", 3), "...");
+    }
+}
