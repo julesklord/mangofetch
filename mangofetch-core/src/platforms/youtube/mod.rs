@@ -421,3 +421,124 @@ impl YouTubeDownloader {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_video_info_basic() {
+        let js = json!({
+            "id": "dQw4w9WgXcQ",
+            "title": "Never Gonna Give You Up",
+            "uploader": "Rick Astley",
+            "duration": 212.5,
+            "thumbnail": "https://example.com/thumb.jpg",
+            "is_live": false,
+            "formats": [
+                {
+                    "height": 1080,
+                    "width": 1920,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 720,
+                    "width": 1280,
+                    "vcodec": "avc1",
+                    "acodec": "none"
+                }
+            ]
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+
+        assert_eq!(info.title, "Never Gonna Give You Up");
+        assert_eq!(info.author, "Rick Astley");
+        assert_eq!(info.platform, "youtube");
+        assert_eq!(info.duration_seconds, Some(212.5));
+        assert_eq!(info.thumbnail_url, Some("https://example.com/thumb.jpg".to_string()));
+        assert_eq!(info.media_type, MediaType::Video);
+
+        assert_eq!(info.available_qualities.len(), 2);
+        // Qualities should be sorted by height descending
+        assert_eq!(info.available_qualities[0].height, 1080);
+        assert_eq!(info.available_qualities[0].label, "1080p"); // has audio
+        assert_eq!(info.available_qualities[1].height, 720);
+        assert_eq!(info.available_qualities[1].label, "720p (HD)"); // no audio
+    }
+
+    #[test]
+    fn test_parse_video_info_missing_fields() {
+        let js = json!({});
+
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+
+        assert_eq!(info.title, "unknown");
+        assert_eq!(info.author, "unknown");
+        assert_eq!(info.duration_seconds, None);
+        assert_eq!(info.thumbnail_url, None);
+
+        // Should fallback to best format
+        assert_eq!(info.available_qualities.len(), 1);
+        assert_eq!(info.available_qualities[0].label, "best");
+        assert_eq!(info.available_qualities[0].height, 0);
+    }
+
+    #[test]
+    fn test_parse_video_info_livestream() {
+        let js = json!({
+            "id": "live_id",
+            "is_live": true
+        });
+
+        let err = YouTubeDownloader::parse_video_info(&js).unwrap_err();
+        assert_eq!(err.to_string(), "Livestreams not supported");
+    }
+
+    #[test]
+    fn test_parse_video_info_fallback_author() {
+        let js = json!({
+            "id": "vid",
+            "channel": "Awesome Channel"
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+        assert_eq!(info.author, "Awesome Channel");
+    }
+
+    #[test]
+    fn test_parse_video_info_filter_formats() {
+        let js = json!({
+            "id": "vid",
+            "formats": [
+                {
+                    "height": 1080,
+                    "vcodec": "none", // Should be filtered out
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 0, // Should be filtered out
+                    "vcodec": "avc1",
+                    "acodec": "none"
+                },
+                {
+                    "height": 720, // Keep
+                    "vcodec": "avc1",
+                    "acodec": "none"
+                },
+                {
+                    "height": 720, // Duplicate height, should be filtered out
+                    "vcodec": "vp9",
+                    "acodec": "opus"
+                }
+            ]
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+
+        assert_eq!(info.available_qualities.len(), 1);
+        assert_eq!(info.available_qualities[0].height, 720);
+    }
+}
