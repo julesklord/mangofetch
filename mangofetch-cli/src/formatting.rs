@@ -42,3 +42,22 @@ pub fn format_duration(seconds: u64) -> String {
         format!("{}h {}m", hours, minutes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration() {
+        assert_eq!(format_duration(0), "0s");
+        assert_eq!(format_duration(45), "45s");
+        assert_eq!(format_duration(59), "59s");
+        assert_eq!(format_duration(60), "1m 0s");
+        assert_eq!(format_duration(150), "2m 30s");
+        assert_eq!(format_duration(3599), "59m 59s");
+        assert_eq!(format_duration(3600), "1h 0m");
+        assert_eq!(format_duration(3661), "1h 1m");
+        assert_eq!(format_duration(7200), "2h 0m");
+        assert_eq!(format_duration(7259), "2h 0m");
+    }
+}
