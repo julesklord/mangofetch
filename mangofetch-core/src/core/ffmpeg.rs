@@ -31,7 +31,7 @@ pub fn reset_ffmpeg_available_cache() {
 
 pub async fn mux_video_audio(video: &Path, audio: &Path, output: &Path) -> anyhow::Result<()> {
     if let Some(parent) = output.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     let status = crate::core::process::command("ffmpeg")
@@ -272,7 +272,7 @@ pub async fn convert(
     let output_path = Path::new(&opts.output_path);
 
     if let Some(parent) = output_path.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     let total_duration_us = get_duration_us(input_path).await.unwrap_or(0);
