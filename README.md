@@ -235,6 +235,6 @@ Pull requests are always welcome. We have a few rules to keep the code clean, so
 ## License
 
 <p align="center">
-  Built by <a href="https://github.com/julesklord">Jules</a>.<br>
+  Built by <a href="https://github.com/julesklord">Jules</a>, gemini-cli assistant and claude.<br>
   Released under the GPL-3.0 License.
 </p>
