@@ -294,13 +294,13 @@ impl HlsDownloader {
             .map_err(|e| anyhow::anyhow!("Writer task panicked: {:?}", e))?;
 
         if cancel_token.is_cancelled() {
-            let _ = std::fs::remove_file(&part_path);
+            let _ = tokio::fs::remove_file(&part_path).await;
             anyhow::bail!("Download cancelled by user");
         }
 
         let errs = errors.lock().await;
         if !errs.is_empty() {
-            let _ = std::fs::remove_file(&part_path);
+            let _ = tokio::fs::remove_file(&part_path).await;
             let summary: Vec<String> = errs
                 .iter()
                 .map(|(msg, count)| {
@@ -317,9 +317,9 @@ impl HlsDownloader {
 
         writer_result?;
 
-        std::fs::rename(&part_path, &output)?;
+        tokio::fs::rename(&part_path, &output).await?;
 
-        let file_size = std::fs::metadata(&output)?.len();
+        let file_size = tokio::fs::metadata(&output).await?.len();
 
         Ok(HlsDownloadResult {
             path: output,
