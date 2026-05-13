@@ -421,3 +421,152 @@ impl YouTubeDownloader {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_video_info_basic() {
+        let json = json!({
+            "id": "abc123",
+            "title": "Test Video",
+            "uploader": "Test Uploader",
+            "duration": 120.0,
+            "thumbnail": "https://example.com/thumb.jpg",
+            "is_live": false,
+            "formats": [
+                {
+                    "height": 1080,
+                    "width": 1920,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 720,
+                    "width": 1280,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                }
+            ]
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        assert_eq!(info.title, "Test Video");
+        assert_eq!(info.author, "Test Uploader");
+        assert_eq!(info.platform, "youtube");
+        assert_eq!(info.duration_seconds, Some(120.0));
+        assert_eq!(info.thumbnail_url, Some("https://example.com/thumb.jpg".to_string()));
+        assert_eq!(info.available_qualities.len(), 2);
+        assert_eq!(info.available_qualities[0].height, 1080);
+        assert_eq!(info.available_qualities[1].height, 720);
+    }
+
+    #[test]
+    fn test_parse_video_info_livestream() {
+        let json = json!({
+            "id": "abc123",
+            "title": "Live Video",
+            "is_live": true
+        });
+
+        let result = YouTubeDownloader::parse_video_info(&json);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Livestreams not supported");
+    }
+
+    #[test]
+    fn test_parse_video_info_uploader_fallback() {
+        let json = json!({
+            "id": "abc123",
+            "title": "Test Video",
+            "channel": "Test Channel",
+            "is_live": false
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        assert_eq!(info.author, "Test Channel");
+    }
+
+    #[test]
+    fn test_parse_video_info_format_filtering() {
+        let json = json!({
+            "id": "abc123",
+            "title": "Test Video",
+            "is_live": false,
+            "formats": [
+                {
+                    "height": 1080,
+                    "width": 1920,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 0,
+                    "width": 0,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 720,
+                    "width": 1280,
+                    "vcodec": "none",
+                    "acodec": "mp4a"
+                }
+            ]
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        assert_eq!(info.available_qualities.len(), 1);
+        assert_eq!(info.available_qualities[0].height, 1080);
+    }
+
+    #[test]
+    fn test_parse_video_info_deduplication_and_sorting() {
+        let json = json!({
+            "id": "abc123",
+            "title": "Test Video",
+            "is_live": false,
+            "formats": [
+                {
+                    "height": 720,
+                    "width": 1280,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 1080,
+                    "width": 1920,
+                    "vcodec": "avc1",
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 720,
+                    "width": 1280,
+                    "vcodec": "vp9",
+                    "acodec": "none"
+                }
+            ]
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        assert_eq!(info.available_qualities.len(), 2);
+        assert_eq!(info.available_qualities[0].height, 1080);
+        assert_eq!(info.available_qualities[1].height, 720);
+    }
+
+    #[test]
+    fn test_parse_video_info_empty_formats() {
+        let json = json!({
+            "id": "abc123",
+            "title": "Test Video",
+            "is_live": false,
+            "formats": []
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        assert_eq!(info.available_qualities.len(), 1);
+        assert_eq!(info.available_qualities[0].label, "best");
+    }
+}
