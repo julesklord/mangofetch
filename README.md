@@ -20,7 +20,7 @@
 
 ---
 <p align="center">
-  <img src="docs/assets/shot.png" alt="MangoFetch in action" width="900" />
+  <img src="docs/assets/shot.png" alt="MangoFetch in action" width="1080" />
 </p>
 
 ___
