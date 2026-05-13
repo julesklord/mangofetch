@@ -42,11 +42,11 @@ ___
 
 ## Overview
 
-**MangoFetch** represents a paradigm shift in media acquisition. Engineered with uncompromising standards for memory safety and concurrency, it completely decouples the heavy lifting of asynchronous file downloading from any graphical or terminal interface. 
+**MangoFetch** is a fast and simple media downloader built in Rust. It's designed to be powerful but easy to use, keeping the heavy lifting of downloading away from the interface you're using.
 
-At its heart lies **`mangofetch-core`**, a raw, low-latency, and **headless download engine**. Built upon **Tokio** and **Reqwest**, it exposes a universal API via clean Rust Traits to interact with YouTube, Torrents (Magnet), SoundCloud, Instagram, and over 1000+ platforms via dynamic `yt-dlp` and `ffmpeg` integration.
+At its heart is **`mangofetch-core`**, a lightweight and **headless engine**. Built on **Tokio** and **Reqwest**, it uses a simple API with Rust Traits to handle YouTube, Torrents (Magnet), SoundCloud, Instagram, and over 1000+ other platforms thanks to `yt-dlp` and `ffmpeg`.
 
-For end-users, MangoFetch ships with **`mangofetch-cli`**, our reference implementation. This professional-grade **TUI (Terminal User Interface)** blends hardcore operational efficiency with striking visual ergonomics, featuring dynamic settings management, fluid mouse event propagation, and a suite of 11 bespoke Tropical Fruit color palettes.
+For everyone else, MangoFetch comes with **`mangofetch-cli`**. It's a handy **TUI (Terminal User Interface)** that looks great and works even better, featuring easy settings, mouse support, and 11 fun Tropical Fruit color palettes to choose from.
 
 ___
 
@@ -56,9 +56,9 @@ ___
 
 ---
 
-## Using as a Rust SDK (mangofetch-core)
+## Using as a Rust Library (mangofetch-core)
 
-Unlike monolithic GUI downloaders, **MangoFetch is designed to be embedded**. If you are building a Discord bot, a web server, or your own custom GUI, you can drop `mangofetch-core` directly into your Rust project. 
+Unlike big, clunky GUI downloaders, **MangoFetch is built to be part of your project**. If you're making a Discord bot, a web server, or your own custom app, you can just plug `mangofetch-core` right into your Rust code.
 
 Add it to your `Cargo.toml`:
 ```toml
@@ -67,10 +67,10 @@ mangofetch-core = { git = "https://github.com/julesklord/mangofetch-cli" }
 ```
 
 **Why use `mangofetch-core`?**
-* **UI-Agnostic Telemetry:** Progress reporting is handled entirely through standard `tokio::sync::mpsc` channels. No UI thread blocking, no tight coupling to webviews or terminal crates.
-* **Unified Trait System:** Whether it's a direct link, a magnet URI, or a TikTok video, you interface with them through the exact same `PlatformDownloader` trait.
-* **Zero-Touch Dependencies:** The engine automatically downloads, manages, and verifies external binaries like `yt-dlp` and `ffmpeg` within its sandbox. You don't have to worry about the user's `$PATH`.
-* **Resilient Queue:** A fault-tolerant download manager that handles retries, rate limits (429s), and network drops autonomously.
+* **Simple Telemetry:** Check progress easily using standard `tokio::sync::mpsc` channels. No UI blocking or complicated setup needed.
+* **Unified Traits:** Whether it's a direct link, a torrent, or a TikTok video, you can talk to them all through the same `PlatformDownloader` trait.
+* **Easy Dependencies:** The engine takes care of managing and checking external tools like `yt-dlp` and `ffmpeg` in its own space.
+* **Reliable Queue:** A smart download manager that handles retries and network hiccups automatically.
 
 ---
 
@@ -97,21 +97,21 @@ cargo build --release
 
 ---
 
-## Key Features (v0.5.1)
+## Key Features (v0.5.2)
 
-*   **1000+ Platforms**: Deep, zero-overhead integration with `yt-dlp` to support virtually any media portal on the internet.
-*   **Headless Core**: A highly decoupled architecture allowing the download engine to be used as a standalone Rust crate.
-*   **Interactive TUI**: A highly responsive, full-screen dashboard powered by `ratatui`, featuring **11 Tropical Fruit Themes** (Mango, Pitaya, Guayaba, Passionfruit, and more).
-*   **Fluid Mouse Support**: Full support for pointer events—scroll through sprawling download queues and actuate tabs directly via mouse telemetry.
-*   **Vim-Style Commands**: For the ultimate power user, actuate ultra-fast, non-blocking operations via the `:` command buffer.
-*   **P2P & Torrents**: Native protocol implementations for magnet links and peer-to-peer decentralized file sharing.
-*   **Intelligent Extraction Engine**: Features multi-segment HTTP downloads, staggered connection starts to bypass rate limits, and zero-copy metadata embedding.
+*   **Supports 1000+ Sites**: Smooth integration with `yt-dlp` to work with almost any video site out there.
+*   **Headless Core**: A clean design that lets you use the download engine as a standalone Rust library.
+*   **Interactive TUI**: A responsive dashboard with **11 Tropical Fruit Themes** (Mango, Pitaya, Guayaba, Passionfruit, and more).
+*   **Easy Mouse Support**: Use your mouse to scroll through your queue and click on tabs.
+*   **Vim-Style Commands**: For the power users, you can use quick `:` commands to get things done fast.
+*   **P2P & Torrents**: Works with magnet links and decentralized file sharing.
+*   **Smart Downloading**: Uses multi-segment downloads and clever connection handling to keep things fast and avoid rate limits.
 
 ---
 
 ## Technical Architecture
 
-MangoFetch is rigorously organized as a modular workspace, enforcing strict separation of concerns. This architectural decision ensures the core engine remains portable, highly testable, and isolated from the rendering layer.
+MangoFetch is well-organized, keeping things clean and modular. This design makes the core engine portable, easy to test, and separate from how it's shown on screen.
 
 ```mermaid
 graph TD
@@ -141,15 +141,15 @@ graph TD
 
 ### Core Components
 
-- **`mangofetch-core`**: The UI-agnostic heartbeat of the system. It governs the asynchronous download queue, orchestrates connection pooling, and houses the platform-specific native extractors (YouTube, Instagram, TikTok, etc.). It intelligently encapsulates `yt-dlp` and `ffmpeg` for complex stream muxing, automatically provisioning these binaries if omitted from the host `$PATH`.
-- **`mangofetch-cli`**: A hyper-lightweight frontend built with `clap` and `ratatui`. It acts as a highly optimized dispatcher consuming the core library, rendering real-time telemetry via a brutalist, information-dense ANSI interface or the interactive TUI.
-- **`mangofetch-plugin-sdk`**: A robust FFI-compatible SDK engineered to extend MangoFetch's capabilities dynamically at runtime via shared libraries (`.so` / `.dll`).
+- **`mangofetch-core`**: The heart of the system. It handles the download queue and works with sites like YouTube, Instagram, and TikTok. It also manages `yt-dlp` and `ffmpeg` for you, even downloading them if they aren't on your system.
+- **`mangofetch-cli`**: A simple frontend built with `clap` and `ratatui`. It's fast, looks great, and shows you everything that's happening in real-time.
+- **`mangofetch-plugin-sdk`**: A toolkit for adding new features to MangoFetch while it's running.
 
 ---
 
-## The Core Engine Lifecycle
+## How the Engine Works
 
-The `mangofetch-core` queue is intrinsically fault-tolerant. Operating on a resilient asynchronous loop, if a single task in a 10,000-item batch encounters a network anomaly, the queue isolates the failure, initiates exponential backoff retries, and continues processing the matrix without stalling.
+The `mangofetch-core` queue is smart and reliable. It handles many downloads at once, and if something goes wrong with one, it just retries later without stopping everything else.
 
 ```mermaid
 stateDiagram-v2
@@ -175,17 +175,17 @@ stateDiagram-v2
     Complete --> [*]
 ```
 
-### Key Engineering Milestones
+### Key Features under the hood
 
-- **Asynchronous I/O Pipeline:** Built upon `tokio::sync::mpsc` channels for non-blocking progress reporting. The UI rendering thread is completely decoupled from the heavy I/O threads, guaranteeing fluid terminal refreshes.
-- **Self-Healing Dependencies:** Automatic checksum validation, resolution, downloading, and path-linking of external binaries (`ffmpeg`, `yt-dlp`).
-- **Intelligent Parser Heuristics:** The Platform Registry attempts to natively parse media using zero-cost abstractions, falling back to generic extractors only when mathematically necessary.
+- **Fast Progress Reporting:** Uses background channels to show progress without slowing down the app. This keeps the interface smooth and responsive.
+- **Self-Healing Tools:** Automatically finds and sets up the external tools it needs (`ffmpeg`, `yt-dlp`).
+- **Smart Parsing:** Tries to handle links directly first, only using extra tools when it really needs to.
 
 ---
 
 ## Command Reference
 
-For a comprehensive breakdown of all execution flags, API arguments, and TUI keybindings, please consult our **[Official Engineering Wiki](docs/wiki/Home.md)**.
+For a full list of commands and how to use the TUI, check out our **[Official Wiki](docs/wiki/Home.md)**.
 
 *   **[Installation Guide](docs/wiki/Installation.md)**
 *   **[CLI Command Reference](docs/wiki/CLI-Guide.md)**
@@ -194,46 +194,47 @@ For a comprehensive breakdown of all execution flags, API arguments, and TUI key
 
 | Full Command                          | Short Alias _(Upcoming)_ | Description                                             |
 | :------------------------------------ | :----------------------- | :------------------------------------------------------ |
-| `mangofetch download <url>`           | `mango d <url>`          | Single file payload extraction and download.            |
-| `mangofetch download-multiple <file>` | `mango dm <file>`        | High-throughput batch archival from a manifest file.    |
-| `mangofetch info <url>`               | `mango i <url>`          | Perform media metadata telemetry without touching disk. |
-| `mangofetch list`                     | `mango ls`               | Inspect current active queue and historical matrix.     |
-| `mangofetch clean`                    | `mango c`                | Clear persistent download history and purge cache.      |
-| `mangofetch config`                   | `mango cfg`              | Manage engine parameters, connection limits, and paths. |
-| `mangofetch check`                    | `mango ch`               | Verify cryptographic integrity of system dependencies.  |
-| `mangofetch update`                   | `mango up`               | Upgrade internal dependency binaries to latest hashes.  |
-| `mangofetch logs`                     | `mango log`              | Tail raw asynchronous application logs for debugging.   |
-| `mangofetch about`                    | `mango a`                | Display engine version, license, and telemetry data.    |
+| `mangofetch download <url>`           | `mango d <url>`          | Just download a single link.                            |
+| `mangofetch download-multiple <file>` | `mango dm <file>`        | Download a whole bunch of links from a file.            |
+| `mangofetch info <url>`               | `mango i <url>`          | See info about a link without downloading it.           |
+| `mangofetch list`                     | `mango ls`               | See what's currently in your queue.                      |
+| `mangofetch clean`                    | `mango c`                | Clear your history and cache.                           |
+| `mangofetch config`                   | `mango cfg`              | Change settings like limits and paths.                  |
+| `mangofetch check`                    | `mango ch`               | Check if your tools are working correctly.              |
+| `mangofetch update`                   | `mango up`               | Update the external tools to their latest versions.     |
+| `mangofetch logs`                     | `mango log`              | View app logs if you're curious or debugging.           |
+| `mangofetch about`                    | `mango a`                | Show version and license info.                          |
 
 ---
 
 
 ## Roadmap & Milestones
 
-| Version    | Status | Milestone                                                       |
-| ---------- | ------ | --------------------------------------------------------------- |
-| **v0.1.0** | ✅     | Initial release and asynchronous architecture setup             |
-| **v0.2.0** | ✅     | Standalone rewrite — GUI stripped, core engine highly optimized |
-| **v0.3.1** | ✅     | Rebranding cleanup, test matrix fixes, and documentation        |
-| **v0.4.0** | ✅     | **The TUI Release:** Full-screen interactive terminal interface |
-| **v0.5.1** | ✅     | **UX & Polish:** Tropical themes, pointer support, dynamic UI   |
-| **v0.6.0** | ⏳     | Plugin management and community extractors via FFI SDK          |
-| **v0.7.0** | ⏳     | Decentralized P2P swarm integration                             |
+| Version    | Status | Milestone                                                  |
+| ---------- | ------ | ---------------------------------------------------------- |
+| **v0.1.0** | ✅     | First version with basic downloading                       |
+| **v0.2.0** | ✅     | Cleaned up the code and made the engine faster             |
+| **v0.3.1** | ✅     | New name, better tests, and more docs                      |
+| **v0.4.0** | ✅     | **The TUI Release:** A cool new terminal interface         |
+| **v0.5.1** | ✅     | **UX & Polish:** Tropical themes and mouse support         |
+| **v0.5.2** | ✅     | **Maintenance:** Relaxed tone, security fixes, and cleanup |
+| **v0.6.0** | ⏳     | Plugins and extra community sites                          |
+| **v0.7.0** | ⏳     | Better P2P and torrent support                             |
 
 ---
 
 ## Acknowledgments
 
-- **[OmniGet](https://github.com/tonhowtf/omniget)** — The absolute backbone of this project. A huge shoutout to _tonhowft_ for architecting the original extraction logic and queue engine that MangoFetch builds upon.
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The incredible extraction engine handling the heavy lifting for over a thousand unsupported platforms.
+- **[OmniGet](https://github.com/tonhowtf/omniget)** — A big inspiration for this project. Huge thanks to _tonhowft_ for the original ideas and engine logic.
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The amazing tool that does the heavy lifting for so many sites.
 
 ## Contributing
 
-Pull requests are fiercely welcomed. We adhere to rigorous engineering standards. For major architectural permutations, please open an RFC issue first to discuss your algorithm and approach. See `CONTRIBUTING.md` for guidelines.
+Pull requests are always welcome. We have a few rules to keep the code clean, so if you're planning a big change, just open an issue first so we can chat about it. Check out `CONTRIBUTING.md` for more info.
 
 ## License
 
 <p align="center">
-  Engineered by <a href="https://github.com/julesklord">Jules Martins</a>.<br>
-  Released under the terms of the GPL-3.0 License.
+  Built by <a href="https://github.com/julesklord">Jules</a>.<br>
+  Released under the GPL-3.0 License.
 </p>

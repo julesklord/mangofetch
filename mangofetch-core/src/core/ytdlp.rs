@@ -720,7 +720,10 @@ async fn extension_cookie_file() -> Option<std::path::PathBuf> {
     if modified.elapsed().unwrap_or_default() >= std::time::Duration::from_secs(604800) {
         return None;
     }
-    let copy = source.with_file_name("chrome-extension-cookies-session.txt");
+    let copy = source.with_file_name(format!(
+        "chrome-extension-cookies-{}.txt",
+        uuid::Uuid::new_v4()
+    ));
     tokio::fs::copy(&source, &copy).await.ok()?;
     Some(copy)
 }
@@ -1281,7 +1284,7 @@ pub async fn download_video(
     let effective_cookie_file = cookie_file
         .map(|p| p.to_path_buf())
         .or_else(|| global_cookie_file.map(std::path::PathBuf::from))
-        .or(ext_cookies);
+        .or(ext_cookies.clone());
 
     let cfb_setting = if manual_cookie_enabled || explicit_cookie_header {
         String::new()
@@ -1633,6 +1636,9 @@ pub async fn download_video(
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
                 cleanup_part_files(output_dir).await;
+                if let Some(ref path) = ext_cookies {
+                    let _ = tokio::fs::remove_file(path).await;
+                }
                 tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
                 anyhow::bail!("Download cancelled");
             }
@@ -1640,6 +1646,10 @@ pub async fn download_video(
 
         let _ = line_reader.await;
         let stderr_content = stderr_reader.await.unwrap_or_default();
+
+        if let Some(ref path) = ext_cookies {
+            let _ = tokio::fs::remove_file(path).await;
+        }
 
         if status.success() {
             let _ = progress.send(100.0).await;
@@ -1872,6 +1882,9 @@ pub async fn download_video(
         }
     }
 
+    if let Some(ref path) = ext_cookies {
+        let _ = tokio::fs::remove_file(path).await;
+    }
     tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
     Err(translate_ytdlp_error(&last_error))
 }
