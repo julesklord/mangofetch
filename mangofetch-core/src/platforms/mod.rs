@@ -111,8 +111,17 @@ impl Platform {
         let parsed = url::Url::parse(url_str).ok()?;
         let host = parsed.host_str()?.to_lowercase();
 
-        let matches =
-            |domain: &str| -> bool { host == domain || host.ends_with(&format!(".{}", domain)) };
+        let matches = |domain: &str| -> bool {
+            let domain_len = domain.len();
+            let host_len = host.len();
+            if host_len < domain_len {
+                return false;
+            }
+            if host_len == domain_len {
+                return host == domain;
+            }
+            host.ends_with(domain) && host.as_bytes()[host_len - domain_len - 1] == b'.'
+        };
 
         if matches("hotmart.com") {
             Some(Platform::Hotmart)
