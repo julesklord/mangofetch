@@ -848,7 +848,8 @@ mod tests {
 
     #[test]
     fn hls_downloader_with_user_agent_override() {
-        let downloader = HlsDownloader::new().with_user_agent_override(Some("Custom UA".to_string()));
+        let downloader =
+            HlsDownloader::new().with_user_agent_override(Some("Custom UA".to_string()));
         assert_eq!(downloader.effective_user_agent(), "Custom UA");
     }
 
