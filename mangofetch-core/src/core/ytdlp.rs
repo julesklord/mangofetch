@@ -1186,81 +1186,51 @@ pub async fn write_netscape_cookie_file(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-pub async fn download_video(
-    ytdlp: &Path,
-    url: &str,
-    output_dir: &Path,
-    quality_height: Option<u32>,
-    progress: mpsc::Sender<f64>,
-    download_mode: Option<&str>,
+fn build_format_selector(
+    mode: &str,
     format_id: Option<&str>,
-    filename_template: Option<&str>,
-    referer: Option<&str>,
-    cancel_token: CancellationToken,
-    cookie_file: Option<&Path>,
-    concurrent_fragments: u32,
-    download_subtitles: bool,
-    extra_flags: &[String],
-) -> anyhow::Result<DownloadResult> {
-    let _timer_start = std::time::Instant::now();
-
-    if is_youtube_url(url) {
-        yt_rate_limiter().acquire().await;
+    quality_height: Option<u32>,
+    ffmpeg_available: bool,
+) -> String {
+    if let Some(fid) = format_id {
+        return fid.to_string();
     }
-
-    let _ = progress.send(-1.0).await;
-
-    let mode = download_mode.unwrap_or("auto");
-    let is_audio_only = mode == "audio";
-    let (ffmpeg_available, ffmpeg_location, aria2c_path) = tokio::join!(
-        crate::core::ffmpeg::is_ffmpeg_available(),
-        find_ffmpeg_location_cached(),
-        crate::core::dependencies::ensure_aria2c(None),
-    );
-
-    let format_selector = if let Some(fid) = format_id {
-        fid.to_string()
-    } else {
-        match mode {
-            "audio" => "ba/b".to_string(),
-            "mute" => match quality_height {
-                Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
-                _ => "bv*/b".to_string(),
-            },
-            _ => {
-                if ffmpeg_available {
-                    match quality_height {
-                        Some(h) if h > 0 => format!(
-                            "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
-                            h, h, h
-                        ),
-                        _ => "bv*+ba[ext=m4a]/bv*+ba/b".to_string(),
-                    }
-                } else {
-                    tracing::warn!("[yt-dlp] ffmpeg not available, using fallback format selector");
-                    match quality_height {
-                        Some(h) if h > 0 => format!("b[height<={}]/bv*[height<={}]/b", h, h),
-                        _ => "b/bv*".to_string(),
-                    }
+    match mode {
+        "audio" => "ba/b".to_string(),
+        "mute" => match quality_height {
+            Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
+            _ => "bv*/b".to_string(),
+        },
+        _ => {
+            if ffmpeg_available {
+                match quality_height {
+                    Some(h) if h > 0 => format!(
+                        "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
+                        h, h, h
+                    ),
+                    _ => "bv*+ba[ext=m4a]/bv*+ba/b".to_string(),
+                }
+            } else {
+                tracing::warn!("[yt-dlp] ffmpeg not available, using fallback format selector");
+                match quality_height {
+                    Some(h) if h > 0 => format!("b[height<={}]/bv*[height<={}]/b", h, h),
+                    _ => "b/bv*".to_string(),
                 }
             }
         }
-    };
+    }
+}
 
-    let dir_len = output_dir.to_string_lossy().len();
-    let max_name = if cfg!(target_os = "windows") {
-        250_usize.saturating_sub(dir_len).min(200)
-    } else {
-        200
-    };
-    let template = filename_template
-        .map(|t| t.to_string())
-        .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
-    let output_template = output_dir.join(&template).to_string_lossy().to_string();
+struct CookieConfig {
+    effective_cookie_file: Option<PathBuf>,
+    cfb_setting: String,
+    manual_cookie_header: Option<String>,
+    manual_cookie_enabled: bool,
+    explicit_cookie_header: bool,
+    ext_cookies: Option<PathBuf>,
+}
 
-    std::fs::create_dir_all(output_dir)?;
-
+async fn resolve_cookie_config(cookie_file: Option<&Path>, extra_flags: &[String]) -> CookieConfig {
     let explicit_cookie_header = has_explicit_cookie_header(extra_flags);
     let manual_cookie_header = if explicit_cookie_header || cookie_file.is_some() {
         None
@@ -1291,6 +1261,31 @@ pub async fn download_video(
     } else {
         cookies_from_browser_setting()
     };
+
+    CookieConfig {
+        effective_cookie_file,
+        cfb_setting,
+        manual_cookie_header,
+        manual_cookie_enabled,
+        explicit_cookie_header,
+        ext_cookies,
+    }
+}
+
+fn build_base_args(
+    url: &str,
+    mode: &str,
+    format_id: Option<&str>,
+    format_selector: String,
+    referer: Option<&str>,
+    cookie_config: &CookieConfig,
+    ffmpeg_available: bool,
+    ffmpeg_location: Option<String>,
+    concurrent_fragments: u32,
+    output_template: String,
+    max_name: usize,
+    extra_flags: &[String],
+) -> Vec<String> {
     let mut base_args = vec!["-f".to_string(), format_selector];
     base_args.extend(js_runtime_args());
 
@@ -1322,11 +1317,11 @@ pub async fn download_video(
         }
     }
 
-    if let Some(ref cf) = effective_cookie_file {
+    if let Some(ref cf) = cookie_config.effective_cookie_file {
         base_args.push("--cookies".to_string());
         base_args.push(cf.to_string_lossy().to_string());
     }
-    if let Some(ref cookie_header) = manual_cookie_header {
+    if let Some(ref cookie_header) = cookie_config.manual_cookie_header {
         append_cookie_header(&mut base_args, cookie_header);
     }
 
@@ -1366,13 +1361,6 @@ pub async fn download_video(
     if !is_youtube_url(url) {
         base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
-
-    let mut use_aria2c = aria2c_path.is_some()
-        && mode != "audio"
-        && effective_cookie_file.is_none()
-        && cfb_setting.is_empty()
-        && !manual_cookie_enabled
-        && !explicit_cookie_header;
 
     let effective_ua = ext_user_agent_for_url(url).unwrap_or_else(|| CHROME_UA.to_string());
     base_args.extend([
@@ -1425,6 +1413,399 @@ pub async fn download_video(
         base_args.push("--windows-filenames".to_string());
     }
 
+    base_args
+}
+
+fn spawn_stdout_reader(
+    stdout: tokio::process::ChildStdout,
+    progress_tx: mpsc::Sender<f64>,
+    captured_path_writer: Arc<Mutex<Option<PathBuf>>>,
+    is_audio_only: bool,
+    timer_start: std::time::Instant,
+) -> tokio::task::JoinHandle<()> {
+    let reader = BufReader::new(stdout);
+    let mut lines = reader.lines();
+    let log_id = log_hook::current_download_id();
+
+    tokio::spawn(async move {
+        let mut phase = 0u32;
+        let mut max_reported = 0.0f64;
+        let mut first_line_logged = false;
+        let mut first_progress_logged = false;
+        let mut last_send = std::time::Instant::now();
+        let throttle = std::time::Duration::from_millis(250);
+        while let Ok(Some(line)) = lines.next_line().await {
+            if let Some(id) = log_id {
+                log_hook::emit_log(id, &line);
+            }
+            if !first_line_logged {
+                first_line_logged = true;
+                tracing::debug!(
+                    "[perf] download_video first_byte_time: {:?}",
+                    timer_start.elapsed()
+                );
+            }
+            if let Some(dest) = parse_destination_line(&line) {
+                let dest_path = PathBuf::from(&dest);
+                let ext = dest_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let is_subtitle =
+                    matches!(ext.as_str(), "vtt" | "srt" | "ass" | "ssa" | "sub" | "lrc");
+                if !is_subtitle {
+                    phase += 1;
+                    let mut guard = captured_path_writer.lock().unwrap();
+                    *guard = Some(dest_path);
+                }
+            }
+            if line.contains("[Merger]") {
+                if 99.0 > max_reported {
+                    max_reported = 99.0;
+                    let _ = progress_tx.send(99.0).await;
+                    last_send = std::time::Instant::now();
+                }
+                continue;
+            }
+            if let Some(pct) = parse_progress_line(&line) {
+                if !first_progress_logged && pct > 0.0 {
+                    first_progress_logged = true;
+                    tracing::debug!(
+                        "[perf] download_video: first_progress > 0% at {:?}",
+                        timer_start.elapsed()
+                    );
+                }
+                if let Some(id) = log_id {
+                    if let Some(eta) = parse_eta_line(&line) {
+                        record_eta(id, eta);
+                    }
+                }
+                if is_audio_only {
+                    if pct >= 99.0 || last_send.elapsed() >= throttle {
+                        let _ = progress_tx.send(pct).await;
+                        last_send = std::time::Instant::now();
+                    }
+                } else {
+                    let adjusted = if phase <= 1 {
+                        pct * 0.5
+                    } else {
+                        50.0 + pct * 0.5
+                    };
+                    if adjusted > max_reported
+                        && (adjusted >= 99.0 || last_send.elapsed() >= throttle)
+                    {
+                        max_reported = adjusted;
+                        let _ = progress_tx.send(adjusted).await;
+                        last_send = std::time::Instant::now();
+                    }
+                }
+            }
+        }
+    })
+}
+
+fn spawn_stderr_reader(
+    stderr_pipe: tokio::process::ChildStderr,
+) -> tokio::task::JoinHandle<String> {
+    let stderr_log_id = log_hook::current_download_id();
+    tokio::spawn(async move {
+        let mut buf = String::new();
+        let stderr_buf = BufReader::new(stderr_pipe);
+        let mut stderr_lines = stderr_buf.lines();
+        while let Ok(Some(line)) = stderr_lines.next_line().await {
+            if let Some(id) = stderr_log_id {
+                log_hook::emit_log(id, &line);
+            }
+            buf.push_str(&line);
+            buf.push('\n');
+        }
+        buf
+    })
+}
+
+struct ErrorHandlingResult {
+    should_break: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_ytdlp_error(
+    last_error: &str,
+    url: &str,
+    attempt: usize,
+    max_attempts: usize,
+    referer: Option<&str>,
+    base_args: &mut Vec<String>,
+    extra_args: &mut Vec<String>,
+    use_aria2c: &mut bool,
+    last_was_429: &mut bool,
+    use_subtitles: &mut bool,
+    use_cfb: &mut bool,
+    format_already_simplified: &mut bool,
+    has_effective_cookie_file: bool,
+) -> ErrorHandlingResult {
+    let stderr_lower = last_error.to_lowercase();
+
+    if attempt < max_attempts - 1 {
+        if *use_aria2c
+            && (stderr_lower.contains("aria2") || stderr_lower.contains("external downloader"))
+        {
+            *use_aria2c = false;
+            tracing::warn!("[yt-dlp] aria2c failed, retrying with native downloader");
+        }
+
+        *last_was_429 = stderr_lower.contains("http error 429");
+
+        if *last_was_429 {
+            let is_subtitle_only_429 = last_error.lines().all(|line| {
+                let ll = line.to_lowercase();
+                !ll.contains("429") || ll.contains("subtitle")
+            });
+
+            if *use_subtitles {
+                *use_subtitles = false;
+                tracing::warn!(
+                    "[yt-dlp] 429 detected, disabling subtitle download for remaining retries"
+                );
+            }
+
+            if is_subtitle_only_429 {
+                tracing::warn!("[yt-dlp] subtitle-only 429, retrying without subtitles (keeping current player_client)");
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            } else {
+                rate_limit_429_increment();
+                let sanitized_url = sanitize_log_line(url);
+                let player_client = if is_youtube_url(url) {
+                    "default"
+                } else {
+                    "n/a"
+                };
+                let cookies_enabled = *use_cfb || has_effective_cookie_file;
+                tracing::warn!(
+                    "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
+                    sanitized_url,
+                    attempt + 1,
+                    max_attempts,
+                    player_client,
+                    cookies_enabled,
+                    *use_aria2c
+                );
+                let base_secs = 10u64 * 2u64.pow(attempt as u32);
+                let jitter_secs = (attempt as u64 * 7 + url.len() as u64) % 5;
+                let wait_secs = base_secs + jitter_secs;
+                tracing::warn!(
+                    "[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)",
+                    wait_secs,
+                    base_secs,
+                    jitter_secs
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
+
+                if is_youtube_url(url) {
+                    base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    let client = match attempt {
+                        0 => "youtube:player_client=mweb",
+                        1 => "youtube:player_client=ios",
+                        _ => "youtube:player_client=ios",
+                    };
+                    extra_args.push("--extractor-args".to_string());
+                    extra_args.push(client.to_string());
+                    tracing::warn!(
+                        "[yt-dlp] 429 detected, rotating player_client to {}",
+                        client
+                    );
+                }
+            }
+        }
+
+        if stderr_lower.contains("nsig") {
+            base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+            extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+            let client = if attempt == 0 {
+                "youtube:player_client=ios"
+            } else {
+                "youtube:player_client=mweb"
+            };
+            extra_args.push("--extractor-args".to_string());
+            extra_args.push(client.to_string());
+            tracing::warn!("[yt-dlp] nsig error, switching to {}", client);
+        }
+
+        if (stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden"))
+            && !extra_args.contains(&"--force-ipv4".to_string())
+        {
+            extra_args.push("--force-ipv4".to_string());
+            tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
+        }
+
+        if stderr_lower.contains("subtitle") && *use_subtitles && !*last_was_429 {
+            tracing::warn!("[yt-dlp] subtitle error detected, disabling subtitles for retry");
+            *use_subtitles = false;
+        }
+
+        if stderr_lower.contains("timed out") || stderr_lower.contains("timeout") {
+            tracing::warn!("[yt-dlp] socket timeout on attempt {}", attempt + 1);
+        }
+
+        if stderr_lower.contains("certificate") || stderr_lower.contains("ssl") {
+            tracing::warn!("[yt-dlp] SSL/certificate error on attempt {}", attempt + 1);
+        }
+
+        if (stderr_lower.contains("invalid argument") || stderr_lower.contains("errno 22"))
+            && !extra_args.contains(&"--restrict-filenames".to_string())
+        {
+            extra_args.push("--restrict-filenames".to_string());
+            tracing::warn!("[yt-dlp] Errno 22, adding --restrict-filenames");
+        }
+
+        if (stderr_lower.contains("403") || stderr_lower.contains("forbidden"))
+            && referer.is_none()
+            && !extra_args.contains(&"--referer".to_string())
+        {
+            let fallback = ext_referer_for_url(url).or_else(|| {
+                url::Url::parse(url).ok().and_then(|parsed| {
+                    let host = parsed.host_str()?;
+                    Some(format!("{}://{}/", parsed.scheme(), host))
+                })
+            });
+            if let Some(ref_url) = fallback {
+                tracing::info!("[yt-dlp] 403, adding fallback referer: {}", ref_url);
+                extra_args.push("--referer".to_string());
+                extra_args.push(ref_url.clone());
+                extra_args.push("--add-headers".to_string());
+                extra_args.push(format!("Referer:{}", ref_url));
+            }
+        }
+
+        if ((stderr_lower.contains("could not") && stderr_lower.contains("cookie"))
+            || stderr_lower.contains("cookies-from-browser")
+            || stderr_lower.contains("failed to decrypt")
+            || stderr_lower.contains("keyring")
+            || stderr_lower.contains("permission denied"))
+            && *use_cfb
+        {
+            *use_cfb = false;
+            tracing::warn!("[yt-dlp] cookies-from-browser failed. Use the browser extension or set a cookie file in Settings.");
+            COOKIE_ERROR_FLAG.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        if (stderr_lower.contains("sign in") || stderr_lower.contains("login required"))
+            && !*use_cfb
+            && !has_effective_cookie_file
+        {
+            tracing::warn!("[yt-dlp] login required. Install the browser extension and visit the site while logged in.");
+        }
+
+        if stderr_lower.contains("requested format") && stderr_lower.contains("not available")
+            || stderr_lower.contains("ffmpeg") && stderr_lower.contains("not found")
+            || stderr_lower.contains("postprocessing")
+        {
+            if *format_already_simplified {
+                tracing::warn!(
+                    "[yt-dlp] format/postprocessing error after simplification, giving up"
+                );
+                return ErrorHandlingResult { should_break: true };
+            }
+
+            base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+            extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+            base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
+
+            if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                base_args.remove(pos + 1);
+                base_args.remove(pos);
+            }
+            tracing::warn!("[yt-dlp] format/postprocessing error on attempt {}, removed -f and player_client to use yt-dlp defaults", attempt + 1);
+            *format_already_simplified = true;
+        }
+
+        let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
+        let sanitized = sanitize_log_line(last_line);
+        tracing::warn!(
+            "[yt-dlp] attempt {}/{} failed: {}",
+            attempt + 1,
+            max_attempts,
+            sanitized
+        );
+    }
+    ErrorHandlingResult {
+        should_break: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn download_video(
+    ytdlp: &Path,
+    url: &str,
+    output_dir: &Path,
+    quality_height: Option<u32>,
+    progress: mpsc::Sender<f64>,
+    download_mode: Option<&str>,
+    format_id: Option<&str>,
+    filename_template: Option<&str>,
+    referer: Option<&str>,
+    cancel_token: CancellationToken,
+    cookie_file: Option<&Path>,
+    concurrent_fragments: u32,
+    download_subtitles: bool,
+    extra_flags: &[String],
+) -> anyhow::Result<DownloadResult> {
+    let _timer_start = std::time::Instant::now();
+
+    if is_youtube_url(url) {
+        yt_rate_limiter().acquire().await;
+    }
+
+    let _ = progress.send(-1.0).await;
+
+    let mode = download_mode.unwrap_or("auto");
+    let is_audio_only = mode == "audio";
+    let (ffmpeg_available, ffmpeg_location, aria2c_path) = tokio::join!(
+        crate::core::ffmpeg::is_ffmpeg_available(),
+        find_ffmpeg_location_cached(),
+        crate::core::dependencies::ensure_aria2c(None),
+    );
+
+    let format_selector = build_format_selector(mode, format_id, quality_height, ffmpeg_available);
+
+    let dir_len = output_dir.to_string_lossy().len();
+    let max_name = if cfg!(target_os = "windows") {
+        250_usize.saturating_sub(dir_len).min(200)
+    } else {
+        200
+    };
+    let template = filename_template
+        .map(|t| t.to_string())
+        .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
+    let output_template = output_dir.join(&template).to_string_lossy().to_string();
+
+    std::fs::create_dir_all(output_dir)?;
+
+    let cookie_config = resolve_cookie_config(cookie_file, extra_flags).await;
+
+    let mut base_args = build_base_args(
+        url,
+        mode,
+        format_id,
+        format_selector,
+        referer,
+        &cookie_config,
+        ffmpeg_available,
+        ffmpeg_location,
+        concurrent_fragments,
+        output_template,
+        max_name,
+        extra_flags,
+    );
+
+    let mut use_aria2c = aria2c_path.is_some()
+        && mode != "audio"
+        && cookie_config.effective_cookie_file.is_none()
+        && cookie_config.cfb_setting.is_empty()
+        && !cookie_config.manual_cookie_enabled
+        && !cookie_config.explicit_cookie_header;
+
     let should_download_subs = download_subtitles && rate_limit_429_count() < 2;
     let subtitle_args = if should_download_subs {
         let mut args = vec!["--write-sub".to_string()];
@@ -1448,7 +1829,9 @@ pub async fn download_video(
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
     let mut use_subtitles = should_download_subs;
-    let mut use_cfb = !cfb_setting.is_empty() && !explicit_cookie_header && !manual_cookie_enabled;
+    let mut use_cfb = !cookie_config.cfb_setting.is_empty()
+        && !cookie_config.explicit_cookie_header
+        && !cookie_config.manual_cookie_enabled;
     let mut format_already_simplified = false;
     let mut last_was_429 = false;
 
@@ -1488,11 +1871,23 @@ pub async fn download_video(
 
         if use_cfb {
             args.push("--cookies-from-browser".to_string());
-            args.push(cfb_setting.clone());
+            args.push(cookie_config.cfb_setting.clone());
         }
 
         if use_aria2c && !use_cfb {
             if let Some(ref a2_path) = aria2c_path {
+                let effective_fragments = if is_youtube_url(url) {
+                    let rate_limit_count = rate_limit_429_count();
+                    concurrent_fragments.min(if rate_limit_count >= 2 {
+                        2
+                    } else if rate_limit_count > 0 {
+                        4
+                    } else {
+                        8
+                    })
+                } else {
+                    concurrent_fragments
+                };
                 let conns = if is_youtube_url(url) {
                     effective_fragments.max(1)
                 } else {
@@ -1529,105 +1924,17 @@ pub async fn download_video(
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
 
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
-
         let progress_tx = progress.clone();
         let captured_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
-        let captured_path_writer = captured_path.clone();
-        let log_id = log_hook::current_download_id();
 
-        let line_reader = tokio::spawn(async move {
-            let mut phase = 0u32;
-            let mut max_reported = 0.0f64;
-            let mut first_line_logged = false;
-            let mut first_progress_logged = false;
-            let mut last_send = std::time::Instant::now();
-            let throttle = std::time::Duration::from_millis(250);
-            while let Ok(Some(line)) = lines.next_line().await {
-                if let Some(id) = log_id {
-                    log_hook::emit_log(id, &line);
-                }
-                if !first_line_logged {
-                    first_line_logged = true;
-                    tracing::debug!(
-                        "[perf] download_video first_byte_time: {:?}",
-                        _timer_start.elapsed()
-                    );
-                }
-                if let Some(dest) = parse_destination_line(&line) {
-                    let dest_path = PathBuf::from(&dest);
-                    let ext = dest_path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("")
-                        .to_lowercase();
-                    let is_subtitle =
-                        matches!(ext.as_str(), "vtt" | "srt" | "ass" | "ssa" | "sub" | "lrc");
-                    if !is_subtitle {
-                        phase += 1;
-                        let mut guard = captured_path_writer.lock().unwrap();
-                        *guard = Some(dest_path);
-                    }
-                }
-                if line.contains("[Merger]") {
-                    if 99.0 > max_reported {
-                        max_reported = 99.0;
-                        let _ = progress_tx.send(99.0).await;
-                        last_send = std::time::Instant::now();
-                    }
-                    continue;
-                }
-                if let Some(pct) = parse_progress_line(&line) {
-                    if !first_progress_logged && pct > 0.0 {
-                        first_progress_logged = true;
-                        tracing::debug!(
-                            "[perf] download_video: first_progress > 0% at {:?}",
-                            _timer_start.elapsed()
-                        );
-                    }
-                    if let Some(id) = log_id {
-                        if let Some(eta) = parse_eta_line(&line) {
-                            record_eta(id, eta);
-                        }
-                    }
-                    if is_audio_only {
-                        if pct >= 99.0 || last_send.elapsed() >= throttle {
-                            let _ = progress_tx.send(pct).await;
-                            last_send = std::time::Instant::now();
-                        }
-                    } else {
-                        let adjusted = if phase <= 1 {
-                            pct * 0.5
-                        } else {
-                            50.0 + pct * 0.5
-                        };
-                        if adjusted > max_reported
-                            && (adjusted >= 99.0 || last_send.elapsed() >= throttle)
-                        {
-                            max_reported = adjusted;
-                            let _ = progress_tx.send(adjusted).await;
-                            last_send = std::time::Instant::now();
-                        }
-                    }
-                }
-            }
-        });
-
-        let stderr_log_id = log_hook::current_download_id();
-        let stderr_reader = tokio::spawn(async move {
-            let mut buf = String::new();
-            let stderr_buf = BufReader::new(stderr_pipe);
-            let mut stderr_lines = stderr_buf.lines();
-            while let Ok(Some(line)) = stderr_lines.next_line().await {
-                if let Some(id) = stderr_log_id {
-                    log_hook::emit_log(id, &line);
-                }
-                buf.push_str(&line);
-                buf.push('\n');
-            }
-            buf
-        });
+        let line_reader = spawn_stdout_reader(
+            stdout,
+            progress_tx.clone(),
+            captured_path.clone(),
+            is_audio_only,
+            _timer_start,
+        );
+        let stderr_reader = spawn_stderr_reader(stderr_pipe);
 
         let status = tokio::select! {
             s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
@@ -1636,7 +1943,7 @@ pub async fn download_video(
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
                 cleanup_part_files(output_dir).await;
-                if let Some(ref path) = ext_cookies {
+                if let Some(ref path) = cookie_config.ext_cookies {
                     let _ = tokio::fs::remove_file(path).await;
                 }
                 tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
@@ -1647,7 +1954,7 @@ pub async fn download_video(
         let _ = line_reader.await;
         let stderr_content = stderr_reader.await.unwrap_or_default();
 
-        if let Some(ref path) = ext_cookies {
+        if let Some(ref path) = cookie_config.ext_cookies {
             let _ = tokio::fs::remove_file(path).await;
         }
 
@@ -1692,197 +1999,32 @@ pub async fn download_video(
         }
 
         last_error = stderr_content;
-        let stderr_lower = last_error.to_lowercase();
 
-        if attempt < max_attempts - 1 {
-            if use_aria2c
-                && (stderr_lower.contains("aria2") || stderr_lower.contains("external downloader"))
-            {
-                use_aria2c = false;
-                tracing::warn!("[yt-dlp] aria2c failed, retrying with native downloader");
-            }
+        let err_res = handle_ytdlp_error(
+            &last_error,
+            url,
+            attempt,
+            max_attempts,
+            referer,
+            &mut base_args,
+            &mut extra_args,
+            &mut use_aria2c,
+            &mut last_was_429,
+            &mut use_subtitles,
+            &mut use_cfb,
+            &mut format_already_simplified,
+            cookie_config.effective_cookie_file.is_some(),
+        )
+        .await;
 
-            last_was_429 = stderr_lower.contains("http error 429");
-
-            if last_was_429 {
-                let is_subtitle_only_429 = last_error.lines().all(|line| {
-                    let ll = line.to_lowercase();
-                    !ll.contains("429") || ll.contains("subtitle")
-                });
-
-                if use_subtitles {
-                    use_subtitles = false;
-                    tracing::warn!(
-                        "[yt-dlp] 429 detected, disabling subtitle download for remaining retries"
-                    );
-                }
-
-                if is_subtitle_only_429 {
-                    tracing::warn!("[yt-dlp] subtitle-only 429, retrying without subtitles (keeping current player_client)");
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                } else {
-                    rate_limit_429_increment();
-                    let sanitized_url = sanitize_log_line(url);
-                    let player_client = if is_youtube_url(url) {
-                        "default"
-                    } else {
-                        "n/a"
-                    };
-                    let cookies_enabled = use_cfb || effective_cookie_file.is_some();
-                    tracing::warn!(
-                        "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
-                        sanitized_url,
-                        attempt + 1,
-                        max_attempts,
-                        player_client,
-                        cookies_enabled,
-                        use_aria2c
-                    );
-                    let base_secs = 10u64 * 2u64.pow(attempt as u32);
-                    let jitter_secs = (attempt as u64 * 7 + url.len() as u64) % 5;
-                    let wait_secs = base_secs + jitter_secs;
-                    tracing::warn!(
-                        "[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)",
-                        wait_secs,
-                        base_secs,
-                        jitter_secs
-                    );
-                    tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
-
-                    if is_youtube_url(url) {
-                        base_args
-                            .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                        extra_args
-                            .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                        let client = match attempt {
-                            0 => "youtube:player_client=mweb",
-                            1 => "youtube:player_client=ios",
-                            _ => "youtube:player_client=ios",
-                        };
-                        extra_args.push("--extractor-args".to_string());
-                        extra_args.push(client.to_string());
-                        tracing::warn!(
-                            "[yt-dlp] 429 detected, rotating player_client to {}",
-                            client
-                        );
-                    }
-                }
-            }
-
-            if stderr_lower.contains("nsig") {
-                base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                let client = if attempt == 0 {
-                    "youtube:player_client=ios"
-                } else {
-                    "youtube:player_client=mweb"
-                };
-                extra_args.push("--extractor-args".to_string());
-                extra_args.push(client.to_string());
-                tracing::warn!("[yt-dlp] nsig error, switching to {}", client);
-            }
-
-            if (stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden"))
-                && !extra_args.contains(&"--force-ipv4".to_string())
-            {
-                extra_args.push("--force-ipv4".to_string());
-                tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
-            }
-
-            if stderr_lower.contains("subtitle") && use_subtitles && !last_was_429 {
-                tracing::warn!("[yt-dlp] subtitle error detected, disabling subtitles for retry");
-                use_subtitles = false;
-            }
-
-            if stderr_lower.contains("timed out") || stderr_lower.contains("timeout") {
-                tracing::warn!("[yt-dlp] socket timeout on attempt {}", attempt + 1);
-            }
-
-            if stderr_lower.contains("certificate") || stderr_lower.contains("ssl") {
-                tracing::warn!("[yt-dlp] SSL/certificate error on attempt {}", attempt + 1);
-            }
-
-            if (stderr_lower.contains("invalid argument") || stderr_lower.contains("errno 22"))
-                && !extra_args.contains(&"--restrict-filenames".to_string())
-            {
-                extra_args.push("--restrict-filenames".to_string());
-                tracing::warn!("[yt-dlp] Errno 22, adding --restrict-filenames");
-            }
-
-            if (stderr_lower.contains("403") || stderr_lower.contains("forbidden"))
-                && referer.is_none()
-                && !extra_args.contains(&"--referer".to_string())
-            {
-                let fallback = ext_referer_for_url(url).or_else(|| {
-                    url::Url::parse(url).ok().and_then(|parsed| {
-                        let host = parsed.host_str()?;
-                        Some(format!("{}://{}/", parsed.scheme(), host))
-                    })
-                });
-                if let Some(ref_url) = fallback {
-                    tracing::info!("[yt-dlp] 403, adding fallback referer: {}", ref_url);
-                    extra_args.push("--referer".to_string());
-                    extra_args.push(ref_url.clone());
-                    extra_args.push("--add-headers".to_string());
-                    extra_args.push(format!("Referer:{}", ref_url));
-                }
-            }
-
-            if ((stderr_lower.contains("could not") && stderr_lower.contains("cookie"))
-                || stderr_lower.contains("cookies-from-browser")
-                || stderr_lower.contains("failed to decrypt")
-                || stderr_lower.contains("keyring")
-                || stderr_lower.contains("permission denied"))
-                && use_cfb
-            {
-                use_cfb = false;
-                tracing::warn!("[yt-dlp] cookies-from-browser failed. Use the browser extension or set a cookie file in Settings.");
-                COOKIE_ERROR_FLAG.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
-
-            if (stderr_lower.contains("sign in") || stderr_lower.contains("login required"))
-                && !use_cfb
-                && effective_cookie_file.is_none()
-            {
-                tracing::warn!("[yt-dlp] login required. Install the browser extension and visit the site while logged in.");
-            }
-
-            if stderr_lower.contains("requested format") && stderr_lower.contains("not available")
-                || stderr_lower.contains("ffmpeg") && stderr_lower.contains("not found")
-                || stderr_lower.contains("postprocessing")
-            {
-                if format_already_simplified {
-                    tracing::warn!(
-                        "[yt-dlp] format/postprocessing error after simplification, giving up"
-                    );
-                    break;
-                }
-
-                base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
-
-                if let Some(pos) = base_args.iter().position(|a| a == "-f") {
-                    base_args.remove(pos + 1);
-                    base_args.remove(pos);
-                }
-                tracing::warn!("[yt-dlp] format/postprocessing error on attempt {}, removed -f and player_client to use yt-dlp defaults", attempt + 1);
-                format_already_simplified = true;
-            }
-
-            let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
-            let sanitized = sanitize_log_line(last_line);
-            tracing::warn!(
-                "[yt-dlp] attempt {}/{} failed: {}",
-                attempt + 1,
-                max_attempts,
-                sanitized
-            );
-            continue;
+        if err_res.should_break {
+            break;
         }
+
+        continue;
     }
 
-    if let Some(ref path) = ext_cookies {
+    if let Some(ref path) = cookie_config.ext_cookies {
         let _ = tokio::fs::remove_file(path).await;
     }
     tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
