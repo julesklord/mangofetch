@@ -95,7 +95,17 @@ cargo build --release
 # The compiled binary will be available at: target/release/mangofetch
 ```
 
+### Run
+```zsh
+mangofetch <command> <link>
+```
+
+```zsh
+mangofetch tui (run the tui interactive dashboard)
+```
+
 ---
+
 
 ## Key Features (v0.5.2)
 
