@@ -1095,6 +1095,11 @@ pub async fn get_playlist_info(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let (playlist_title, entries) = parse_playlist_json(&stdout);
+    Ok((playlist_title, entries))
+}
+
+fn parse_playlist_json(stdout: &str) -> (String, Vec<PlaylistEntry>) {
     let mut entries = Vec::new();
     let mut playlist_title = String::new();
 
@@ -1140,7 +1145,7 @@ pub async fn get_playlist_info(
         }
     }
 
-    Ok((playlist_title, entries))
+    (playlist_title, entries)
 }
 
 pub struct PlaylistEntry {
