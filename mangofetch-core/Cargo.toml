@@ -63,3 +63,6 @@ open = "5"
 librqbit = { version = "8.1.1", optional = true }
 which = { version = "6", optional = true }
 rand = "0.8"
+
+[dev-dependencies]
+httpmock = "0.8.3"

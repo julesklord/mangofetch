@@ -20,5 +20,7 @@ pub mod process;
 pub mod random_names;
 pub mod redirect;
 pub mod registry;
+#[cfg(test)]
+mod test_hls;
 pub mod traits;
 pub mod ytdlp;
