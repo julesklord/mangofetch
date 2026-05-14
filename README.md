@@ -20,7 +20,7 @@
 
 ---
 <p align="center">
-  <img src="docs/assets/shot.png" alt="MangoFetch in action" width="900" />
+  <img src="docs/assets/shot.png" alt="MangoFetch in action" width="1080" />
 </p>
 
 ___
@@ -95,7 +95,17 @@ cargo build --release
 # The compiled binary will be available at: target/release/mangofetch
 ```
 
+### Run
+```zsh
+mangofetch <command> <link>
+```
+
+```zsh
+mangofetch tui (run the tui interactive dashboard)
+```
+
 ---
+
 
 ## Key Features (v0.5.2)
 
@@ -235,6 +245,6 @@ Pull requests are always welcome. We have a few rules to keep the code clean, so
 ## License
 
 <p align="center">
-  Built by <a href="https://github.com/julesklord">Jules</a>.<br>
+  Built by <a href="https://github.com/julesklord">Jules</a>, gemini-cli assistant and claude.<br>
   Released under the GPL-3.0 License.
 </p>

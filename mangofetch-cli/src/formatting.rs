@@ -60,4 +60,19 @@ mod tests {
         assert_eq!(format_duration(7200), "2h 0m");
         assert_eq!(format_duration(7259), "2h 0m");
     }
+
+    #[test]
+    fn test_truncate_text() {
+        assert_eq!(truncate_text("hello", 10), "hello");
+        assert_eq!(truncate_text("hello", 5), "hello");
+        assert_eq!(truncate_text("hello", 4), "h...");
+        assert_eq!(truncate_text("hello", 3), "...");
+        assert_eq!(truncate_text("hello", 2), "..");
+        assert_eq!(truncate_text("hello", 1), ".");
+        assert_eq!(truncate_text("hello", 0), "");
+
+        // Multi-byte chars
+        assert_eq!(truncate_text("👋🌍こんにちは", 5), "👋🌍...");
+        assert_eq!(truncate_text("👋🌍こんにちは", 3), "...");
+    }
 }
