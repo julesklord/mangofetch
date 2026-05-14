@@ -597,4 +597,45 @@ mod tests {
             false
         ));
     }
+
+    #[test]
+    fn cookie_domain_matches_exact_match_with_subdomains() {
+        assert!(cookie_domain_matches(
+            "example.com",
+            "example.com",
+            true
+        ));
+    }
+
+    #[test]
+    fn cookie_domain_matches_suffix_but_not_subdomain() {
+        assert!(!cookie_domain_matches(
+            "myexample.com",
+            "example.com",
+            true
+        ));
+    }
+
+    #[test]
+    fn cookie_domain_matches_exact_match_without_subdomains() {
+        assert!(cookie_domain_matches(
+            "example.com",
+            "example.com",
+            false
+        ));
+    }
+
+    #[test]
+    fn cookie_domain_matches_unrelated_domains() {
+        assert!(!cookie_domain_matches(
+            "example.com",
+            "other.com",
+            true
+        ));
+        assert!(!cookie_domain_matches(
+            "example.com",
+            "other.com",
+            false
+        ));
+    }
 }
