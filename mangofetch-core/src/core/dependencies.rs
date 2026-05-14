@@ -645,7 +645,7 @@ async fn download_deno(
 }
 
 pub async fn ensure_aria2c(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);
@@ -718,4 +718,20 @@ async fn download_aria2c(
     }
 
     Ok(aria2c_target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bin_name() {
+        if cfg!(target_os = "windows") {
+            assert_eq!(bin_name("test-tool"), "test-tool.exe");
+            assert_eq!(bin_name("yt-dlp"), "yt-dlp.exe");
+        } else {
+            assert_eq!(bin_name("test-tool"), "test-tool");
+            assert_eq!(bin_name("yt-dlp"), "yt-dlp");
+        }
+    }
 }
