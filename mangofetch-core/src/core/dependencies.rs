@@ -645,7 +645,7 @@ async fn download_deno(
 }
 
 pub async fn ensure_aria2c(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);

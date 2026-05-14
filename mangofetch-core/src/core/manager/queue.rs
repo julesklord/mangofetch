@@ -6,7 +6,6 @@ use std::sync::{Arc, OnceLock};
 static EMIT_COUNT: AtomicU64 = AtomicU64::new(0);
 
 use serde::Serialize;
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::core::traits::SharedReporter;
@@ -632,90 +631,75 @@ pub fn spawn_download(
     })
 }
 
-async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, item_id: u64) {
-    tracing::info!("[queue] download {} started", item_id);
 
-    let reporter = { queue.lock().await.reporter.clone() };
+struct DownloadContext {
+    url: String,
+    output_dir: String,
+    download_mode: Option<String>,
+    quality: Option<String>,
+    format_id: Option<String>,
+    referer: Option<String>,
+    extra_headers: Option<std::collections::HashMap<String, String>>,
+    page_url: Option<String>,
+    user_agent: Option<String>,
+    cancel_token: tokio_util::sync::CancellationToken,
+    media_info: Option<crate::models::media::MediaInfo>,
+    platform_name: String,
+    downloader: std::sync::Arc<dyn crate::platforms::traits::PlatformDownloader>,
+    ytdlp_path: Option<std::path::PathBuf>,
+    from_hotkey: bool,
+}
 
-    if let Some(r) = &reporter {
-        r.on_progress(
-            item_id,
-            crate::core::events::QueueItemProgress {
-                id: item_id,
-                title: "".to_string(),
-                platform: "".to_string(),
-                percent: 0.0,
-                speed_bytes_per_sec: 0.0,
-                downloaded_bytes: 0,
-                total_bytes: None,
-                phase: "preparing".to_string(),
-            },
-        );
-    }
+async fn extract_download_context(queue: &Arc<tokio::sync::Mutex<DownloadQueue>>, item_id: u64) -> Option<DownloadContext> {
+    let q = queue.lock().await;
+    let item = q.items.iter().find(|i| i.id == item_id)?;
+    Some(DownloadContext {
+        url: item.url.clone(),
+        output_dir: item.output_dir.clone(),
+        download_mode: item.download_mode.clone(),
+        quality: item.quality.clone(),
+        format_id: item.format_id.clone(),
+        referer: item.referer.clone(),
+        extra_headers: item.extra_headers.clone(),
+        page_url: item.page_url.clone(),
+        user_agent: item.user_agent.clone(),
+        cancel_token: item.cancel_token.clone(),
+        media_info: item.media_info.clone(),
+        platform_name: item.platform.clone(),
+        downloader: item.downloader.clone(),
+        ytdlp_path: item.ytdlp_path.clone(),
+        from_hotkey: item.from_hotkey,
+    })
+}
 
-    let (
-        url,
-        output_dir,
-        download_mode,
-        quality,
-        format_id,
-        referer,
-        extra_headers,
-        page_url,
-        user_agent,
-        cancel_token,
-        media_info,
-        platform_name,
-        downloader,
-        ytdlp_path,
-        from_hotkey,
-    ) = {
-        let q = queue.lock().await;
-        let item = match q.items.iter().find(|i| i.id == item_id) {
-            Some(i) => i,
-            None => return,
-        };
-        (
-            item.url.clone(),
-            item.output_dir.clone(),
-            item.download_mode.clone(),
-            item.quality.clone(),
-            item.format_id.clone(),
-            item.referer.clone(),
-            item.extra_headers.clone(),
-            item.page_url.clone(),
-            item.user_agent.clone(),
-            item.cancel_token.clone(),
-            item.media_info.clone(),
-            item.platform.clone(),
-            item.downloader.clone(),
-            item.ytdlp_path.clone(),
-            item.from_hotkey,
-        )
-    };
-
+async fn prepare_media_info(
+    queue: &Arc<tokio::sync::Mutex<DownloadQueue>>,
+    item_id: u64,
+    ctx: &DownloadContext,
+    reporter: &Option<crate::core::traits::SharedReporter>,
+) -> Option<crate::models::media::MediaInfo> {
     let info_start = std::time::Instant::now();
-    let info = match media_info {
+    let info = match &ctx.media_info {
         Some(i) => {
             tracing::info!(
                 "[queue] info for {} from cache/pre-fetched in {:?}",
                 item_id,
                 info_start.elapsed()
             );
-            i
+            i.clone()
         }
         None => {
             tracing::debug!(
                 "[perf] spawn_download_inner {}: media_info is None, fetching info",
                 item_id
             );
-            if let Some(r) = &reporter {
+            if let Some(r) = reporter {
                 r.on_progress(
                     item_id,
                     crate::core::events::QueueItemProgress {
                         id: item_id,
-                        title: url.clone(),
-                        platform: platform_name.clone(),
+                        title: ctx.url.clone(),
+                        platform: ctx.platform_name.clone(),
                         percent: 0.0,
                         speed_bytes_per_sec: 0.0,
                         downloaded_bytes: 0,
@@ -727,7 +711,7 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
 
             let info_result = tokio::time::timeout(
                 std::time::Duration::from_secs(60),
-                fetch_and_cache_info(&url, &*downloader, &platform_name),
+                fetch_and_cache_info(&ctx.url, &*ctx.downloader, &ctx.platform_name),
             )
             .await;
 
@@ -739,9 +723,9 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
                         q.mark_complete(item_id, false, Some(e.to_string()), None, None);
                         q.get_state()
                     };
-                    emit_queue_state_from_state(&reporter, state);
-                    tokio::spawn(try_start_next(queue));
-                    return;
+                    emit_queue_state_from_state(reporter, state);
+                    tokio::spawn(try_start_next(queue.clone()));
+                    return None;
                 }
                 Err(_) => {
                     tracing::warn!("[queue] info fetch timed out for {} after 60s", item_id);
@@ -756,9 +740,9 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
                         );
                         q.get_state()
                     };
-                    emit_queue_state_from_state(&reporter, state);
-                    tokio::spawn(try_start_next(queue));
-                    return;
+                    emit_queue_state_from_state(reporter, state);
+                    tokio::spawn(try_start_next(queue.clone()));
+                    return None;
                 }
             }
         }
@@ -786,15 +770,15 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
         }
         q.get_state()
     };
-    emit_queue_state_from_state(&reporter, state);
+    emit_queue_state_from_state(reporter, state);
 
-    if let Some(r) = &reporter {
+    if let Some(r) = reporter {
         r.on_progress(
             item_id,
             crate::core::events::QueueItemProgress {
                 id: item_id,
                 title: info.title.clone(),
-                platform: platform_name.clone(),
+                platform: ctx.platform_name.clone(),
                 percent: 0.5,
                 speed_bytes_per_sec: 0.0,
                 downloaded_bytes: 0,
@@ -804,36 +788,178 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
         );
     }
 
+    Some(info)
+}
+
+fn build_download_options(ctx: &DownloadContext) -> (crate::models::media::DownloadOptions, std::sync::Arc<tokio::sync::Mutex<Option<usize>>>) {
     let settings = crate::models::settings::AppSettings::load_from_disk();
     let tmpl = settings.download.filename_template.clone();
-    let mut final_output_dir = std::path::PathBuf::from(&output_dir);
+    let mut final_output_dir = std::path::PathBuf::from(&ctx.output_dir);
     if settings.download.organize_by_platform {
-        final_output_dir = final_output_dir.join(&platform_name);
+        final_output_dir = final_output_dir.join(&ctx.platform_name);
     }
-    let torrent_id_slot = Arc::new(tokio::sync::Mutex::new(None));
+    let torrent_id_slot = std::sync::Arc::new(tokio::sync::Mutex::new(None));
     let opts = crate::models::media::DownloadOptions {
-        quality: quality.or_else(|| Some(settings.download.video_quality.clone())),
+        quality: ctx.quality.clone().or_else(|| Some(settings.download.video_quality.clone())),
         output_dir: final_output_dir,
         filename_template: Some(tmpl),
         download_subtitles: settings.download.download_subtitles,
         include_auto_subtitles: settings.download.include_auto_subtitles,
-        download_mode,
-        format_id,
-        referer,
-        extra_headers,
-        page_url,
-        user_agent,
-        cancel_token: cancel_token.clone(),
+        download_mode: ctx.download_mode.clone(),
+        format_id: ctx.format_id.clone(),
+        referer: ctx.referer.clone(),
+        extra_headers: ctx.extra_headers.clone(),
+        page_url: ctx.page_url.clone(),
+        user_agent: ctx.user_agent.clone(),
+        cancel_token: ctx.cancel_token.clone(),
         concurrent_fragments: settings.advanced.concurrent_fragments,
-        ytdlp_path,
+        ytdlp_path: ctx.ytdlp_path.clone(),
         torrent_listen_port: Some(settings.advanced.torrent_listen_port),
         torrent_id_slot: Some(torrent_id_slot.clone()),
     };
+    (opts, torrent_id_slot)
+}
+
+async fn handle_download_result(
+    queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
+    item_id: u64,
+    ctx: DownloadContext,
+    info: crate::models::media::MediaInfo,
+    reporter: Option<crate::core::traits::SharedReporter>,
+    result: anyhow::Result<crate::models::media::DownloadResult>,
+) {
+    let settings = crate::models::settings::AppSettings::load_from_disk();
+    match result {
+        Ok(dl) => {
+            if settings.download.embed_metadata
+                && ctx.platform_name != "magnet"
+                && crate::core::ffmpeg::is_ffmpeg_available().await
+            {
+                let metadata = crate::core::ffmpeg::MetadataEmbed {
+                    title: Some(info.title.clone()),
+                    artist: Some(info.author.clone()),
+                    thumbnail_url: info.thumbnail_url.clone(),
+                    ..Default::default()
+                };
+                if let Err(e) = crate::core::ffmpeg::embed_metadata(
+                    &dl.file_path,
+                    &metadata,
+                    settings.download.embed_thumbnail,
+                    shared_http_client(),
+                )
+                .await
+                {
+                    tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
+                }
+            }
+
+            if ctx.from_hotkey && settings.download.copy_to_clipboard_on_hotkey {
+                #[cfg(not(target_os = "android"))]
+                {
+                    match crate::core::clipboard::copy_file_to_clipboard(&dl.file_path).await {
+                        Ok(()) => {
+                            tracing::info!("[clipboard] file copied: {:?}", dl.file_path);
+                        }
+                        Err(e) => {
+                            tracing::warn!("[clipboard] failed to copy file: {}", e);
+                        }
+                    }
+                }
+            }
+
+            let state = {
+                let mut q = queue.lock().await;
+                if ctx.platform_name == "magnet" && dl.torrent_id.is_some() {
+                    q.mark_seeding(
+                        item_id,
+                        Some(dl.file_path.to_string_lossy().to_string()),
+                        Some(dl.file_size_bytes),
+                        dl.torrent_id,
+                    );
+                } else {
+                    q.mark_complete(
+                        item_id,
+                        true,
+                        None,
+                        Some(dl.file_path.to_string_lossy().to_string()),
+                        Some(dl.file_size_bytes),
+                    );
+                }
+                q.get_state()
+            };
+            if let Some(r) = &reporter {
+                r.on_complete(
+                    item_id,
+                    Some(dl.file_path.to_string_lossy().to_string()),
+                    Some(dl.file_size_bytes),
+                );
+            }
+            emit_queue_state_from_state(&reporter, state);
+        }
+        Err(e) => {
+            let raw_err = format!("{}", e);
+            let (category, hint) = crate::core::errors::classify_download_error(&raw_err);
+            let user_msg = if category != "unknown" {
+                format!("{} ({})", hint, raw_err)
+            } else {
+                raw_err.clone()
+            };
+            tracing::error!(
+                "Download error '{}' [{}]: {}",
+                ctx.platform_name,
+                category,
+                raw_err
+            );
+            let state = {
+                let mut q = queue.lock().await;
+                q.mark_complete(item_id, false, Some(user_msg.clone()), None, None);
+                q.get_state()
+            };
+            if let Some(r) = &reporter {
+                r.on_error(item_id, user_msg);
+            }
+            emit_queue_state_from_state(&reporter, state);
+        }
+    }
+}
+
+async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, item_id: u64) {
+    tracing::info!("[queue] download {} started", item_id);
+
+    let reporter = { queue.lock().await.reporter.clone() };
+
+    if let Some(r) = &reporter {
+        r.on_progress(
+            item_id,
+            crate::core::events::QueueItemProgress {
+                id: item_id,
+                title: "".to_string(),
+                platform: "".to_string(),
+                percent: 0.0,
+                speed_bytes_per_sec: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                phase: "preparing".to_string(),
+            },
+        );
+    }
+
+    let ctx = match extract_download_context(&queue, item_id).await {
+        Some(c) => c,
+        None => return,
+    };
+
+    let info = match prepare_media_info(&queue, item_id, &ctx, &reporter).await {
+        Some(i) => i,
+        None => return,
+    };
+
+    let (opts, torrent_id_slot) = build_download_options(&ctx);
 
     let total_bytes = info.file_size_bytes;
     let item_title = info.title.clone();
-    let item_platform = platform_name.clone();
-    let (tx, mut rx) = mpsc::channel::<f64>(32);
+    let item_platform = ctx.platform_name.clone();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<f64>(32);
 
     let reporter_progress = reporter.clone();
     let queue_progress = queue.clone();
@@ -909,17 +1035,17 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
     });
 
     if let Some(ua) = opts.user_agent.clone() {
-        crate::core::ytdlp::register_ext_user_agent(url.clone(), ua);
+        crate::core::ytdlp::register_ext_user_agent(ctx.url.clone(), ua);
     }
     if let Some(hdrs) = opts.extra_headers.clone() {
-        crate::core::ytdlp::register_ext_headers(url.clone(), hdrs);
+        crate::core::ytdlp::register_ext_headers(ctx.url.clone(), hdrs);
     }
 
     let dl_start = std::time::Instant::now();
     let dl_future = async {
         tokio::select! {
-            r = downloader.download(&info, &opts, tx) => r,
-            _ = cancel_token.cancelled() => {
+            r = ctx.downloader.download(&info, &opts, tx) => r,
+            _ = ctx.cancel_token.cancelled() => {
                 Err(anyhow::anyhow!("Download cancelado"))
             }
         }
@@ -927,8 +1053,8 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
     let result = crate::core::log_hook::CURRENT_DOWNLOAD_ID
         .scope(item_id, dl_future)
         .await;
-    crate::core::ytdlp::clear_ext_user_agent(&url);
-    crate::core::ytdlp::clear_ext_headers(&url);
+    crate::core::ytdlp::clear_ext_user_agent(&ctx.url);
+    crate::core::ytdlp::clear_ext_headers(&ctx.url);
     tracing::info!(
         "[queue] download {} completed in {:?}",
         item_id,
@@ -956,100 +1082,7 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
         return;
     }
 
-    match result {
-        Ok(dl) => {
-            if settings.download.embed_metadata
-                && platform_name != "magnet"
-                && crate::core::ffmpeg::is_ffmpeg_available().await
-            {
-                let metadata = crate::core::ffmpeg::MetadataEmbed {
-                    title: Some(info.title.clone()),
-                    artist: Some(info.author.clone()),
-                    thumbnail_url: info.thumbnail_url.clone(),
-                    ..Default::default()
-                };
-                if let Err(e) = crate::core::ffmpeg::embed_metadata(
-                    &dl.file_path,
-                    &metadata,
-                    settings.download.embed_thumbnail,
-                    shared_http_client(),
-                )
-                .await
-                {
-                    tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
-                }
-            }
-
-            if from_hotkey && settings.download.copy_to_clipboard_on_hotkey {
-                #[cfg(not(target_os = "android"))]
-                {
-                    match crate::core::clipboard::copy_file_to_clipboard(&dl.file_path).await {
-                        Ok(()) => {
-                            tracing::info!("[clipboard] file copied: {:?}", dl.file_path);
-                            // Notified via general event if needed, or by reporter
-                            // If needed: if let Some(r) = &reporter { r.on_complete(...) }
-                        }
-                        Err(e) => {
-                            tracing::warn!("[clipboard] failed to copy file: {}", e);
-                        }
-                    }
-                }
-            }
-
-            let state = {
-                let mut q = queue.lock().await;
-                if platform_name == "magnet" && dl.torrent_id.is_some() {
-                    q.mark_seeding(
-                        item_id,
-                        Some(dl.file_path.to_string_lossy().to_string()),
-                        Some(dl.file_size_bytes),
-                        dl.torrent_id,
-                    );
-                } else {
-                    q.mark_complete(
-                        item_id,
-                        true,
-                        None,
-                        Some(dl.file_path.to_string_lossy().to_string()),
-                        Some(dl.file_size_bytes),
-                    );
-                }
-                q.get_state()
-            };
-            if let Some(r) = &reporter {
-                r.on_complete(
-                    item_id,
-                    Some(dl.file_path.to_string_lossy().to_string()),
-                    Some(dl.file_size_bytes),
-                );
-            }
-            emit_queue_state_from_state(&reporter, state);
-        }
-        Err(e) => {
-            let raw_err = e.to_string();
-            let (category, hint) = crate::core::errors::classify_download_error(&raw_err);
-            let user_msg = if category != "unknown" {
-                format!("{} ({})", hint, raw_err)
-            } else {
-                raw_err.clone()
-            };
-            tracing::error!(
-                "Download error '{}' [{}]: {}",
-                platform_name,
-                category,
-                raw_err
-            );
-            let state = {
-                let mut q = queue.lock().await;
-                q.mark_complete(item_id, false, Some(user_msg.clone()), None, None);
-                q.get_state()
-            };
-            if let Some(r) = &reporter {
-                r.on_error(item_id, user_msg);
-            }
-            emit_queue_state_from_state(&reporter, state);
-        }
-    }
+    handle_download_result(queue.clone(), item_id, ctx, info, reporter, result).await;
 
     tokio::spawn(try_start_next(queue));
 }
