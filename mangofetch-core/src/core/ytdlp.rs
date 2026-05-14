@@ -848,6 +848,73 @@ fn extract_error_message(stderr: &str) -> String {
     stderr.trim().to_string()
 }
 
+async fn add_cookie_args(args: &mut Vec<String>, extra_flags: &[String]) {
+    let explicit_cookie_header = has_explicit_cookie_header(extra_flags);
+    let manual_cookie_header = if explicit_cookie_header {
+        None
+    } else {
+        manual_cookie_header_setting()
+    };
+    let extension_cookies = if manual_cookie_header.is_none() {
+        extension_cookie_file().await
+    } else {
+        None
+    };
+    let global_cf = if manual_cookie_header.is_none() {
+        global_cookie_file()
+    } else {
+        None
+    };
+    if let Some(ref cookie_header) = manual_cookie_header {
+        append_cookie_header(args, cookie_header);
+        tracing::debug!("[yt-dlp] using manual cookie header from settings");
+    } else if let Some(ref cf) = extension_cookies {
+        args.push("--cookies".to_string());
+        args.push(cf.to_string_lossy().to_string());
+    } else if let Some(ref cf) = global_cf {
+        args.push("--cookies".to_string());
+        args.push(cf.clone());
+    } else if !explicit_cookie_header {
+        let cfb = cookies_from_browser_setting();
+        if !cfb.is_empty() {
+            args.push("--cookies-from-browser".to_string());
+            args.push(cfb);
+        }
+    } else {
+        tracing::debug!("[yt-dlp] skipping cookies-from-browser because explicit Cookie header was provided");
+    }
+}
+
+async fn build_video_info_args(url: &str, extra_flags: &[String], client: Option<&str>) -> Vec<String> {
+    let mut args = vec![
+        "--dump-single-json".to_string(),
+        "--no-warnings".to_string(),
+        "--no-playlist".to_string(),
+        "--no-check-certificates".to_string(),
+        "--socket-timeout".to_string(),
+        "15".to_string(),
+        "--retries".to_string(),
+        "1".to_string(),
+        "--extractor-retries".to_string(),
+        "2".to_string(),
+        "--retry-sleep".to_string(),
+        "exp=1:30".to_string(),
+        "--user-agent".to_string(),
+        CHROME_UA.to_string(),
+        "--skip-download".to_string(),
+    ];
+    args.extend(js_runtime_args());
+    if let Some(extractor_args) = client {
+        args.push("--extractor-args".to_string());
+        args.push(extractor_args.to_string());
+    }
+    add_cookie_args(&mut args, extra_flags).await;
+    args.extend(proxy_args());
+    args.extend(extra_flags.iter().cloned());
+    args.push(url.to_string());
+    args
+}
+
 pub async fn get_video_info(
     ytdlp: &Path,
     url: &str,
@@ -875,70 +942,7 @@ pub async fn get_video_info(
             clients.len()
         );
 
-        let mut args = vec![
-            "--dump-single-json".to_string(),
-            "--no-warnings".to_string(),
-            "--no-playlist".to_string(),
-            "--no-check-certificates".to_string(),
-            "--socket-timeout".to_string(),
-            "15".to_string(),
-            "--retries".to_string(),
-            "1".to_string(),
-            "--extractor-retries".to_string(),
-            "2".to_string(),
-            "--retry-sleep".to_string(),
-            "exp=1:30".to_string(),
-            "--user-agent".to_string(),
-            CHROME_UA.to_string(),
-            "--skip-download".to_string(),
-        ];
-        args.extend(js_runtime_args());
-
-        if let Some(extractor_args) = client {
-            args.push("--extractor-args".to_string());
-            args.push(extractor_args.to_string());
-        }
-
-        let explicit_cookie_header = has_explicit_cookie_header(extra_flags);
-        let manual_cookie_header = if explicit_cookie_header {
-            None
-        } else {
-            manual_cookie_header_setting()
-        };
-        let extension_cookies = if manual_cookie_header.is_none() {
-            extension_cookie_file().await
-        } else {
-            None
-        };
-        let global_cf = if manual_cookie_header.is_none() {
-            global_cookie_file()
-        } else {
-            None
-        };
-        if let Some(ref cookie_header) = manual_cookie_header {
-            append_cookie_header(&mut args, cookie_header);
-            tracing::debug!("[yt-dlp] using manual cookie header from settings");
-        } else if let Some(ref cf) = extension_cookies {
-            args.push("--cookies".to_string());
-            args.push(cf.to_string_lossy().to_string());
-        } else if let Some(ref cf) = global_cf {
-            args.push("--cookies".to_string());
-            args.push(cf.clone());
-        } else if !explicit_cookie_header {
-            let cfb = cookies_from_browser_setting();
-            if !cfb.is_empty() {
-                args.push("--cookies-from-browser".to_string());
-                args.push(cfb);
-            }
-        } else {
-            tracing::debug!(
-                "[yt-dlp] skipping cookies-from-browser because explicit Cookie header was provided"
-            );
-        }
-
-        args.extend(proxy_args());
-        args.extend(extra_flags.iter().cloned());
-        args.push(url.to_string());
+        let args = build_video_info_args(url, extra_flags, *client).await;
 
         let child = crate::core::process::command(ytdlp)
             .args(&args)
