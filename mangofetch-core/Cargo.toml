@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-core"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 description = "Core download engine for MangoFetch"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]
@@ -64,4 +64,4 @@ librqbit = { version = "8.1.1", optional = true }
 which = { version = "6", optional = true }
 rand = "0.8"
 libloading = "0.8"
-mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk" }
+mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.5.3" }
