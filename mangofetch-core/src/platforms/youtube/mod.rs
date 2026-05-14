@@ -458,7 +458,10 @@ mod tests {
         assert_eq!(info.author, "Rick Astley");
         assert_eq!(info.platform, "youtube");
         assert_eq!(info.duration_seconds, Some(212.5));
-        assert_eq!(info.thumbnail_url, Some("https://example.com/thumb.jpg".to_string()));
+        assert_eq!(
+            info.thumbnail_url,
+            Some("https://example.com/thumb.jpg".to_string())
+        );
         assert_eq!(info.media_type, MediaType::Video);
 
         assert_eq!(info.available_qualities.len(), 2);

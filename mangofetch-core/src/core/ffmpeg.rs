@@ -76,6 +76,71 @@ pub struct ConversionOptions {
     pub preset: Option<String>,
 }
 
+impl ConversionOptions {
+    pub fn build_ffmpeg_args(&self) -> Vec<String> {
+        let mut args: Vec<String> = vec!["-y".to_string()];
+
+        if let Some(ref start) = self.trim_start {
+            args.extend(["-ss".to_string(), start.clone()]);
+        }
+
+        if let Some(ref extra) = self.additional_input_args {
+            args.extend(extra.clone());
+        }
+
+        args.extend(["-i".to_string(), self.input_path.clone()]);
+
+        if let Some(ref end) = self.trim_end {
+            args.extend(["-to".to_string(), end.clone()]);
+        }
+
+        if let Some(ref codec) = self.video_codec {
+            args.extend(["-c:v".to_string(), codec.clone()]);
+        }
+
+        if let Some(ref codec) = self.audio_codec {
+            args.extend(["-c:a".to_string(), codec.clone()]);
+        }
+
+        if let Some(ref res) = self.resolution {
+            args.extend(["-s".to_string(), res.clone()]);
+        }
+
+        if let Some(ref br) = self.video_bitrate {
+            args.extend(["-b:v".to_string(), br.clone()]);
+        }
+
+        if let Some(ref br) = self.audio_bitrate {
+            args.extend(["-b:a".to_string(), br.clone()]);
+        }
+
+        if let Some(sr) = self.sample_rate {
+            args.extend(["-ar".to_string(), sr.to_string()]);
+        }
+
+        if let Some(fps) = self.fps {
+            args.extend(["-r".to_string(), fps.to_string()]);
+        }
+
+        if let Some(ref preset) = self.preset {
+            args.extend(["-preset".to_string(), preset.clone()]);
+        }
+
+        if let Some(ref extra) = self.additional_output_args {
+            args.extend(extra.clone());
+        }
+
+        args.extend([
+            "-progress".to_string(),
+            "pipe:1".to_string(),
+            "-nostats".to_string(),
+            self.output_path.clone(),
+        ]);
+
+        args
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaProbeInfo {
     pub duration_seconds: f64,
@@ -277,64 +342,7 @@ pub async fn convert(
 
     let total_duration_us = get_duration_us(input_path).await.unwrap_or(0);
 
-    let mut args: Vec<String> = vec!["-y".to_string()];
-
-    if let Some(ref start) = opts.trim_start {
-        args.extend(["-ss".to_string(), start.clone()]);
-    }
-
-    if let Some(ref extra) = opts.additional_input_args {
-        args.extend(extra.clone());
-    }
-
-    args.extend(["-i".to_string(), opts.input_path.clone()]);
-
-    if let Some(ref end) = opts.trim_end {
-        args.extend(["-to".to_string(), end.clone()]);
-    }
-
-    if let Some(ref codec) = opts.video_codec {
-        args.extend(["-c:v".to_string(), codec.clone()]);
-    }
-
-    if let Some(ref codec) = opts.audio_codec {
-        args.extend(["-c:a".to_string(), codec.clone()]);
-    }
-
-    if let Some(ref res) = opts.resolution {
-        args.extend(["-s".to_string(), res.clone()]);
-    }
-
-    if let Some(ref br) = opts.video_bitrate {
-        args.extend(["-b:v".to_string(), br.clone()]);
-    }
-
-    if let Some(ref br) = opts.audio_bitrate {
-        args.extend(["-b:a".to_string(), br.clone()]);
-    }
-
-    if let Some(sr) = opts.sample_rate {
-        args.extend(["-ar".to_string(), sr.to_string()]);
-    }
-
-    if let Some(fps) = opts.fps {
-        args.extend(["-r".to_string(), fps.to_string()]);
-    }
-
-    if let Some(ref preset) = opts.preset {
-        args.extend(["-preset".to_string(), preset.clone()]);
-    }
-
-    if let Some(ref extra) = opts.additional_output_args {
-        args.extend(extra.clone());
-    }
-
-    args.extend([
-        "-progress".to_string(),
-        "pipe:1".to_string(),
-        "-nostats".to_string(),
-        opts.output_path.clone(),
-    ]);
+    let args = opts.build_ffmpeg_args();
 
     let mut child = crate::core::process::command("ffmpeg")
         .args(&args)
