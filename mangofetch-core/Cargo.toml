@@ -60,7 +60,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 xz2 = "0.1"
 open = "5"
-librqbit = { version = "8.1.1", optional = true }
+librqbit = { version = "8.1.1", optional = true, default-features = false, features = [
+    "rust-tls",
+] }
 which = { version = "6", optional = true }
 rand = "0.8"
 libloading = "0.8"
