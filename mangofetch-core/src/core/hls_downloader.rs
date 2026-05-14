@@ -839,4 +839,16 @@ mod tests {
         let result = compute_iv(&enc, 0, 0);
         assert_eq!(result, [0u8; 16]);
     }
+
+    #[test]
+    fn test_hls_downloader_new() {
+        let downloader = super::HlsDownloader::new();
+        assert!(downloader.user_agent_override.is_none());
+    }
+
+    #[test]
+    fn test_hls_downloader_default() {
+        let downloader = super::HlsDownloader::default();
+        assert!(downloader.user_agent_override.is_none());
+    }
 }
