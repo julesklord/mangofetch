@@ -176,7 +176,7 @@ impl DownloadQueue {
         }
     }
 
-    fn sync_recovery(&self, item: &QueueItem) {
+    fn sync_recovery(item: &QueueItem) {
         crate::core::manager::recovery::persist(crate::core::manager::recovery::RecoveryItem {
             id: item.id,
             url: item.url.clone(),
@@ -245,7 +245,7 @@ impl DownloadQueue {
             phase: "Queued".to_string(),
         };
         self.items.push(item);
-        self.sync_recovery(self.items.last().unwrap());
+        Self::sync_recovery(self.items.last().unwrap());
     }
 
     pub fn active_count(&self) -> u32 {
@@ -270,8 +270,7 @@ impl DownloadQueue {
         if let Some(item) = item {
             item.status = QueueStatus::Active;
             item.cancel_token = CancellationToken::new();
-            let item_ref = item as *const QueueItem;
-            self.sync_recovery(unsafe { &*item_ref });
+            Self::sync_recovery(item);
         }
     }
 
@@ -296,8 +295,7 @@ impl DownloadQueue {
             item.file_path = file_path;
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
-            let item_ref = item as *const QueueItem;
-            self.sync_recovery(unsafe { &*item_ref });
+            Self::sync_recovery(item);
         }
     }
 
@@ -316,8 +314,7 @@ impl DownloadQueue {
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
             item.torrent_id = torrent_id;
-            let item_ref = item as *const QueueItem;
-            self.sync_recovery(unsafe { &*item_ref });
+            Self::sync_recovery(item);
         }
     }
 
@@ -351,8 +348,7 @@ impl DownloadQueue {
                 }
                 item.status = QueueStatus::Paused;
                 item.speed_bytes_per_sec = 0.0;
-                let item_ref = item as *const QueueItem;
-                self.sync_recovery(unsafe { &*item_ref });
+                Self::sync_recovery(item);
                 return true;
             }
         }
@@ -369,8 +365,7 @@ impl DownloadQueue {
                     item.status = QueueStatus::Queued;
                     item.cancel_token = CancellationToken::new();
                 }
-                let item_ref = item as *const QueueItem;
-                self.sync_recovery(unsafe { &*item_ref });
+                Self::sync_recovery(item);
                 return true;
             }
         }
@@ -394,8 +389,7 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
-                    let item_ref = item as *const QueueItem;
-                    self.sync_recovery(unsafe { &*item_ref });
+                    Self::sync_recovery(item);
                     return (true, None);
                 }
                 QueueStatus::Seeding => {
@@ -404,8 +398,7 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
-                    let item_ref = item as *const QueueItem;
-                    self.sync_recovery(unsafe { &*item_ref });
+                    Self::sync_recovery(item);
                     return (true, tid);
                 }
                 QueueStatus::Paused => {
@@ -419,16 +412,14 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
-                    let item_ref = item as *const QueueItem;
-                    self.sync_recovery(unsafe { &*item_ref });
+                    Self::sync_recovery(item);
                     return (true, tid);
                 }
                 QueueStatus::Queued => {
                     item.status = QueueStatus::Error {
                         message: "Cancelled".to_string(),
                     };
-                    let item_ref = item as *const QueueItem;
-                    self.sync_recovery(unsafe { &*item_ref });
+                    Self::sync_recovery(item);
                     return (true, None);
                 }
                 _ => {}
@@ -447,8 +438,7 @@ impl DownloadQueue {
                 item.downloaded_bytes = 0;
                 item.file_path = None;
                 item.file_size_bytes = None;
-                let item_ref = item as *const QueueItem;
-                self.sync_recovery(unsafe { &*item_ref });
+                Self::sync_recovery(item);
                 return true;
             }
         }
