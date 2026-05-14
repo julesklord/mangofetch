@@ -83,6 +83,43 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} ${{ env.ASSET }} --clobber
 
+      - name: Calculate SHA256 (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Path ${{ env.ASSET }} -Algorithm SHA256).Hash.ToLower()
+          echo "SHA256=$hash" >> $env:GITHUB_ENV
+
+      - name: Update Installer Manifests (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $hash = "${{ env.SHA256 }}"
+          
+          # Update Scoop
+          $scoopPath = "installers/scoop/mangofetch.json"
+          $scoop = Get-Content $scoopPath | ConvertFrom-Json
+          $scoop.version = $version
+          $scoop.architecture.64bit.hash = $hash
+          $scoop.architecture.64bit.url = "https://github.com/julesklord/mangofetch-cli/releases/download/${{ github.ref_name }}/mangofetch-cli-x86_64-pc-windows-msvc.exe#/mangofetch.exe"
+          $scoop | ConvertTo-Json -Depth 10 | Set-Content $scoopPath
+
+          # Update Winget
+          $wingetPath = "installers/winget/julesklord.mangofetch.yaml"
+          (Get-Content $wingetPath) -replace 'PackageVersion: .*', "PackageVersion: $version" `
+                                    -replace 'InstallerSha256: .*', "InstallerSha256: $hash" `
+                                    -replace 'InstallerUrl: .*', "InstallerUrl: https://github.com/julesklord/mangofetch-cli/releases/download/${{ github.ref_name }}/mangofetch-cli-x86_64-pc-windows-msvc.exe" | Set-Content $wingetPath
+
+      - name: Commit manifest updates
+        if: matrix.os == 'windows-latest'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add installers/
+          git commit -m "chore: update installer manifests for ${{ github.ref_name }}" || echo "No changes to commit"
+          git push origin main
+
   publish-crates:
     name: Publish to Crates.io
     needs: create-release
