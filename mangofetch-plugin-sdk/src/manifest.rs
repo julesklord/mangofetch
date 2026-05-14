@@ -100,3 +100,70 @@ pub struct PluginRegistry {
     pub schema_version: u32,
     pub plugins: Vec<RegistryEntry>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_plugin_manifest_default_deserialization() {
+        let json = r#"{
+            "id": "test-plugin",
+            "name": "Test Plugin",
+            "version": "1.0.0",
+            "description": "A test plugin",
+            "author": "Test Author"
+        }"#;
+
+        let manifest: PluginManifest = serde_json::from_str(json).unwrap();
+
+        assert_eq!(manifest.id, "test-plugin");
+        assert_eq!(manifest.min_mangofetch_version, None);
+        assert_eq!(manifest.license, None);
+        assert_eq!(manifest.homepage, None);
+        assert_eq!(manifest.icon, None);
+        assert!(manifest.nav.is_empty());
+        assert!(manifest.events.progress.is_empty());
+        assert!(manifest.events.complete.is_empty());
+        assert!(manifest.capabilities.is_empty());
+        assert_eq!(manifest.settings_schema, None);
+        assert_eq!(manifest.rust_crate, None);
+        assert_eq!(manifest.frontend_dir, None);
+    }
+
+    #[test]
+    fn test_plugin_nav_item_default_deserialization() {
+        let json = r#"{
+            "route": "/test",
+            "label": {
+                "en": "Test"
+            }
+        }"#;
+
+        let nav_item: PluginNavItem = serde_json::from_str(json).unwrap();
+
+        assert_eq!(nav_item.route, "/test");
+        assert_eq!(nav_item.icon_svg, None);
+        assert_eq!(nav_item.group, NavGroup::Secondary);
+        assert_eq!(nav_item.order, 50);
+    }
+
+    #[test]
+    fn test_registry_entry_default_deserialization() {
+        let json = r#"{
+            "id": "test-plugin",
+            "name": "Test Plugin",
+            "description": "A test plugin",
+            "author": "Test Author",
+            "repo": "https://github.com/test/repo"
+        }"#;
+
+        let entry: RegistryEntry = serde_json::from_str(json).unwrap();
+
+        assert_eq!(entry.id, "test-plugin");
+        assert_eq!(entry.homepage, None);
+        assert!(entry.tags.is_empty());
+        assert_eq!(entry.official, false);
+        assert!(entry.capabilities.is_empty());
+    }
+}
