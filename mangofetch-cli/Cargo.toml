@@ -20,7 +20,7 @@ mangofetch-core = { path = "../mangofetch-core", version = "0.5.3", features = [
 ] }
 clap = { version = "4.4", features = ["derive", "cargo"] }
 indicatif = "0.17"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full", "macros", "rt"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
