@@ -2277,6 +2277,7 @@ dependencies = [
  "aes",
  "anyhow",
  "async-trait",
+ "aws-lc-rs",
  "base64",
  "cbc",
  "chrono",
