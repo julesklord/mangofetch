@@ -320,7 +320,9 @@ mod tests {
         assert!(!is_valid_code("bulbasaur"));
         assert!(!is_valid_code("bulbasaur-ivysaur"));
         assert!(!is_valid_code("bulbasaur-ivysaur-venusaur"));
-        assert!(!is_valid_code("bulbasaur-ivysaur-venusaur-charmander-charmeleon"));
+        assert!(!is_valid_code(
+            "bulbasaur-ivysaur-venusaur-charmander-charmeleon"
+        ));
     }
 
     #[test]

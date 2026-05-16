@@ -179,9 +179,9 @@ pub fn check_dependencies() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-        use std::collections::HashMap;
+    use std::collections::HashMap;
 
-        struct MockCommandRunner {
+    struct MockCommandRunner {
         // maps "program" -> success status
         responses: HashMap<String, bool>,
     }

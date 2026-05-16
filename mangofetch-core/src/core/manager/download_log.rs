@@ -78,9 +78,9 @@ pub fn clear_all() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use std::thread;
     use std::time::Duration;
-    use std::sync::Mutex;
 
     static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
@@ -92,6 +92,14 @@ mod tests {
         assert!(!push_line(id, "line 2")); // Should be throttled
         let lines = get(id);
         assert_eq!(lines, vec!["line 1".to_string(), "line 2".to_string()]);
+    }
+
+    #[test]
+    fn test_get_nonexistent() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+        let id = 9999;
+        let lines = get(id);
+        assert!(lines.is_empty());
     }
 
     #[test]
@@ -117,7 +125,10 @@ mod tests {
         assert_eq!(lines.len(), MAX_LINES_PER_DOWNLOAD);
         // The first 10 lines should have been popped
         assert_eq!(lines.first().unwrap(), "line 10");
-        assert_eq!(lines.last().unwrap(), &format!("line {}", MAX_LINES_PER_DOWNLOAD + 9));
+        assert_eq!(
+            lines.last().unwrap(),
+            &format!("line {}", MAX_LINES_PER_DOWNLOAD + 9)
+        );
     }
 
     #[test]

@@ -249,33 +249,12 @@ pub async fn start_send(
     })
 }
 
-pub async fn run_sender(session: &P2pSendSession) -> anyhow::Result<()> {
-    let cancel = session.cancel_token.clone();
-
-    *session.status.lock().await = "connecting".to_string();
-
-    tracing::info!("[p2p] connecting to relay...");
-
-    let stream = connect_relay().await?;
-    let (read_half, mut write_half) = tokio::io::split(stream);
-    let mut reader = BufReader::new(read_half);
-
-    write_half
-        .write_all(format!("SEND {}\n", session.code).as_bytes())
-        .await?;
-    write_half.flush().await?;
-
-    let response = read_line(&mut reader).await?;
-    check_relay_error(&response)?;
-    if response != "WAIT" {
-        anyhow::bail!("Unexpected relay response: {}", response);
-    }
-
-    *session.status.lock().await = "waiting_for_receiver".to_string();
-    tracing::info!("[p2p] waiting for receiver... code: {}", session.code);
-
+async fn wait_for_receiver(
+    reader: &mut BufReader<tokio::io::ReadHalf<TcpStream>>,
+    cancel: &CancellationToken,
+) -> anyhow::Result<()> {
     let ready = tokio::select! {
-        line = read_line(&mut reader) => line?,
+        line = read_line(reader) => line?,
         _ = cancel.cancelled() => {
             anyhow::bail!("Send cancelled while waiting for receiver");
         }
@@ -286,31 +265,14 @@ pub async fn run_sender(session: &P2pSendSession) -> anyhow::Result<()> {
         anyhow::bail!("Unexpected relay response: {}", ready);
     }
 
-    *session.status.lock().await = "connected".to_string();
-    tracing::info!("[p2p] receiver connected");
+    Ok(())
+}
 
-    let header = format!("{}\n{}\n", session.file_name, session.file_size);
-    write_half.write_all(header.as_bytes()).await?;
-    write_half.flush().await?;
-
-    let ok_response = tokio::select! {
-        line = read_line(&mut reader) => line?,
-        _ = cancel.cancelled() => {
-            anyhow::bail!("Send cancelled while waiting for OK");
-        }
-    };
-
-    if ok_response != "OK" {
-        anyhow::bail!("Receiver rejected transfer: {}", ok_response);
-    }
-
-    *session.status.lock().await = "transferring".to_string();
-    tracing::info!(
-        "[p2p] transferring: {} ({} bytes)",
-        session.file_name,
-        session.file_size
-    );
-
+async fn transfer_data(
+    session: &P2pSendSession,
+    cancel: &CancellationToken,
+    write_half: &mut tokio::io::WriteHalf<TcpStream>,
+) -> anyhow::Result<()> {
     let mut file = File::open(&session.file_path).await?;
     let mut buf = vec![0u8; CHUNK_SIZE];
     let mut sent: u64 = 0;
@@ -342,12 +304,67 @@ pub async fn run_sender(session: &P2pSendSession) -> anyhow::Result<()> {
     }
 
     write_half.flush().await?;
-    drop(write_half);
 
     *session.progress.lock().await = 100.0;
     *session.status.lock().await = "complete".to_string();
 
     tracing::info!("[p2p] transfer complete: {} bytes sent", sent);
+    Ok(())
+}
+
+pub async fn run_sender(session: &P2pSendSession) -> anyhow::Result<()> {
+    let cancel = session.cancel_token.clone();
+
+    *session.status.lock().await = "connecting".to_string();
+
+    tracing::info!("[p2p] connecting to relay...");
+
+    let stream = connect_relay().await?;
+    let (read_half, mut write_half) = tokio::io::split(stream);
+    let mut reader = BufReader::new(read_half);
+
+    write_half
+        .write_all(format!("SEND {}\n", session.code).as_bytes())
+        .await?;
+    write_half.flush().await?;
+
+    let response = read_line(&mut reader).await?;
+    check_relay_error(&response)?;
+    if response != "WAIT" {
+        anyhow::bail!("Unexpected relay response: {}", response);
+    }
+
+    *session.status.lock().await = "waiting_for_receiver".to_string();
+    tracing::info!("[p2p] waiting for receiver... code: {}", session.code);
+
+    wait_for_receiver(&mut reader, &cancel).await?;
+
+    *session.status.lock().await = "connected".to_string();
+    tracing::info!("[p2p] receiver connected");
+
+    let header = format!("{}\n{}\n", session.file_name, session.file_size);
+    write_half.write_all(header.as_bytes()).await?;
+    write_half.flush().await?;
+
+    let ok_response = tokio::select! {
+        line = read_line(&mut reader) => line?,
+        _ = cancel.cancelled() => {
+            anyhow::bail!("Send cancelled while waiting for OK");
+        }
+    };
+
+    if ok_response != "OK" {
+        anyhow::bail!("Receiver rejected transfer: {}", ok_response);
+    }
+
+    *session.status.lock().await = "transferring".to_string();
+    tracing::info!(
+        "[p2p] transferring: {} ({} bytes)",
+        session.file_name,
+        session.file_size
+    );
+
+    transfer_data(session, &cancel, &mut write_half).await?;
 
     Ok(())
 }
