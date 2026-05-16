@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-core"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 description = "Core download engine for MangoFetch"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]
@@ -60,9 +60,13 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 xz2 = "0.1"
 open = "5"
-librqbit = { version = "8.1.1", optional = true }
+librqbit = { version = "8.1.1", optional = true, default-features = false, features = [
+    "rust-tls",
+] }
 which = { version = "6", optional = true }
 rand = "0.8"
+libloading = "0.8"
+mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.5.3" }
 
 [dev-dependencies]
 httpmock = "0.8.3"

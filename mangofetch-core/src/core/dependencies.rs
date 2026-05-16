@@ -192,6 +192,28 @@ fn version_flag_for(tool: &str) -> &'static str {
     }
 }
 
+pub fn parse_version_output(tool: &str, stdout: &str) -> Option<String> {
+    let first_line = stdout.lines().next().unwrap_or("");
+
+    if tool == "ffmpeg" || tool == "ffprobe" {
+        first_line.split_whitespace().nth(2).map(|s| s.to_string())
+    } else if tool == "yt-dlp" {
+        if first_line.trim().is_empty() {
+            None
+        } else {
+            Some(first_line.trim().to_string())
+        }
+    } else if tool == "aria2c" {
+        first_line.split_whitespace().nth(2).map(|s| s.to_string())
+    } else {
+        if first_line.trim().is_empty() {
+            None
+        } else {
+            Some(first_line.trim().to_string())
+        }
+    }
+}
+
 pub async fn check_version(tool: &str) -> Option<String> {
     let _timer_start = std::time::Instant::now();
     let path = find_tool(tool).await?;
@@ -221,17 +243,7 @@ pub async fn check_version(tool: &str) -> Option<String> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let first_line = stdout.lines().next().unwrap_or("");
-
-    let result = if tool == "ffmpeg" || tool == "ffprobe" {
-        first_line.split_whitespace().nth(2).map(|s| s.to_string())
-    } else if tool == "yt-dlp" {
-        Some(first_line.trim().to_string())
-    } else if tool == "aria2c" {
-        first_line.split_whitespace().nth(2).map(|s| s.to_string())
-    } else {
-        Some(first_line.trim().to_string())
-    };
+    let result = parse_version_output(tool, &stdout);
 
     tracing::debug!(
         "[perf] check_version({}) took {:?}",
@@ -645,7 +657,7 @@ async fn download_deno(
 }
 
 pub async fn ensure_aria2c(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);
@@ -718,4 +730,99 @@ async fn download_aria2c(
     }
 
     Ok(aria2c_target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn test_bin_name() {
+        if cfg!(target_os = "windows") {
+            assert_eq!(bin_name("test-tool"), "test-tool.exe");
+            assert_eq!(bin_name("yt-dlp"), "yt-dlp.exe");
+        } else {
+            assert_eq!(bin_name("test-tool"), "test-tool");
+            assert_eq!(bin_name("yt-dlp"), "yt-dlp");
+        }
+    }
+
+    #[test]
+    fn test_is_flatpak() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        let original_val = std::env::var("FLATPAK_ID");
+
+        std::env::set_var("FLATPAK_ID", "org.mangofetch.App");
+        assert!(is_flatpak(), "Should be true when FLATPAK_ID is set");
+
+        std::env::remove_var("FLATPAK_ID");
+        let expected = std::path::Path::new("/.flatpak-info").exists();
+        assert_eq!(is_flatpak(), expected, "When FLATPAK_ID is not set, it should match the existence of /.flatpak-info");
+
+        match original_val {
+            Ok(v) => std::env::set_var("FLATPAK_ID", v),
+            Err(_) => std::env::remove_var("FLATPAK_ID"),
+        }
+    }
+
+    #[test]
+    fn test_parse_version_output() {
+        // ffmpeg
+        assert_eq!(
+            parse_version_output("ffmpeg", "ffmpeg version 2024-05-13-git-93afb9c47c-full_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers"),
+            Some("2024-05-13-git-93afb9c47c-full_build-www.gyan.dev".to_string())
+        );
+        assert_eq!(
+            parse_version_output("ffmpeg", "ffmpeg version N-111111-g1234567890 Copyright (c) 2000-2023 the FFmpeg developers"),
+            Some("N-111111-g1234567890".to_string())
+        );
+        assert_eq!(parse_version_output("ffmpeg", "ffmpeg version"), None);
+        assert_eq!(parse_version_output("ffmpeg", ""), None);
+
+        // ffprobe
+        assert_eq!(
+            parse_version_output("ffprobe", "ffprobe version 2024-05-13-git-93afb9c47c-full_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers"),
+            Some("2024-05-13-git-93afb9c47c-full_build-www.gyan.dev".to_string())
+        );
+        assert_eq!(parse_version_output("ffprobe", "ffprobe version"), None);
+        assert_eq!(parse_version_output("ffprobe", ""), None);
+
+        // yt-dlp
+        assert_eq!(
+            parse_version_output("yt-dlp", "2024.04.09\n"),
+            Some("2024.04.09".to_string())
+        );
+        assert_eq!(
+            parse_version_output("yt-dlp", "2023.11.16"),
+            Some("2023.11.16".to_string())
+        );
+        assert_eq!(
+            parse_version_output("yt-dlp", "  2024.04.09  "),
+            Some("2024.04.09".to_string())
+        );
+        assert_eq!(parse_version_output("yt-dlp", ""), None);
+        assert_eq!(parse_version_output("yt-dlp", "   \n"), None);
+
+        // aria2c
+        assert_eq!(
+            parse_version_output("aria2c", "aria2 version 1.37.0\nCopyright (C) 2006, 2019 Tatsuhiro Tsujikawa"),
+            Some("1.37.0".to_string())
+        );
+        assert_eq!(parse_version_output("aria2c", "aria2 version 1.36.0"), Some("1.36.0".to_string()));
+        assert_eq!(parse_version_output("aria2c", "aria2 version"), None);
+        assert_eq!(parse_version_output("aria2c", ""), None);
+
+        // other / default
+        assert_eq!(
+            parse_version_output("other", "1.2.3\n"),
+            Some("1.2.3".to_string())
+        );
+        assert_eq!(parse_version_output("other", "  1.2.3  "), Some("1.2.3".to_string()));
+        assert_eq!(parse_version_output("other", ""), None);
+        assert_eq!(parse_version_output("other", "   \n"), None);
+    }
 }

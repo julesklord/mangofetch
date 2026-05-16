@@ -1082,7 +1082,7 @@ fn render_about(f: &mut Frame, app: &App, area: Rect) {
 
     // Content
     let theme_obj: Arc<dyn crate::reporter::CliTheme> =
-        Arc::new(crate::reporter::BrutalistTheme::new(true));
+        Arc::new(crate::reporter::PlainTheme::new(true));
     let text = match app.about_index {
         0 => crate::output::format_about_info(
             &app.version,
