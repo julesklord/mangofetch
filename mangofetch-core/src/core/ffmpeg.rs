@@ -76,6 +76,71 @@ pub struct ConversionOptions {
     pub preset: Option<String>,
 }
 
+impl ConversionOptions {
+    pub fn build_ffmpeg_args(&self) -> Vec<String> {
+        let mut args: Vec<String> = vec!["-y".to_string()];
+
+        if let Some(ref start) = self.trim_start {
+            args.extend(["-ss".to_string(), start.clone()]);
+        }
+
+        if let Some(ref extra) = self.additional_input_args {
+            args.extend(extra.clone());
+        }
+
+        args.extend(["-i".to_string(), self.input_path.clone()]);
+
+        if let Some(ref end) = self.trim_end {
+            args.extend(["-to".to_string(), end.clone()]);
+        }
+
+        if let Some(ref codec) = self.video_codec {
+            args.extend(["-c:v".to_string(), codec.clone()]);
+        }
+
+        if let Some(ref codec) = self.audio_codec {
+            args.extend(["-c:a".to_string(), codec.clone()]);
+        }
+
+        if let Some(ref res) = self.resolution {
+            args.extend(["-s".to_string(), res.clone()]);
+        }
+
+        if let Some(ref br) = self.video_bitrate {
+            args.extend(["-b:v".to_string(), br.clone()]);
+        }
+
+        if let Some(ref br) = self.audio_bitrate {
+            args.extend(["-b:a".to_string(), br.clone()]);
+        }
+
+        if let Some(sr) = self.sample_rate {
+            args.extend(["-ar".to_string(), sr.to_string()]);
+        }
+
+        if let Some(fps) = self.fps {
+            args.extend(["-r".to_string(), fps.to_string()]);
+        }
+
+        if let Some(ref preset) = self.preset {
+            args.extend(["-preset".to_string(), preset.clone()]);
+        }
+
+        if let Some(ref extra) = self.additional_output_args {
+            args.extend(extra.clone());
+        }
+
+        args.extend([
+            "-progress".to_string(),
+            "pipe:1".to_string(),
+            "-nostats".to_string(),
+            self.output_path.clone(),
+        ]);
+
+        args
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaProbeInfo {
     pub duration_seconds: f64,
@@ -277,64 +342,7 @@ pub async fn convert(
 
     let total_duration_us = get_duration_us(input_path).await.unwrap_or(0);
 
-    let mut args: Vec<String> = vec!["-y".to_string()];
-
-    if let Some(ref start) = opts.trim_start {
-        args.extend(["-ss".to_string(), start.clone()]);
-    }
-
-    if let Some(ref extra) = opts.additional_input_args {
-        args.extend(extra.clone());
-    }
-
-    args.extend(["-i".to_string(), opts.input_path.clone()]);
-
-    if let Some(ref end) = opts.trim_end {
-        args.extend(["-to".to_string(), end.clone()]);
-    }
-
-    if let Some(ref codec) = opts.video_codec {
-        args.extend(["-c:v".to_string(), codec.clone()]);
-    }
-
-    if let Some(ref codec) = opts.audio_codec {
-        args.extend(["-c:a".to_string(), codec.clone()]);
-    }
-
-    if let Some(ref res) = opts.resolution {
-        args.extend(["-s".to_string(), res.clone()]);
-    }
-
-    if let Some(ref br) = opts.video_bitrate {
-        args.extend(["-b:v".to_string(), br.clone()]);
-    }
-
-    if let Some(ref br) = opts.audio_bitrate {
-        args.extend(["-b:a".to_string(), br.clone()]);
-    }
-
-    if let Some(sr) = opts.sample_rate {
-        args.extend(["-ar".to_string(), sr.to_string()]);
-    }
-
-    if let Some(fps) = opts.fps {
-        args.extend(["-r".to_string(), fps.to_string()]);
-    }
-
-    if let Some(ref preset) = opts.preset {
-        args.extend(["-preset".to_string(), preset.clone()]);
-    }
-
-    if let Some(ref extra) = opts.additional_output_args {
-        args.extend(extra.clone());
-    }
-
-    args.extend([
-        "-progress".to_string(),
-        "pipe:1".to_string(),
-        "-nostats".to_string(),
-        opts.output_path.clone(),
-    ]);
+    let args = opts.build_ffmpeg_args();
 
     let mut child = crate::core::process::command("ffmpeg")
         .args(&args)
@@ -432,53 +440,23 @@ pub struct MetadataEmbed {
     pub thumbnail_url: Option<String>,
 }
 
-pub async fn embed_metadata(
+pub fn build_metadata_args(
     file: &Path,
+    thumbnail_path: Option<&Path>,
     metadata: &MetadataEmbed,
-    embed_thumbnail: bool,
-    http_client: &reqwest::Client,
-) -> anyhow::Result<()> {
-    if !is_ffmpeg_available().await {
-        return Err(anyhow!("ffmpeg not available"));
-    }
-
-    let temp_dir = file.parent().unwrap_or(Path::new("."));
-    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
-    let temp_output = temp_dir.join(format!(".mangofetch_meta_{}.{}", uuid::Uuid::new_v4(), ext));
-
-    let is_audio_only = matches!(
-        ext.to_lowercase().as_str(),
-        "mp3" | "m4a" | "aac" | "ogg" | "opus" | "flac" | "wav" | "wma"
-    );
-
-    let thumbnail_path = if embed_thumbnail && is_audio_only {
-        if let Some(ref url) = metadata.thumbnail_url {
-            match download_thumbnail(http_client, url, temp_dir).await {
-                Ok(p) => Some(p),
-                Err(e) => {
-                    tracing::warn!("Failed to download thumbnail: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
+    temp_output: &Path,
+) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "-y".to_string(),
         "-i".to_string(),
         file.to_string_lossy().to_string(),
     ];
 
-    if let Some(ref thumb) = thumbnail_path {
+    if let Some(thumb) = thumbnail_path {
         args.extend(["-i".to_string(), thumb.to_string_lossy().to_string()]);
     }
 
-    if let Some(ref thumb) = thumbnail_path {
-        let _ = thumb;
+    if thumbnail_path.is_some() {
         args.extend([
             "-map".to_string(),
             "0:a".to_string(),
@@ -516,6 +494,46 @@ pub async fn embed_metadata(
     }
 
     args.push(temp_output.to_string_lossy().to_string());
+
+    args
+}
+
+pub async fn embed_metadata(
+    file: &Path,
+    metadata: &MetadataEmbed,
+    embed_thumbnail: bool,
+    http_client: &reqwest::Client,
+) -> anyhow::Result<()> {
+    if !is_ffmpeg_available().await {
+        return Err(anyhow!("ffmpeg not available"));
+    }
+
+    let temp_dir = file.parent().unwrap_or(Path::new("."));
+    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let temp_output = temp_dir.join(format!(".mangofetch_meta_{}.{}", uuid::Uuid::new_v4(), ext));
+
+    let is_audio_only = matches!(
+        ext.to_lowercase().as_str(),
+        "mp3" | "m4a" | "aac" | "ogg" | "opus" | "flac" | "wav" | "wma"
+    );
+
+    let thumbnail_path = if embed_thumbnail && is_audio_only {
+        if let Some(ref url) = metadata.thumbnail_url {
+            match download_thumbnail(http_client, url, temp_dir).await {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    tracing::warn!("Failed to download thumbnail: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let args = build_metadata_args(file, thumbnail_path.as_deref(), metadata, &temp_output);
 
     let output = crate::core::process::command("ffmpeg")
         .args(&args)
