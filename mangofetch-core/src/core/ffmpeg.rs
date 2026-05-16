@@ -440,53 +440,23 @@ pub struct MetadataEmbed {
     pub thumbnail_url: Option<String>,
 }
 
-pub async fn embed_metadata(
+pub fn build_metadata_args(
     file: &Path,
+    thumbnail_path: Option<&Path>,
     metadata: &MetadataEmbed,
-    embed_thumbnail: bool,
-    http_client: &reqwest::Client,
-) -> anyhow::Result<()> {
-    if !is_ffmpeg_available().await {
-        return Err(anyhow!("ffmpeg not available"));
-    }
-
-    let temp_dir = file.parent().unwrap_or(Path::new("."));
-    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
-    let temp_output = temp_dir.join(format!(".mangofetch_meta_{}.{}", uuid::Uuid::new_v4(), ext));
-
-    let is_audio_only = matches!(
-        ext.to_lowercase().as_str(),
-        "mp3" | "m4a" | "aac" | "ogg" | "opus" | "flac" | "wav" | "wma"
-    );
-
-    let thumbnail_path = if embed_thumbnail && is_audio_only {
-        if let Some(ref url) = metadata.thumbnail_url {
-            match download_thumbnail(http_client, url, temp_dir).await {
-                Ok(p) => Some(p),
-                Err(e) => {
-                    tracing::warn!("Failed to download thumbnail: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
+    temp_output: &Path,
+) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "-y".to_string(),
         "-i".to_string(),
         file.to_string_lossy().to_string(),
     ];
 
-    if let Some(ref thumb) = thumbnail_path {
+    if let Some(thumb) = thumbnail_path {
         args.extend(["-i".to_string(), thumb.to_string_lossy().to_string()]);
     }
 
-    if let Some(ref thumb) = thumbnail_path {
-        let _ = thumb;
+    if thumbnail_path.is_some() {
         args.extend([
             "-map".to_string(),
             "0:a".to_string(),
@@ -524,6 +494,46 @@ pub async fn embed_metadata(
     }
 
     args.push(temp_output.to_string_lossy().to_string());
+
+    args
+}
+
+pub async fn embed_metadata(
+    file: &Path,
+    metadata: &MetadataEmbed,
+    embed_thumbnail: bool,
+    http_client: &reqwest::Client,
+) -> anyhow::Result<()> {
+    if !is_ffmpeg_available().await {
+        return Err(anyhow!("ffmpeg not available"));
+    }
+
+    let temp_dir = file.parent().unwrap_or(Path::new("."));
+    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let temp_output = temp_dir.join(format!(".mangofetch_meta_{}.{}", uuid::Uuid::new_v4(), ext));
+
+    let is_audio_only = matches!(
+        ext.to_lowercase().as_str(),
+        "mp3" | "m4a" | "aac" | "ogg" | "opus" | "flac" | "wav" | "wma"
+    );
+
+    let thumbnail_path = if embed_thumbnail && is_audio_only {
+        if let Some(ref url) = metadata.thumbnail_url {
+            match download_thumbnail(http_client, url, temp_dir).await {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    tracing::warn!("Failed to download thumbnail: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let args = build_metadata_args(file, thumbnail_path.as_deref(), metadata, &temp_output);
 
     let output = crate::core::process::command("ffmpeg")
         .args(&args)
