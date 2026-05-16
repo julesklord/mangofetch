@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct HlsDownloadResult {
     pub path: PathBuf,
     pub file_size: u64,
@@ -838,5 +839,26 @@ mod tests {
         };
         let result = compute_iv(&enc, 0, 0);
         assert_eq!(result, [0u8; 16]);
+    }
+
+    #[test]
+    fn hls_downloader_default_user_agent() {
+        let downloader = HlsDownloader::new();
+        assert_eq!(downloader.effective_user_agent(), USER_AGENT);
+    }
+
+    #[test]
+    fn hls_downloader_with_user_agent_override() {
+        let downloader =
+            HlsDownloader::new().with_user_agent_override(Some("Custom UA".to_string()));
+        assert_eq!(downloader.effective_user_agent(), "Custom UA");
+    }
+
+    #[test]
+    fn hls_downloader_reset_user_agent_override() {
+        let downloader = HlsDownloader::new()
+            .with_user_agent_override(Some("Custom UA".to_string()))
+            .with_user_agent_override(None);
+        assert_eq!(downloader.effective_user_agent(), USER_AGENT);
     }
 }

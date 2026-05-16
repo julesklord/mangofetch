@@ -56,6 +56,75 @@ impl BrutalistTheme {
     }
 }
 
+pub struct PlainTheme {
+    supports_unicode: bool,
+}
+
+impl PlainTheme {
+    pub fn new(supports_unicode: bool) -> Self {
+        Self { supports_unicode }
+    }
+}
+
+impl CliTheme for PlainTheme {
+    fn color_success(&self) -> String {
+        "".to_string()
+    }
+
+    fn color_error(&self) -> String {
+        "".to_string()
+    }
+
+    fn color_warning(&self) -> String {
+        "".to_string()
+    }
+
+    fn color_info(&self) -> String {
+        "".to_string()
+    }
+
+    fn color_accent(&self) -> String {
+        "".to_string()
+    }
+
+    fn color_platform(&self, _platform: &str) -> String {
+        "".to_string()
+    }
+
+    fn color_reset(&self) -> String {
+        "".to_string()
+    }
+
+    fn progress_template(&self) -> String {
+        "{msg}".to_string()
+    }
+
+    fn format_phase(&self, download_id: u64, phase: &str) -> String {
+        format!("DL#{} -> {}", download_id, phase)
+    }
+
+    fn format_complete(
+        &self,
+        title: &str,
+        _file_path: Option<&str>,
+        _size_bytes: Option<u64>,
+    ) -> String {
+        format!("COMPLETE: {}", title)
+    }
+
+    fn format_error(&self, download_id: u64, error: &str) -> String {
+        format!("ERROR: DL#{} {}", download_id, error)
+    }
+
+    fn format_platform(&self, platform: &str) -> String {
+        platform.to_string()
+    }
+
+    fn supports_unicode(&self) -> bool {
+        self.supports_unicode
+    }
+}
+
 impl CliTheme for BrutalistTheme {
     fn color_success(&self) -> String {
         "\x1b[1;32m".to_string()

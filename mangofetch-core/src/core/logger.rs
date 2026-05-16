@@ -42,3 +42,86 @@ pub fn init_logging_ext(verbose: bool, use_stdout: bool) {
             .expect("setting default subscriber failed");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::process::Command;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_init_logging_ext_subprocess() {
+        if env::var("TEST_INIT_LOGGING_EXT").is_ok() {
+            let temp_dir = env::temp_dir().join(Uuid::new_v4().to_string());
+            env::set_var("MANGOFETCH_DATA_DIR", temp_dir.to_str().unwrap());
+
+            init_logging_ext(true, true);
+
+            let log_dir = temp_dir.join("logs");
+            assert!(log_dir.exists());
+
+            std::process::exit(0);
+        }
+
+        let exe = env::current_exe().unwrap();
+        let output = Command::new(exe)
+            .env("TEST_INIT_LOGGING_EXT", "1")
+            .arg("core::logger::tests::test_init_logging_ext_subprocess")
+            .arg("--exact")
+            .output()
+            .unwrap();
+
+        assert!(output.status.success(), "init_logging_ext failed: {:?}", output);
+    }
+
+    #[test]
+    fn test_init_logging_ext_no_stdout_subprocess() {
+        if env::var("TEST_INIT_LOGGING_EXT_NO_STDOUT").is_ok() {
+            let temp_dir = env::temp_dir().join(Uuid::new_v4().to_string());
+            env::set_var("MANGOFETCH_DATA_DIR", temp_dir.to_str().unwrap());
+
+            init_logging_ext(false, false);
+
+            let log_dir = temp_dir.join("logs");
+            assert!(log_dir.exists());
+
+            std::process::exit(0);
+        }
+
+        let exe = env::current_exe().unwrap();
+        let output = Command::new(exe)
+            .env("TEST_INIT_LOGGING_EXT_NO_STDOUT", "1")
+            .arg("core::logger::tests::test_init_logging_ext_no_stdout_subprocess")
+            .arg("--exact")
+            .output()
+            .unwrap();
+
+        assert!(output.status.success(), "init_logging_ext failed: {:?}", output);
+    }
+
+    #[test]
+    fn test_init_logging() {
+        if env::var("TEST_INIT_LOGGING").is_ok() {
+            let temp_dir = env::temp_dir().join(Uuid::new_v4().to_string());
+            env::set_var("MANGOFETCH_DATA_DIR", temp_dir.to_str().unwrap());
+
+            init_logging(false);
+
+            let log_dir = temp_dir.join("logs");
+            assert!(log_dir.exists());
+
+            std::process::exit(0);
+        }
+
+        let exe = env::current_exe().unwrap();
+        let output = Command::new(exe)
+            .env("TEST_INIT_LOGGING", "1")
+            .arg("core::logger::tests::test_init_logging")
+            .arg("--exact")
+            .output()
+            .unwrap();
+
+        assert!(output.status.success(), "init_logging failed: {:?}", output);
+    }
+}
