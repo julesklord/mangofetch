@@ -30,7 +30,7 @@ ___
   - [Overview](#overview)
   - [Using as a Rust SDK (mangofetch-core)](#using-as-a-rust-sdk-mangofetch-core)
   - [CLI/TUI Installation](#clitui-installation)
-  - [Key Features (v0.5.1)](#key-features-v051)
+  - [Key Features (v0.5.3)](#key-features-v053)
   - [Technical Architecture](#technical-architecture)
   - [The Core Engine Lifecycle](#the-core-engine-lifecycle)
   - [Command Reference](#command-reference)
@@ -107,7 +107,7 @@ mangofetch tui (run the tui interactive dashboard)
 ---
 
 
-## Key Features (v0.5.2)
+## Key Features (v0.5.3)
 
 *   **Supports 1000+ Sites**: Smooth integration with `yt-dlp` to work with almost any video site out there.
 *   **Headless Core**: A clean design that lets you use the download engine as a standalone Rust library.
@@ -228,6 +228,7 @@ For a full list of commands and how to use the TUI, check out our **[Official Wi
 | **v0.4.0** | ✅     | **The TUI Release:** A cool new terminal interface         |
 | **v0.5.1** | ✅     | **UX & Polish:** Tropical themes and mouse support         |
 | **v0.5.2** | ✅     | **Maintenance:** Relaxed tone, security fixes, and cleanup |
+| **v0.5.3** | ✅     | **TUI Fix:** Resolved ANSI artifacts in About tab         |
 | **v0.6.0** | ⏳     | Plugins and extra community sites                          |
 | **v0.7.0** | ⏳     | Better P2P and torrent support                             |
 

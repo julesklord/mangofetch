@@ -134,13 +134,11 @@ pub fn clear_all() {
     write_to_disk(&guard);
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
     use crate::models::queue::QueueStatus;
+    use std::sync::Mutex;
 
     static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
