@@ -435,6 +435,90 @@ async fn download_chunk_attempt(
 }
 
 #[allow(clippy::too_many_arguments)]
+
+fn validate_single_stream_response(response: &reqwest::Response, existing_bytes: u64, part_path: &Path, url: &str) -> anyhow::Result<u64> {
+    let mut offset = 0u64;
+    if existing_bytes > 0 {
+        if response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+            offset = existing_bytes;
+        } else if response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+            let _ = std::fs::remove_file(part_path);
+            return Err(anyhow::anyhow!("Range not satisfiable, restarting"));
+        } else if !response.status().is_success() {
+            return Err(anyhow::anyhow!("HTTP {} downloading {}", response.status(), url));
+        }
+    } else if !response.status().is_success() {
+        return Err(anyhow::anyhow!("HTTP {} downloading {}", response.status(), url));
+    }
+
+    if let Some(ct) = response.headers().get("content-type") {
+        if let Ok(ct_str) = ct.to_str() {
+            if ct_str.contains("text/html") {
+                return Err(anyhow::anyhow!(
+                    "Server returned HTML instead of media — URL may have expired"
+                ));
+            }
+        }
+    }
+
+    Ok(offset)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn process_single_stream_chunks(
+    mut stream: impl futures::Stream<Item = reqwest::Result<impl std::ops::Deref<Target = [u8]>>> + Unpin,
+    mut file: std::io::BufWriter<std::fs::File>,
+    mut downloaded: u64,
+    total_size: Option<u64>,
+    progress_tx: &mpsc::Sender<f64>,
+    cancel: Option<&CancellationToken>,
+) -> anyhow::Result<()> {
+    use std::io::Write;
+    use futures::StreamExt;
+    loop {
+        if let Some(token) = cancel {
+            if token.is_cancelled() {
+                file.flush()?;
+                return Err(anyhow::anyhow!("Download cancelled"));
+            }
+        }
+
+        let chunk_result = tokio::time::timeout(CHUNK_TIMEOUT, stream.next()).await;
+        match chunk_result {
+            Ok(Some(Ok(chunk))) => {
+                file.write_all(&chunk)
+                    .map_err(|e| anyhow::anyhow!("Write error (disk full?): {}", e))?;
+                downloaded += chunk.len() as u64;
+
+                if let Some(total) = total_size {
+                    if total > 0 {
+                        let percent = (downloaded as f64 / total as f64) * 100.0;
+                        let _ = progress_tx.send(percent).await;
+                    }
+                } else {
+                    let percent = (downloaded as f64 / (downloaded as f64 + 500_000.0)) * 100.0;
+                    let _ = progress_tx.send(percent.min(95.0)).await;
+                }
+            }
+            Ok(Some(Err(e))) => {
+                file.flush()?;
+                return Err(anyhow::anyhow!("Download stream error: {}", e));
+            }
+            Ok(None) => break,
+            Err(_) => {
+                file.flush()?;
+                return Err(anyhow::anyhow!(
+                    "Download timeout — no data received for 30 seconds"
+                ));
+            }
+        }
+    }
+
+    file.flush()?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn download_single_stream(
     client: &reqwest::Client,
     url: &str,
@@ -460,83 +544,18 @@ async fn download_single_stream(
     }
 
     let response = request.send().await?;
+    let offset = validate_single_stream_response(&response, existing_bytes, part_path, url)?;
 
-    let mut offset = 0u64;
-    if existing_bytes > 0 {
-        if response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
-            offset = existing_bytes;
-        } else if response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
-            let _ = std::fs::remove_file(part_path);
-            return Err(anyhow!("Range not satisfiable, restarting"));
-        } else if !response.status().is_success() {
-            return Err(anyhow!("HTTP {} downloading {}", response.status(), url));
-        }
-    } else if !response.status().is_success() {
-        return Err(anyhow!("HTTP {} downloading {}", response.status(), url));
-    }
-
-    if let Some(ct) = response.headers().get("content-type") {
-        if let Ok(ct_str) = ct.to_str() {
-            if ct_str.contains("text/html") {
-                return Err(anyhow!(
-                    "Server returned HTML instead of media — URL may have expired"
-                ));
-            }
-        }
-    }
-
-    use std::io::Write;
     let raw_file = if offset > 0 {
         std::fs::OpenOptions::new().append(true).open(part_path)?
     } else {
         std::fs::File::create(part_path)?
     };
 
-    let mut file = std::io::BufWriter::with_capacity(256 * 1024, raw_file);
-    let mut downloaded = offset;
-    let mut stream = response.bytes_stream();
+    let file = std::io::BufWriter::with_capacity(256 * 1024, raw_file);
+    let stream = response.bytes_stream();
 
-    loop {
-        if let Some(token) = cancel {
-            if token.is_cancelled() {
-                file.flush()?;
-                return Err(anyhow!("Download cancelled"));
-            }
-        }
-
-        let chunk_result = tokio::time::timeout(CHUNK_TIMEOUT, stream.next()).await;
-        match chunk_result {
-            Ok(Some(Ok(chunk))) => {
-                file.write_all(&chunk)
-                    .map_err(|e| anyhow!("Write error (disk full?): {}", e))?;
-                downloaded += chunk.len() as u64;
-
-                if let Some(total) = total_size {
-                    if total > 0 {
-                        let percent = (downloaded as f64 / total as f64) * 100.0;
-                        let _ = progress_tx.send(percent).await;
-                    }
-                } else {
-                    let percent = (downloaded as f64 / (downloaded as f64 + 500_000.0)) * 100.0;
-                    let _ = progress_tx.send(percent.min(95.0)).await;
-                }
-            }
-            Ok(Some(Err(e))) => {
-                file.flush()?;
-                return Err(anyhow!("Download stream error: {}", e));
-            }
-            Ok(None) => break,
-            Err(_) => {
-                file.flush()?;
-                return Err(anyhow!(
-                    "Download timeout — no data received for 30 seconds"
-                ));
-            }
-        }
-    }
-
-    file.flush()?;
-    Ok(())
+    process_single_stream_chunks(stream, file, offset, total_size, progress_tx, cancel).await
 }
 
 #[cfg(test)]

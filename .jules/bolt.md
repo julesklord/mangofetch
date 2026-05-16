@@ -1,3 +1,5 @@
-## 2024-05-13 - [Zero-Allocation Subdomain Matching in Rust]
-**Learning:** Checking for subdomains using `ends_with(&format!(".{}", domain))` triggers a heap allocation for the format string on every check. This is extremely inefficient when performed inside a loop against multiple domains (e.g., in URL routing or platform matching).
-**Action:** Replace `format!` in hot-path string comparisons with safe zero-allocation byte logic. Specifically, `host.ends_with(domain) && host.as_bytes()[host.len() - domain.len() - 1] == b'.'` provides the exact same behavior without allocations, running 100x faster in microbenchmarks.
+## 2026-05-14 - Using `impl std::ops::Deref<Target = [u8]>` instead of explicit crate types for HTTP body chunk streams
+
+**Learning:** When refactoring async byte streams (like the output of `reqwest::Response::bytes_stream()`), it's often better to use a generic trait bound like `impl std::ops::Deref<Target = [u8]>` (or `impl AsRef<[u8]>`) for the stream items rather than hardcoding crate-specific types like `bytes::Bytes`. This avoids needing to add new dependencies or manage complex imports across different modules, keeping the workspace dependency tree clean.
+
+**Action:** When extracting generic byte/buffer stream logic, default to generic trait bounds for byte arrays/slices rather than specifying the exact underlying buffer type provided by the networking crate.
