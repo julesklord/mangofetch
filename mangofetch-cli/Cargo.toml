@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-cli"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 description = "Command-line interface for MangoFetch download manager"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]
@@ -15,7 +15,7 @@ name = "mangofetch"
 path = "src/main.rs"
 
 [dependencies]
-mangofetch-core = { path = "../mangofetch-core", version = "0.5.2", features = [
+mangofetch-core = { path = "../mangofetch-core", version = "0.5.3", features = [
     "platforms",
 ] }
 clap = { version = "4.4", features = ["derive", "cargo"] }

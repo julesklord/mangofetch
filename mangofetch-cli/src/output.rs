@@ -362,9 +362,9 @@ pub fn format_about_info(
 pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
     format!(
         "\n{margin}{info}ROADMAP{reset}  {accent}FUTURE PLANS{reset}\n{margin}{bar}\n\
-         {margin}v0.3.0 - Interactive TUI mode (ratatui)\n\
-         {margin}v0.4.0 - Plugin management\n\
-         {margin}v0.5.0 - P2P file sharing\n",
+         {margin}v0.6.0 - Plugin ecosystem & Community sites\n\
+         {margin}v0.7.0 - Native GUI Umbrella (Tauri v2)\n\
+         {margin}v1.0.0 - Distributed swarm downloads\n",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -376,6 +376,10 @@ pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
 pub fn format_about_changelog(theme: &Arc<dyn CliTheme>) -> String {
     format!(
         "\n{margin}{info}CHANGES{reset}  {accent}PROJECT HISTORY{reset}\n{margin}{bar}\n\
+         {margin}v0.5.3 - TUI Fix: Resolved ANSI artifacts in About tab\n\
+         {margin}v0.5.2 - Maintenance: Relaxed tone & security cleanup\n\
+         {margin}v0.5.1 - UX & Polish: Tropical themes & mouse support\n\
+         {margin}v0.5.0 - P2P file sharing & Distributed downloads\n\
          {margin}v0.4.0 - Interactive TUI implementation & Stability release\n\
          {margin}v0.3.1 - Rebranding cleanup and test fixes\n\
          {margin}v0.3.0 - The mango is growing: Brutalist UI redesign & cleanup\n\
