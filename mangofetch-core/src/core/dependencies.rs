@@ -192,6 +192,28 @@ fn version_flag_for(tool: &str) -> &'static str {
     }
 }
 
+pub fn parse_version_output(tool: &str, stdout: &str) -> Option<String> {
+    let first_line = stdout.lines().next().unwrap_or("");
+
+    if tool == "ffmpeg" || tool == "ffprobe" {
+        first_line.split_whitespace().nth(2).map(|s| s.to_string())
+    } else if tool == "yt-dlp" {
+        if first_line.trim().is_empty() {
+            None
+        } else {
+            Some(first_line.trim().to_string())
+        }
+    } else if tool == "aria2c" {
+        first_line.split_whitespace().nth(2).map(|s| s.to_string())
+    } else {
+        if first_line.trim().is_empty() {
+            None
+        } else {
+            Some(first_line.trim().to_string())
+        }
+    }
+}
+
 pub async fn check_version(tool: &str) -> Option<String> {
     let _timer_start = std::time::Instant::now();
     let path = find_tool(tool).await?;
@@ -221,17 +243,7 @@ pub async fn check_version(tool: &str) -> Option<String> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let first_line = stdout.lines().next().unwrap_or("");
-
-    let result = if tool == "ffmpeg" || tool == "ffprobe" {
-        first_line.split_whitespace().nth(2).map(|s| s.to_string())
-    } else if tool == "yt-dlp" {
-        Some(first_line.trim().to_string())
-    } else if tool == "aria2c" {
-        first_line.split_whitespace().nth(2).map(|s| s.to_string())
-    } else {
-        Some(first_line.trim().to_string())
-    };
+    let result = parse_version_output(tool, &stdout);
 
     tracing::debug!(
         "[perf] check_version({}) took {:?}",
@@ -242,14 +254,14 @@ pub async fn check_version(tool: &str) -> Option<String> {
 }
 
 pub async fn ensure_ffmpeg(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     // Always ensure the managed binary exists — the standalone yt-dlp.exe
     // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
         let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
         if managed.as_ref().is_none_or(|p| !p.exists()) {
-            if let Ok(path) = download_ffmpeg(reporter).await {
+            if let Ok(path) = download_ffmpeg(_reporter).await {
                 crate::core::ytdlp::reset_ffmpeg_location_cache();
                 return Ok(path);
             }
@@ -262,13 +274,13 @@ pub async fn ensure_ffmpeg(
     if is_flatpak() {
         return Err(anyhow!("FFmpeg not found in Flatpak sandbox"));
     }
-    let path = download_ffmpeg(reporter).await?;
+    let path = download_ffmpeg(_reporter).await?;
     crate::core::ytdlp::reset_ffmpeg_location_cache();
     Ok(path)
 }
 
 async fn download_ffmpeg(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
@@ -282,7 +294,7 @@ async fn download_ffmpeg(
     for (url, archive_type) in downloads {
         tracing::info!("Downloading FFmpeg component from {}", url);
         let bytes = crate::core::http_client::download_with_progress(url, |percent| {
-            if let Some(r) = reporter {
+            if let Some(r) = _reporter {
                 r.on_system_progress("ffmpeg", percent, "Downloading FFmpeg...");
             }
         })
@@ -521,7 +533,7 @@ async fn extract_tar_xz_ffmpeg(
 /// challenge solver. Checks for any existing runtime first (Node.js, Deno,
 /// Bun), then auto-downloads Deno if none is found.
 pub async fn ensure_js_runtime(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     // Check system-installed runtimes first.
     for tool in &["deno", "node", "bun"] {
@@ -545,7 +557,7 @@ pub async fn ensure_js_runtime(
         }
     }
 
-    match download_deno(reporter).await {
+    match download_deno(_reporter).await {
         Ok(path) => Some(path),
         Err(e) => {
             tracing::warn!("Failed to download Deno JS runtime: {}", e);
@@ -555,7 +567,7 @@ pub async fn ensure_js_runtime(
 }
 
 async fn download_deno(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
@@ -584,7 +596,7 @@ async fn download_deno(
     tracing::info!("Downloading Deno JS runtime from {}", url);
 
     let bytes = crate::core::http_client::download_with_progress(url, |percent| {
-        if let Some(r) = reporter {
+        if let Some(r) = _reporter {
             r.on_system_progress("deno", percent, "Downloading Deno...");
         }
     })
@@ -645,7 +657,7 @@ async fn download_deno(
 }
 
 pub async fn ensure_aria2c(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);
@@ -654,7 +666,7 @@ pub async fn ensure_aria2c(
     // Auto-download only on Windows
     #[cfg(target_os = "windows")]
     {
-        match download_aria2c(reporter).await {
+        match download_aria2c(_reporter).await {
             Ok(path) => return Some(path),
             Err(e) => {
                 tracing::warn!("Failed to download aria2c: {}", e);
@@ -667,7 +679,7 @@ pub async fn ensure_aria2c(
 
 #[cfg(target_os = "windows")]
 async fn download_aria2c(
-    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
@@ -678,7 +690,7 @@ async fn download_aria2c(
     let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
 
     let bytes = crate::core::http_client::download_with_progress(url, |percent| {
-        if let Some(r) = reporter {
+        if let Some(r) = _reporter {
             r.on_system_progress("aria2c", percent, "Downloading aria2c...");
         }
     })
@@ -718,4 +730,178 @@ async fn download_aria2c(
     }
 
     Ok(aria2c_target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::events::QueueItemProgress;
+    use crate::core::traits::DownloadReporter;
+    use crate::models::queue::QueueItemInfo;
+    use crate::models::settings::ProxySettings;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    struct MockReporter;
+
+    impl DownloadReporter for MockReporter {
+        fn on_progress(&self, _id: u64, _prog: QueueItemProgress) {}
+        fn on_complete(&self, _id: u64, _path: Option<String>, _size: Option<u64>) {}
+        fn on_error(&self, _id: u64, _msg: String) {}
+        fn on_retry(&self, _id: u64, _attempt: u32, _delay: u64) {}
+        fn on_phase_change(&self, _id: u64, _phase: String) {}
+        fn on_media_preview(
+            &self,
+            _u: String,
+            _t: String,
+            _a: String,
+            _th: Option<String>,
+            _d: Option<f64>,
+        ) {
+        }
+        fn on_queue_update(&self, _s: Vec<QueueItemInfo>) {}
+        fn on_system_progress(&self, _title: &str, _pct: f32, _msg: &str) {}
+    }
+
+    #[test]
+    fn test_bin_name() {
+        if cfg!(target_os = "windows") {
+            assert_eq!(bin_name("test-tool"), "test-tool.exe");
+            assert_eq!(bin_name("yt-dlp"), "yt-dlp.exe");
+        } else {
+            assert_eq!(bin_name("test-tool"), "test-tool");
+            assert_eq!(bin_name("yt-dlp"), "yt-dlp");
+        }
+    }
+
+    #[test]
+    fn test_is_flatpak() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        let original_val = std::env::var("FLATPAK_ID");
+
+        std::env::set_var("FLATPAK_ID", "org.mangofetch.App");
+        assert!(is_flatpak(), "Should be true when FLATPAK_ID is set");
+
+        std::env::remove_var("FLATPAK_ID");
+        let expected = std::path::Path::new("/.flatpak-info").exists();
+        assert_eq!(
+            is_flatpak(),
+            expected,
+            "When FLATPAK_ID is not set, it should match the existence of /.flatpak-info"
+        );
+
+        match original_val {
+            Ok(v) => std::env::set_var("FLATPAK_ID", v),
+            Err(_) => std::env::remove_var("FLATPAK_ID"),
+        }
+    }
+
+    #[test]
+    fn test_parse_version_output() {
+        // ffmpeg
+        assert_eq!(
+            parse_version_output("ffmpeg", "ffmpeg version 2024-05-13-git-93afb9c47c-full_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers"),
+            Some("2024-05-13-git-93afb9c47c-full_build-www.gyan.dev".to_string())
+        );
+        assert_eq!(
+            parse_version_output(
+                "ffmpeg",
+                "ffmpeg version N-111111-g1234567890 Copyright (c) 2000-2023 the FFmpeg developers"
+            ),
+            Some("N-111111-g1234567890".to_string())
+        );
+        assert_eq!(parse_version_output("ffmpeg", "ffmpeg version"), None);
+        assert_eq!(parse_version_output("ffmpeg", ""), None);
+
+        // ffprobe
+        assert_eq!(
+            parse_version_output("ffprobe", "ffprobe version 2024-05-13-git-93afb9c47c-full_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers"),
+            Some("2024-05-13-git-93afb9c47c-full_build-www.gyan.dev".to_string())
+        );
+        assert_eq!(parse_version_output("ffprobe", "ffprobe version"), None);
+        assert_eq!(parse_version_output("ffprobe", ""), None);
+
+        // yt-dlp
+        assert_eq!(
+            parse_version_output("yt-dlp", "2024.04.09\n"),
+            Some("2024.04.09".to_string())
+        );
+        assert_eq!(
+            parse_version_output("yt-dlp", "2023.11.16"),
+            Some("2023.11.16".to_string())
+        );
+        assert_eq!(
+            parse_version_output("yt-dlp", "  2024.04.09  "),
+            Some("2024.04.09".to_string())
+        );
+        assert_eq!(parse_version_output("yt-dlp", ""), None);
+        assert_eq!(parse_version_output("yt-dlp", "   \n"), None);
+
+        // aria2c
+        assert_eq!(
+            parse_version_output(
+                "aria2c",
+                "aria2 version 1.37.0\nCopyright (C) 2006, 2019 Tatsuhiro Tsujikawa"
+            ),
+            Some("1.37.0".to_string())
+        );
+        assert_eq!(
+            parse_version_output("aria2c", "aria2 version 1.36.0"),
+            Some("1.36.0".to_string())
+        );
+        assert_eq!(parse_version_output("aria2c", "aria2 version"), None);
+        assert_eq!(parse_version_output("aria2c", ""), None);
+
+        // other / default
+        assert_eq!(
+            parse_version_output("other", "1.2.3\n"),
+            Some("1.2.3".to_string())
+        );
+        assert_eq!(
+            parse_version_output("other", "  1.2.3  "),
+            Some("1.2.3".to_string())
+        );
+        assert_eq!(parse_version_output("other", ""), None);
+        assert_eq!(parse_version_output("other", "   \n"), None);
+    }
+
+    #[tokio::test]
+    async fn test_ensure_dependencies_force_error() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        let reporter: Arc<dyn DownloadReporter> = Arc::new(MockReporter);
+
+        // Set an invalid proxy to force download failures
+        crate::core::http_client::init_proxy(ProxySettings {
+            enabled: true,
+            proxy_type: "http".into(),
+            host: "0.0.0.0".into(), // Unroutable IP to simulate network failure
+            port: 1,
+            username: "".into(),
+            password: "".into(),
+        });
+
+        // Test with force=true
+        let result = ensure_dependencies(true, Some(reporter.clone())).await;
+
+        // ensure_dependencies itself should still succeed because it gracefully handles download errors
+        assert!(result.is_ok());
+        let deps = result.unwrap();
+
+        // However, the missing dependencies should not have been downloaded
+        assert!(
+            deps.ytdlp.is_none(),
+            "ytdlp should be none on network error"
+        );
+        assert!(
+            deps.ffmpeg.is_none(),
+            "ffmpeg should be none on network error"
+        );
+
+        // Restore global proxy setting
+        crate::core::http_client::init_proxy(ProxySettings::default());
+    }
 }
