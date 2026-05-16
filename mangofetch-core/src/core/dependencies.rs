@@ -735,6 +735,28 @@ async fn download_aria2c(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn test_is_flatpak() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        let original_val = std::env::var("FLATPAK_ID");
+
+        std::env::set_var("FLATPAK_ID", "org.mangofetch.App");
+        assert!(is_flatpak(), "Should be true when FLATPAK_ID is set");
+
+        std::env::remove_var("FLATPAK_ID");
+        let expected = std::path::Path::new("/.flatpak-info").exists();
+        assert_eq!(is_flatpak(), expected, "When FLATPAK_ID is not set, it should match the existence of /.flatpak-info");
+
+        match original_val {
+            Ok(v) => std::env::set_var("FLATPAK_ID", v),
+            Err(_) => std::env::remove_var("FLATPAK_ID"),
+        }
+    }
 
     #[test]
     fn test_parse_version_output() {
