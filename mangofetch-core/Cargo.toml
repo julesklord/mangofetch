@@ -67,3 +67,6 @@ which = { version = "6", optional = true }
 rand = "0.8"
 libloading = "0.8"
 mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.5.3" }
+
+[dev-dependencies]
+httpmock = "0.8.3"
