@@ -8,17 +8,22 @@ MangoFetch has successfully transitioned from a monolithic GUI/CLI hybrid into a
 
 ---
 
-## 🟢 Phase 1: UX Polish & TUI Integration (v0.3.x - v0.4.x)
+## 🟢 Phase 1: UX Polish & TUI Integration (v0.3.x - v0.5.x)
 
 Our immediate focus was refining the terminal experience and implementing the TUI.
 
 - **[x] v0.3.1 - Rebranding & Core Cleanup:** Finalize the "OmniGet" to "MangoFetch" transition.
 - **[x] v0.4.0 - Interactive TUI (`ratatui`):** Full-screen terminal interface for queue monitoring.
+- **[x] v0.5.0 - Tropical Themes:** 11 fruit themes, mouse support, dynamic settings.
+- **[x] v0.5.2 - Maintenance & Security:** UUID temp files, cleanup logic, security fixes.
+- **[x] v0.5.3 - Performance & Security:** Async fs operations, security fixes, comprehensive tests.
+- **[x] v0.5.4 - Code Health:** Refactored overly long functions, extensive test coverage.
+- **[x] v0.5.5 - TUI UX:** Animations toggle, double-q quit, keybindings display, simplified status bar.
 - **[ ] Alias System (`mango`):** Implement the secondary `mango` binary and short subcommands.
 
 ---
 
-## 🟡 Phase 2: Extensibility & Ecosystem (v0.5.x)
+## 🟡 Phase 2: Extensibility & Ecosystem (v0.6.x)
 
 MangoFetch cannot natively support every platform on earth. We must decentralize platform extraction logic to the community.
 

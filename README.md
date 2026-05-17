@@ -30,7 +30,7 @@ ___
   - [Overview](#overview)
   - [Using as a Rust SDK (mangofetch-core)](#using-as-a-rust-sdk-mangofetch-core)
   - [CLI/TUI Installation](#clitui-installation)
-  - [Key Features (v0.5.3)](#key-features-v053)
+  - [Key Features (v0.5.5)](#key-features-v055)
   - [Technical Architecture](#technical-architecture)
   - [The Core Engine Lifecycle](#the-core-engine-lifecycle)
   - [Command Reference](#command-reference)
@@ -107,7 +107,7 @@ mangofetch tui (run the tui interactive dashboard)
 ---
 
 
-## Key Features (v0.5.3)
+## Key Features (v0.5.5)
 
 *   **Supports 1000+ Sites**: Smooth integration with `yt-dlp` to work with almost any video site out there.
 *   **Headless Core**: A clean design that lets you use the download engine as a standalone Rust library.
@@ -116,6 +116,10 @@ mangofetch tui (run the tui interactive dashboard)
 *   **Vim-Style Commands**: For the power users, you can use quick `:` commands to get things done fast.
 *   **P2P & Torrents**: Works with magnet links and decentralized file sharing.
 *   **Smart Downloading**: Uses multi-segment downloads and clever connection handling to keep things fast and avoid rate limits.
+*   **Animations Toggle**: Enable/disable TUI animations for a static interface.
+*   **Double-q Quit**: Press `q` twice quickly for fast exit.
+*   **Keybindings Display**: Dedicated row showing available shortcuts directly in the TUI.
+*   **Simplified Status Bar**: Single-line status bar with dynamic indicators.
 
 ---
 
@@ -228,7 +232,9 @@ For a full list of commands and how to use the TUI, check out our **[Official Wi
 | **v0.4.0** | ✅     | **The TUI Release:** A cool new terminal interface         |
 | **v0.5.1** | ✅     | **UX & Polish:** Tropical themes and mouse support         |
 | **v0.5.2** | ✅     | **Maintenance:** Relaxed tone, security fixes, and cleanup |
-| **v0.5.3** | ✅     | **TUI Fix:** Resolved ANSI artifacts in About tab         |
+| **v0.5.3** | ✅     | **Performance & Security:** Async ops, security fixes       |
+| **v0.5.4** | ✅     | **Code Health:** Refactoring and test coverage             |
+| **v0.5.5** | ✅     | **TUI UX:** Animations toggle, double-q quit, keybindings  |
 | **v0.6.0** | ⏳     | Plugins and extra community sites                          |
 | **v0.7.0** | ⏳     | Better P2P and torrent support                             |
 

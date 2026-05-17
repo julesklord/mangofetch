@@ -43,14 +43,30 @@ As of **v0.5.0**, MangoFetch supports intuitive mouse interactions:
 
 ## ⌨️ Shortcuts & Controls
 
-While in the **Queue** or **History** tabs:
+### General Navigation
+*   **`Tab`**: Move to the next tab (or next category in Queue/History).
+*   **`Shift + Tab`**: Move to the previous tab.
+*   **`1-6`**: Directly jump to a specific tab (1=Home, 2=Queue, 3=History, 4=Settings, 5=About, 6=Logs).
+*   **`g`**: Go to first item (or top of logs).
+*   **`G`**: Go to last item (or bottom of logs).
+
+### Queue/History Actions
 *   **`j` / `Down`**: Select the next item.
 *   **`k` / `Up`**: Select the previous item.
 *   **`p`**: Pause the selected download.
 *   **`r`**: Resume the selected download.
 *   **`x`**: Remove the selected item (requires confirmation).
-*   **`a`**: Open the **Add Download** modal (Paste URL).
+*   **`a` / `n`**: Open the **Add Download** modal (Paste URL).
+
+### Special Actions
+*   **`q` (press twice quickly)**: Quit the application (double-q quit).
 *   **`?`**: Toggle the **Help Modal**.
+*   **`l`**: Toggle layout (change view mode).
+*   **`:` / `/`**: Enter command mode (Vim-style).
+
+### Settings Tab
+*   **`[` / `]`**: Reorder statusbar modules.
+*   **`Enter` / `Left` / `Right`**: Toggle a setting.
 
 > [!SCREENSHOT_PLACEHOLDER: TUI Help Modal Overlay]
 > *Captura del modal de ayuda desplegado sobre la pestaña de Queue.*
@@ -74,6 +90,20 @@ MangoFetch allows you to customize the color palette using our collection of tro
 
 > [!SCREENSHOT_PLACEHOLDER: TUI Gallery - All Themes Comparison]
 > *Un collage mostrando la misma pantalla con los diferentes temas de frutas tropicales.*
+
+---
+
+## 🎬 Animations Toggle
+
+As of **v0.5.5**, MangoFetch allows you to enable or disable TUI animations. This is useful for:
+*   Users on slower terminals
+*   Users who prefer a static interface
+*   Reducing visual noise during intensive operations
+
+Toggle animations in the **Settings** tab or via:
+```bash
+mangofetch config set appearance.animations true
+```
 
 ---
 

@@ -30,12 +30,22 @@ mangofetch tui
 > *Captura de la pestaña Queue mostrando una descarga activa con la nueva barra de progreso.*
 
 ### Basic TUI Navigation:
-*   **`Tab`**: Switch between Queue, Settings, and Logs.
-*   **`/`**: Enter command mode (type `:q` to exit).
+*   **`Tab`**: Switch between tabs (or categories in Queue/History).
+*   **`/`** or **`:`**: Enter command mode (type `:q` to exit).
 *   **`p`**: Pause a download.
 *   **`r`**: Resume a download.
+*   **`q` (press twice quickly)**: Quick quit (double-q).
+*   **`a`**: Add new download.
+*   **`1-6`**: Jump directly to a tab (1=Home, 2=Queue, 3=History, 4=Settings, 5=About, 6=Logs).
 
-## 5. Change the Theme
+## 5. Toggle Animations
+
+Prefer a static interface? Disable animations in the **Settings** tab or via CLI:
+```bash
+mangofetch config set appearance.animations false
+```
+
+## 6. Change the Theme
 Don't like orange? Switch to **Passionfruit** (Yellow/Purple):
 ```bash
 mangofetch config set appearance.tui_theme passionfruit
