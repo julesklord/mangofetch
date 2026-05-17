@@ -53,13 +53,9 @@ unicode-normalization = "0.1"
 tokio-util = { version = "0.7", features = ["rt"] }
 url = "2"
 urlencoding = "2"
-base64 = "0.22.1"
-sha2 = "0.10"
-filetime = "0.2.27"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 xz2 = "0.1"
-open = "5"
 librqbit = { version = "8.1.1", optional = true, default-features = false, features = [
     "rust-tls",
 ] }
