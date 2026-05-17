@@ -357,6 +357,8 @@ impl TikTokDownloader {
                 height: 0,
                 url: url.to_string(),
                 format: "ytdlp".to_string(),
+
+                filesize_bytes: None,
             }],
             media_type: MediaType::Video,
             file_size_bytes: None,
@@ -440,6 +442,8 @@ impl PlatformDownloader for TikTokDownloader {
                     height: 0,
                     url: u.clone(),
                     format: "jpg".to_string(),
+
+                    filesize_bytes: None,
                 })
                 .collect();
 
@@ -468,6 +472,8 @@ impl PlatformDownloader for TikTokDownloader {
                     height: 0,
                     url: video_url,
                     format: "tiktok_direct".to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type: MediaType::Video,
                 file_size_bytes: None,
@@ -487,6 +493,8 @@ impl PlatformDownloader for TikTokDownloader {
                     height: 0,
                     url: music_url,
                     format: "mp3".to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type: MediaType::Audio,
                 file_size_bytes: None,

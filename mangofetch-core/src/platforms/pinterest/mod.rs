@@ -287,6 +287,8 @@ impl PinterestDownloader {
                     height: 0,
                     url: video_url,
                     format: "mp4".to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type: MediaType::Video,
                 file_size_bytes: None,
@@ -313,6 +315,8 @@ impl PinterestDownloader {
                     height: 0,
                     url: image_url,
                     format: format.to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type,
                 file_size_bytes: None,

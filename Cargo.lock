@@ -2249,7 +2249,7 @@ dependencies = [
 
 [[package]]
 name = "mangofetch-cli"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2273,7 +2273,7 @@ dependencies = [
 
 [[package]]
 name = "mangofetch-core"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "aes",
  "anyhow",
@@ -2312,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "mangofetch-plugin-sdk"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "anyhow",
  "async-trait",

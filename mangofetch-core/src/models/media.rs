@@ -17,6 +17,39 @@ pub struct MediaInfo {
     pub file_size_bytes: Option<u64>,
 }
 
+impl MediaInfo {
+    pub fn get_closest_quality(&self, wanted_quality: &str) -> Option<&VideoQuality> {
+        if self.available_qualities.is_empty() {
+            return None;
+        }
+        if wanted_quality == "best" || wanted_quality == "highest" {
+            return self.available_qualities.first();
+        }
+
+        let target_height = match wanted_quality
+            .to_lowercase()
+            .trim_end_matches('p')
+            .parse::<u32>()
+        {
+            Ok(h) => h,
+            Err(_) => return self.available_qualities.first(),
+        };
+
+        let mut closest = &self.available_qualities[0];
+        let mut min_diff = (closest.height as i32 - target_height as i32).abs() as u32;
+
+        for q in &self.available_qualities {
+            let diff = (q.height as i32 - target_height as i32).abs() as u32;
+            if diff < min_diff {
+                min_diff = diff;
+                closest = q;
+            }
+        }
+
+        Some(closest)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MediaType {
     Video,
@@ -35,6 +68,8 @@ pub struct VideoQuality {
     pub height: u32,
     pub url: String,
     pub format: String,
+    #[serde(default)]
+    pub filesize_bytes: Option<u64>,
 }
 
 #[derive(Clone)]

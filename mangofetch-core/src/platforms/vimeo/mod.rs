@@ -78,6 +78,8 @@ impl VimeoDownloader {
                         height,
                         url: webpage_url.clone(),
                         format: "ytdlp".to_string(),
+
+                        filesize_bytes: None,
                     });
                 }
             }
@@ -92,6 +94,8 @@ impl VimeoDownloader {
                 height: 0,
                 url: webpage_url,
                 format: "ytdlp".to_string(),
+
+                filesize_bytes: None,
             });
         }
 

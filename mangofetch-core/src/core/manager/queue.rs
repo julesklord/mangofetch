@@ -79,6 +79,7 @@ pub struct QueueItem {
     pub ytdlp_path: Option<PathBuf>,
     pub from_hotkey: bool,
     pub torrent_id: Option<usize>,
+    pub download_subtitles: Option<bool>,
     pub phase: String,
 }
 
@@ -168,6 +169,7 @@ impl DownloadQueue {
                     ytdlp_path: None,
                     from_hotkey: false,
                     torrent_id: None,
+                    download_subtitles: None,
                     phase: "Restored".to_string(),
                 };
                 self.items.push(q_item);
@@ -202,6 +204,7 @@ impl DownloadQueue {
         output_dir: String,
         download_mode: Option<String>,
         quality: Option<String>,
+        download_subtitles: Option<bool>,
         format_id: Option<String>,
         referer: Option<String>,
         extra_headers: Option<std::collections::HashMap<String, String>>,
@@ -241,6 +244,7 @@ impl DownloadQueue {
             ytdlp_path,
             from_hotkey,
             torrent_id: None,
+            download_subtitles,
             phase: "Queued".to_string(),
         };
         self.items.push(item);
@@ -631,12 +635,12 @@ pub fn spawn_download(
     })
 }
 
-
 struct DownloadContext {
     url: String,
     output_dir: String,
     download_mode: Option<String>,
     quality: Option<String>,
+    download_subtitles: Option<bool>,
     format_id: Option<String>,
     referer: Option<String>,
     extra_headers: Option<std::collections::HashMap<String, String>>,
@@ -650,7 +654,10 @@ struct DownloadContext {
     from_hotkey: bool,
 }
 
-async fn extract_download_context(queue: &Arc<tokio::sync::Mutex<DownloadQueue>>, item_id: u64) -> Option<DownloadContext> {
+async fn extract_download_context(
+    queue: &Arc<tokio::sync::Mutex<DownloadQueue>>,
+    item_id: u64,
+) -> Option<DownloadContext> {
     let q = queue.lock().await;
     let item = q.items.iter().find(|i| i.id == item_id)?;
     Some(DownloadContext {
@@ -658,6 +665,7 @@ async fn extract_download_context(queue: &Arc<tokio::sync::Mutex<DownloadQueue>>
         output_dir: item.output_dir.clone(),
         download_mode: item.download_mode.clone(),
         quality: item.quality.clone(),
+        download_subtitles: item.download_subtitles,
         format_id: item.format_id.clone(),
         referer: item.referer.clone(),
         extra_headers: item.extra_headers.clone(),
@@ -791,7 +799,12 @@ async fn prepare_media_info(
     Some(info)
 }
 
-fn build_download_options(ctx: &DownloadContext) -> (crate::models::media::DownloadOptions, std::sync::Arc<tokio::sync::Mutex<Option<usize>>>) {
+fn build_download_options(
+    ctx: &DownloadContext,
+) -> (
+    crate::models::media::DownloadOptions,
+    std::sync::Arc<tokio::sync::Mutex<Option<usize>>>,
+) {
     let settings = crate::models::settings::AppSettings::load_from_disk();
     let tmpl = settings.download.filename_template.clone();
     let mut final_output_dir = std::path::PathBuf::from(&ctx.output_dir);
@@ -800,10 +813,15 @@ fn build_download_options(ctx: &DownloadContext) -> (crate::models::media::Downl
     }
     let torrent_id_slot = std::sync::Arc::new(tokio::sync::Mutex::new(None));
     let opts = crate::models::media::DownloadOptions {
-        quality: ctx.quality.clone().or_else(|| Some(settings.download.video_quality.clone())),
+        quality: ctx
+            .quality
+            .clone()
+            .or_else(|| Some(settings.download.video_quality.clone())),
         output_dir: final_output_dir,
         filename_template: Some(tmpl),
-        download_subtitles: settings.download.download_subtitles,
+        download_subtitles: ctx
+            .download_subtitles
+            .unwrap_or(settings.download.download_subtitles),
         include_auto_subtitles: settings.download.include_auto_subtitles,
         download_mode: ctx.download_mode.clone(),
         format_id: ctx.format_id.clone(),

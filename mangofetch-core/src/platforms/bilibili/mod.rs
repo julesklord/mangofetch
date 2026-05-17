@@ -88,6 +88,8 @@ impl PlatformDownloader for BilibiliDownloader {
                     height: 0,
                     url: e.url.clone(),
                     format: "mp4".to_string(),
+
+                    filesize_bytes: None,
                 })
                 .collect();
 
@@ -160,6 +162,8 @@ impl PlatformDownloader for BilibiliDownloader {
                 height,
                 url: url.to_string(),
                 format: "mp4".to_string(),
+
+                filesize_bytes: None,
             });
         }
 
@@ -172,6 +176,8 @@ impl PlatformDownloader for BilibiliDownloader {
                 height: 0,
                 url: url.to_string(),
                 format: "mp4".to_string(),
+
+                filesize_bytes: None,
             });
         }
 

@@ -50,7 +50,9 @@ async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) 
             if mouse.column < 24 {
                 // Sidebar area -> Change Tabs
                 app.next_tab();
-            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History) && mouse.row < 5 {
+            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History)
+                && mouse.row < 5
+            {
                 // Categories area -> Change Category (Submenu)
                 app.next_category();
             } else {
@@ -68,7 +70,9 @@ async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) 
             if mouse.column < 24 {
                 // Sidebar area -> Change Tabs
                 app.prev_tab();
-            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History) && mouse.row < 5 {
+            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History)
+                && mouse.row < 5
+            {
                 // Categories area -> Change Category (Submenu)
                 app.prev_category();
             } else {
@@ -184,23 +188,7 @@ async fn handle_add_url_mode(app: &mut App, key: crossterm::event::KeyEvent) {
                     .await;
                     match info {
                         Ok(i) => {
-                            let item_info = mangofetch_core::models::queue::QueueItemInfo {
-                                id: 0,
-                                url: url.clone(),
-                                platform: dl.name().to_string(),
-                                title: i.title,
-                                status: mangofetch_core::models::queue::QueueStatus::Queued,
-                                percent: 0.0,
-                                speed_bytes_per_sec: 0.0,
-                                downloaded_bytes: 0,
-                                total_bytes: None,
-                                phase: "Pending".to_string(),
-                                file_path: None,
-                                file_size_bytes: None,
-                                file_count: None,
-                                thumbnail_url: i.thumbnail_url,
-                            };
-                            let _ = tx.send(super::app::AppMsg::PreviewFetched(Ok(item_info)));
+                            let _ = tx.send(super::app::AppMsg::PreviewFetched(Ok(i)));
                         }
                         Err(e) => {
                             let _ = tx.send(super::app::AppMsg::PreviewFetched(Err(e.to_string())));
@@ -248,14 +236,54 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
             app.preview_info = None;
             app.preview_error = None;
         }
+        KeyCode::Up => {
+            if app.confirm_focused_field == 0 {
+                if app.confirm_quality_idx > 0 {
+                    app.confirm_quality_idx -= 1;
+                }
+            } else {
+                app.confirm_focused_field -= 1;
+            }
+        }
+        KeyCode::Down => {
+            if app.confirm_focused_field == 0 {
+                if let Some(info) = &app.preview_info {
+                    if app.confirm_quality_idx + 1 < info.available_qualities.len() {
+                        app.confirm_quality_idx += 1;
+                    } else {
+                        app.confirm_focused_field = 1;
+                    }
+                }
+            } else if app.confirm_focused_field == 1 {
+                app.confirm_focused_field = 2;
+            }
+        }
+        KeyCode::Left | KeyCode::Right => {
+            if app.confirm_focused_field == 1 {
+                if app.confirm_download_mode == "video" {
+                    app.confirm_download_mode = "audio".to_string();
+                } else {
+                    app.confirm_download_mode = "video".to_string();
+                }
+            } else if app.confirm_focused_field == 2 {
+                app.confirm_download_subtitles = !app.confirm_download_subtitles;
+            }
+        }
         KeyCode::Enter if app.preview_info.is_some() => {
             if let Some(info) = app.preview_info.take() {
-                let url = info.url.clone();
-                let quality = if app.quality_input.is_empty() {
-                    None
-                } else {
+                let url = app.url_input.clone();
+                let quality = if !info.available_qualities.is_empty() {
+                    info.available_qualities
+                        .get(app.confirm_quality_idx)
+                        .map(|q| q.label.clone())
+                } else if !app.quality_input.is_empty() {
                     Some(app.quality_input.clone())
+                } else {
+                    None
                 };
+                let download_mode = Some(app.confirm_download_mode.clone());
+                let download_subtitles = Some(app.confirm_download_subtitles);
+
                 let queue = app.queue.clone();
                 let registry = app.registry.clone();
 
@@ -268,8 +296,14 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
                 app.mode = Mode::Normal;
 
                 tokio::spawn(async move {
-                    let _ = crate::engine::enqueue_download_with_quality(
-                        &url, None, quality, registry, queue,
+                    let _ = crate::engine::enqueue_download_with_overrides(
+                        &url,
+                        None,
+                        quality,
+                        download_mode,
+                        download_subtitles,
+                        registry,
+                        queue,
                     )
                     .await;
                 });
@@ -299,13 +333,26 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
     }
 
     match code {
-        KeyCode::Char('q') | KeyCode::Char('Q') => app.quit(),
+        KeyCode::Char('q') | KeyCode::Char('Q') => {
+            if let Some(last_time) = app.last_q_press {
+                if last_time.elapsed() < std::time::Duration::from_millis(500) {
+                    app.quit();
+                } else {
+                    app.last_q_press = Some(std::time::Instant::now());
+                    app.set_status("Presiona 'q' nuevamente rápido para salir".to_string());
+                }
+            } else {
+                app.last_q_press = Some(std::time::Instant::now());
+                app.set_status("Presiona 'q' nuevamente rápido para salir".to_string());
+            }
+        }
         KeyCode::Char(':') | KeyCode::Char('/') => {
             app.mode = Mode::Command;
             app.command_buffer.clear();
         }
         KeyCode::Char('a') | KeyCode::Char('n') => app.open_add_modal(),
         KeyCode::Char('?') => app.toggle_help(),
+        KeyCode::Char('l') | KeyCode::Char('L') => app.toggle_layout(),
 
         // Tab navigation
         KeyCode::Tab => {
@@ -373,6 +420,21 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
             Tab::Home => app.execute_home_action().await,
             _ => {}
         },
+        KeyCode::Left | KeyCode::Right => {
+            if app.active_tab == Tab::Settings {
+                app.toggle_setting();
+            }
+        }
+        KeyCode::Char('[') => {
+            if app.active_tab == Tab::Settings {
+                app.reorder_statusbar_module(true);
+            }
+        }
+        KeyCode::Char(']') => {
+            if app.active_tab == Tab::Settings {
+                app.reorder_statusbar_module(false);
+            }
+        }
         KeyCode::Char('p') => app.pause_selected().await,
         KeyCode::Char('r') => app.resume_selected().await,
         KeyCode::Char('x') | KeyCode::Delete if app.table_state.selected().is_some() => {

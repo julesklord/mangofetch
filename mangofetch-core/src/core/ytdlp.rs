@@ -881,11 +881,17 @@ async fn add_cookie_args(args: &mut Vec<String>, extra_flags: &[String]) {
             args.push(cfb);
         }
     } else {
-        tracing::debug!("[yt-dlp] skipping cookies-from-browser because explicit Cookie header was provided");
+        tracing::debug!(
+            "[yt-dlp] skipping cookies-from-browser because explicit Cookie header was provided"
+        );
     }
 }
 
-async fn build_video_info_args(url: &str, extra_flags: &[String], client: Option<&str>) -> Vec<String> {
+async fn build_video_info_args(
+    url: &str,
+    extra_flags: &[String],
+    client: Option<&str>,
+) -> Vec<String> {
     let mut args = vec![
         "--dump-single-json".to_string(),
         "--no-warnings".to_string(),

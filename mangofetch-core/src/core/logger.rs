@@ -72,7 +72,11 @@ mod tests {
             .output()
             .unwrap();
 
-        assert!(output.status.success(), "init_logging_ext failed: {:?}", output);
+        assert!(
+            output.status.success(),
+            "init_logging_ext failed: {:?}",
+            output
+        );
     }
 
     #[test]
@@ -97,7 +101,11 @@ mod tests {
             .output()
             .unwrap();
 
-        assert!(output.status.success(), "init_logging_ext failed: {:?}", output);
+        assert!(
+            output.status.success(),
+            "init_logging_ext failed: {:?}",
+            output
+        );
     }
 
     #[test]

@@ -77,6 +77,8 @@ impl PlatformDownloader for MagnetDownloader {
                 height: 0,
                 url: url.to_string(),
                 format: "torrent".to_string(),
+
+                filesize_bytes: None,
             }],
             media_type: MediaType::Video,
             file_size_bytes: None,

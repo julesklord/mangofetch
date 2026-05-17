@@ -54,6 +54,8 @@ impl BlueskyDownloader {
                     height: 0,
                     url: hls_url,
                     format: "hls".to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type: MediaType::Video,
                 file_size_bytes: None,
@@ -73,6 +75,8 @@ impl BlueskyDownloader {
                         height: 0,
                         url: u.clone(),
                         format: "jpg".to_string(),
+
+                        filesize_bytes: None,
                     })
                     .collect();
                 Ok(MediaInfo {
@@ -98,6 +102,8 @@ impl BlueskyDownloader {
                     height: 0,
                     url: gif_url,
                     format: "gif".to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type: MediaType::Gif,
                 file_size_bytes: None,

@@ -713,6 +713,8 @@ impl PlatformDownloader for InstagramDownloader {
                         height: 0,
                         url,
                         format: format.to_string(),
+
+                        filesize_bytes: None,
                     }],
                     media_type,
                     file_size_bytes: None,
@@ -730,6 +732,8 @@ impl PlatformDownloader for InstagramDownloader {
                             height: 0,
                             url: item.url.clone(),
                             format: format.to_string(),
+
+                            filesize_bytes: None,
                         }
                     })
                     .collect();

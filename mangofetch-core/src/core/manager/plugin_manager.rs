@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[allow(improper_ctypes_definitions)]
 type PluginInitFn = unsafe extern "C" fn() -> *mut dyn MangoFetchPlugin;
 
 pub struct PluginInstance {

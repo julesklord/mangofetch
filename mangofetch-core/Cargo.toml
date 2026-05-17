@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-core"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2021"
 description = "Core download engine for MangoFetch"
 authors = ["Jules Martins <fearlesslymediagroup@gmail.com>"]
@@ -63,7 +63,7 @@ which = { version = "6", optional = true }
 rand = "0.8"
 aws-lc-rs = { version = "1.17.0", features = ["prebuilt-nasm"] }
 libloading = "0.8"
-mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.5.4" }
+mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.5.5" }
 thiserror = "2.0.18"
 
 [dev-dependencies]

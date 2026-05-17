@@ -643,6 +643,8 @@ impl TwitterDownloader {
                         height: 0,
                         url: item.url,
                         format: item.extension,
+
+                        filesize_bytes: None,
                     }],
                     media_type,
                     file_size_bytes: None,
@@ -658,6 +660,8 @@ impl TwitterDownloader {
                         height: 0,
                         url: item.url.clone(),
                         format: item.extension.clone(),
+
+                        filesize_bytes: None,
                     })
                     .collect();
 

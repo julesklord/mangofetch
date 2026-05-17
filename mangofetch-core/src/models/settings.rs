@@ -54,8 +54,14 @@ pub struct AppearanceSettings {
     pub language: String,
     #[serde(default = "default_tui_theme")]
     pub tui_theme: String,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub use_nerd_fonts: bool,
+    #[serde(default = "default_layout")]
+    pub layout: String,
+    #[serde(default = "default_statusbar_modules")]
+    pub statusbar_modules: Vec<String>,
+    #[serde(default = "default_true")]
+    pub enable_animations: bool,
 }
 
 impl Default for AppearanceSettings {
@@ -64,13 +70,33 @@ impl Default for AppearanceSettings {
             theme: "system".into(),
             language: "en".into(),
             tui_theme: DEFAULT_TUI_THEME.into(),
-            use_nerd_fonts: false,
+            use_nerd_fonts: true,
+            layout: "sidebar".into(),
+            statusbar_modules: default_statusbar_modules(),
+            enable_animations: true,
         }
     }
 }
 
+fn default_statusbar_modules() -> Vec<String> {
+    vec![
+        "mode".to_string(),
+        "tab".to_string(),
+        "time".to_string(),
+        "radar".to_string(),
+        "cpu".to_string(),
+        "ram".to_string(),
+        "speed".to_string(),
+        "queue".to_string(),
+    ]
+}
+
 fn default_tui_theme() -> String {
     DEFAULT_TUI_THEME.into()
+}
+
+fn default_layout() -> String {
+    "sidebar".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +129,8 @@ pub struct DownloadSettings {
     pub split_by_chapters: bool,
     #[serde(default)]
     pub hotkey_enabled: bool,
+    #[serde(default = "default_true")]
+    pub always_ask_confirm: bool,
     #[serde(default = "default_hotkey_binding")]
     pub hotkey_binding: String,
     #[serde(default)]
@@ -118,6 +146,7 @@ impl Default for DownloadSettings {
         Self {
             default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),
             always_ask_path: true,
+            always_ask_confirm: true,
             video_quality: DEFAULT_VIDEO_QUALITY.into(),
             skip_existing: true,
             download_attachments: true,

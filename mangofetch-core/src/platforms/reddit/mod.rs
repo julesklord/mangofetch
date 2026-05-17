@@ -432,6 +432,8 @@ impl RedditDownloader {
                     height: 0,
                     url: video_url,
                     format: "mp4".to_string(),
+
+                    filesize_bytes: None,
                 }];
 
                 if let Some(audio_url) = audio {
@@ -441,6 +443,8 @@ impl RedditDownloader {
                         height: 0,
                         url: audio_url,
                         format: "mp4_audio".to_string(),
+
+                        filesize_bytes: None,
                     });
                 }
 
@@ -467,6 +471,8 @@ impl RedditDownloader {
                     height: 0,
                     url: gif_url,
                     format: "gif".to_string(),
+
+                    filesize_bytes: None,
                 }],
                 media_type: MediaType::Gif,
                 file_size_bytes: None,
@@ -489,6 +495,8 @@ impl RedditDownloader {
                         height: 0,
                         url: image_url,
                         format: ext.to_string(),
+
+                        filesize_bytes: None,
                     }],
                     media_type: MediaType::Photo,
                     file_size_bytes: None,
@@ -504,6 +512,8 @@ impl RedditDownloader {
                         height: 0,
                         url: item.url,
                         format: item.ext,
+
+                        filesize_bytes: None,
                     })
                     .collect();
 

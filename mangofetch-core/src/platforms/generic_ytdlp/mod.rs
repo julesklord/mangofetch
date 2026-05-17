@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -23,14 +21,6 @@ impl Default for GenericYtdlpDownloader {
 impl GenericYtdlpDownloader {
     pub fn new() -> Self {
         Self
-    }
-
-    fn extract_quality_height(quality_str: &str) -> Option<u32> {
-        let s = quality_str.trim().to_lowercase();
-        if s == "best" || s == "highest" {
-            return None;
-        }
-        s.trim_end_matches('p').parse::<u32>().ok()
     }
 
     fn detect_platform(json: &serde_json::Value) -> String {
@@ -95,32 +85,56 @@ impl GenericYtdlpDownloader {
         let media_type = Self::detect_media_type(json);
 
         let mut qualities: Vec<MediaVideoQuality> = Vec::new();
-        let mut seen_heights: HashSet<u32> = HashSet::new();
 
         if media_type == MediaType::Video {
+            let mut quality_map: std::collections::BTreeMap<u32, MediaVideoQuality> =
+                std::collections::BTreeMap::new();
             if let Some(formats) = json.get("formats").and_then(|v| v.as_array()) {
                 for f in formats {
                     let height = f.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                     let width = f.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                     let vcodec = f.get("vcodec").and_then(|v| v.as_str()).unwrap_or("none");
+                    let acodec = f.get("acodec").and_then(|v| v.as_str()).unwrap_or("none");
 
                     if vcodec == "none" || height == 0 {
                         continue;
                     }
 
-                    if seen_heights.insert(height) {
-                        qualities.push(MediaVideoQuality {
-                            label: format!("{}p", height),
-                            width,
-                            height,
-                            url: webpage_url.clone(),
-                            format: "ytdlp".to_string(),
-                        });
+                    let has_audio = acodec != "none";
+                    let filesize_bytes = f
+                        .get("filesize")
+                        .and_then(|v| v.as_u64())
+                        .or_else(|| f.get("filesize_approx").and_then(|v| v.as_u64()));
+
+                    let label = if has_audio {
+                        format!("{}p", height)
+                    } else {
+                        format!("{}p (HD)", height)
+                    };
+
+                    let q = MediaVideoQuality {
+                        label,
+                        width,
+                        height,
+                        url: webpage_url.clone(),
+                        format: "ytdlp".to_string(),
+                        filesize_bytes,
+                    };
+
+                    if let Some(existing) = quality_map.get(&height) {
+                        let existing_has_audio = !existing.label.contains("(HD)");
+                        let replace = (!existing_has_audio && has_audio)
+                            || (filesize_bytes.is_some() && existing.filesize_bytes.is_none());
+                        if replace {
+                            quality_map.insert(height, q);
+                        }
+                    } else {
+                        quality_map.insert(height, q);
                     }
                 }
             }
 
-            qualities.sort_by_key(|q| std::cmp::Reverse(q.height));
+            qualities = quality_map.into_values().rev().collect();
         }
 
         if qualities.is_empty() {
@@ -130,6 +144,8 @@ impl GenericYtdlpDownloader {
                 height: 0,
                 url: webpage_url,
                 format: "ytdlp".to_string(),
+
+                filesize_bytes: None,
             });
         }
 
@@ -219,6 +235,8 @@ fn build_direct_media_info(url: &str, media_type_hint: &str) -> MediaInfo {
             height: 0,
             url: url.to_string(),
             format,
+
+            filesize_bytes: None,
         }],
         media_type,
         file_size_bytes: None,
@@ -267,10 +285,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             .ok_or_else(|| anyhow!("No quality available"))?;
 
         let selected = if let Some(ref wanted) = opts.quality {
-            info.available_qualities
-                .iter()
-                .find(|q| q.label == *wanted)
-                .unwrap_or(first)
+            info.get_closest_quality(wanted).unwrap_or(first)
         } else {
             first
         };
@@ -417,7 +432,11 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             ytdlp::ensure_ytdlp(None).await?
         };
 
-        let quality_height = Self::extract_quality_height(&selected.label);
+        let quality_height = if selected.height > 0 {
+            Some(selected.height)
+        } else {
+            None
+        };
         let video_url = &selected.url;
 
         let referer = opts

@@ -436,7 +436,12 @@ async fn download_chunk_attempt(
 
 #[allow(clippy::too_many_arguments)]
 
-fn validate_single_stream_response(response: &reqwest::Response, existing_bytes: u64, part_path: &Path, url: &str) -> anyhow::Result<u64> {
+fn validate_single_stream_response(
+    response: &reqwest::Response,
+    existing_bytes: u64,
+    part_path: &Path,
+    url: &str,
+) -> anyhow::Result<u64> {
     let mut offset = 0u64;
     if existing_bytes > 0 {
         if response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
@@ -445,10 +450,18 @@ fn validate_single_stream_response(response: &reqwest::Response, existing_bytes:
             let _ = std::fs::remove_file(part_path);
             return Err(anyhow::anyhow!("Range not satisfiable, restarting"));
         } else if !response.status().is_success() {
-            return Err(anyhow::anyhow!("HTTP {} downloading {}", response.status(), url));
+            return Err(anyhow::anyhow!(
+                "HTTP {} downloading {}",
+                response.status(),
+                url
+            ));
         }
     } else if !response.status().is_success() {
-        return Err(anyhow::anyhow!("HTTP {} downloading {}", response.status(), url));
+        return Err(anyhow::anyhow!(
+            "HTTP {} downloading {}",
+            response.status(),
+            url
+        ));
     }
 
     if let Some(ct) = response.headers().get("content-type") {
@@ -466,15 +479,16 @@ fn validate_single_stream_response(response: &reqwest::Response, existing_bytes:
 
 #[allow(clippy::too_many_arguments)]
 async fn process_single_stream_chunks(
-    mut stream: impl futures::Stream<Item = reqwest::Result<impl std::ops::Deref<Target = [u8]>>> + Unpin,
+    mut stream: impl futures::Stream<Item = reqwest::Result<impl std::ops::Deref<Target = [u8]>>>
+        + Unpin,
     mut file: std::io::BufWriter<std::fs::File>,
     mut downloaded: u64,
     total_size: Option<u64>,
     progress_tx: &mpsc::Sender<f64>,
     cancel: Option<&CancellationToken>,
 ) -> anyhow::Result<()> {
-    use std::io::Write;
     use futures::StreamExt;
+    use std::io::Write;
     loop {
         if let Some(token) = cancel {
             if token.is_cancelled() {

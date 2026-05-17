@@ -119,7 +119,7 @@ impl DownloadsCategory {
 }
 
 pub enum AppMsg {
-    PreviewFetched(Result<mangofetch_core::models::queue::QueueItemInfo, String>),
+    PreviewFetched(Result<mangofetch_core::models::media::MediaInfo, String>),
 }
 
 pub enum AppState {
@@ -144,8 +144,11 @@ pub enum Mode {
 pub enum SettingKind {
     TuiTheme,
     UseNerdFonts,
+    EnableAnimations,
+    NavigationLayout,
     MaxDownloads,
     VideoQuality,
+    AlwaysAskConfirm,
     OrganizeByPlatform,
     SkipExisting,
     DownloadSubtitles,
@@ -162,14 +165,25 @@ pub enum SettingKind {
     ClipboardDetection,
     ProxyEnabled,
     PortableMode,
+    StatusbarMode,
+    StatusbarTab,
+    StatusbarRadar,
+    StatusbarCpu,
+    StatusbarRam,
+    StatusbarSpeed,
+    StatusbarQueue,
+    StatusbarTime,
 }
 
 impl SettingKind {
     pub const ALL: &'static [SettingKind] = &[
         SettingKind::TuiTheme,
         SettingKind::UseNerdFonts,
+        SettingKind::EnableAnimations,
+        SettingKind::NavigationLayout,
         SettingKind::MaxDownloads,
         SettingKind::VideoQuality,
+        SettingKind::AlwaysAskConfirm,
         SettingKind::OrganizeByPlatform,
         SettingKind::SkipExisting,
         SettingKind::DownloadSubtitles,
@@ -186,14 +200,25 @@ impl SettingKind {
         SettingKind::ClipboardDetection,
         SettingKind::ProxyEnabled,
         SettingKind::PortableMode,
+        SettingKind::StatusbarMode,
+        SettingKind::StatusbarTab,
+        SettingKind::StatusbarRadar,
+        SettingKind::StatusbarCpu,
+        SettingKind::StatusbarRam,
+        SettingKind::StatusbarSpeed,
+        SettingKind::StatusbarQueue,
+        SettingKind::StatusbarTime,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
             SettingKind::TuiTheme => "TUI Theme",
             SettingKind::UseNerdFonts => "Nerd Fonts",
+            SettingKind::EnableAnimations => "Enable Animations",
+            SettingKind::NavigationLayout => "Layout Structure",
             SettingKind::MaxDownloads => "Max Downloads",
             SettingKind::VideoQuality => "Default Quality",
+            SettingKind::AlwaysAskConfirm => "Always Ask Option",
             SettingKind::OrganizeByPlatform => "Organize Platforms",
             SettingKind::SkipExisting => "Skip Existing",
             SettingKind::DownloadSubtitles => "Download Subtitles",
@@ -210,6 +235,14 @@ impl SettingKind {
             SettingKind::ClipboardDetection => "Clipboard Detect",
             SettingKind::ProxyEnabled => "Use Proxy",
             SettingKind::PortableMode => "Portable Mode",
+            SettingKind::StatusbarMode => "Statusbar: Mode Core",
+            SettingKind::StatusbarTab => "Statusbar: Tab",
+            SettingKind::StatusbarRadar => "Statusbar: Radar Line",
+            SettingKind::StatusbarCpu => "Statusbar: CPU Engine",
+            SettingKind::StatusbarRam => "Statusbar: RAM Heap",
+            SettingKind::StatusbarSpeed => "Statusbar: Net Speed",
+            SettingKind::StatusbarQueue => "Statusbar: Queue",
+            SettingKind::StatusbarTime => "Statusbar: Clock",
         }
     }
 
@@ -217,8 +250,11 @@ impl SettingKind {
         match self {
             SettingKind::TuiTheme => "Cycle through 11 tropical fruit themes",
             SettingKind::UseNerdFonts => "Enables icons (requires patched terminal)",
+            SettingKind::EnableAnimations => "Enables/disables subtle statusbar and splash animations",
+            SettingKind::NavigationLayout => "Switch between Sidebar and TopBar layout",
             SettingKind::MaxDownloads => "Max simultaneous downloads",
             SettingKind::VideoQuality => "best │ 1080p │ 720p │ 480p │ 360p",
+            SettingKind::AlwaysAskConfirm => "Show pre-download confirm screen per URL",
             SettingKind::OrganizeByPlatform => "Organize files into platform folders",
             SettingKind::SkipExisting => "Do not re-download existing files",
             SettingKind::DownloadSubtitles => "Attempt to download subtitles",
@@ -235,6 +271,18 @@ impl SettingKind {
             SettingKind::ClipboardDetection => "Scan clipboard for URLs",
             SettingKind::ProxyEnabled => "Use configured proxy",
             SettingKind::PortableMode => "Save data in local folder",
+            SettingKind::StatusbarMode => "Breathing core diamante. [ / ] to Reorder, L/R toggle",
+            SettingKind::StatusbarTab => "Active tab label. [ / ] to Reorder, L/R toggle",
+            SettingKind::StatusbarRadar => "Sci-Fi scanner animation. [ / ] to Reorder, L/R toggle",
+            SettingKind::StatusbarCpu => "CPU percent usage load. [ / ] to Reorder, L/R toggle",
+            SettingKind::StatusbarRam => "RAM capacity allocated. [ / ] to Reorder, L/R toggle",
+            SettingKind::StatusbarSpeed => {
+                "Net speed cascading elevator. [ / ] to Reorder, L/R toggle"
+            }
+            SettingKind::StatusbarQueue => {
+                "Completed/Pending counters. [ / ] to Reorder, L/R toggle"
+            }
+            SettingKind::StatusbarTime => "System clock HH:MM. [ / ] to Reorder, L/R toggle",
         }
     }
 }
@@ -254,10 +302,14 @@ pub struct App {
     pub queue: Arc<Mutex<DownloadQueue>>,
     pub registry: Arc<PlatformRegistry>,
     pub theme: Theme,
+    pub theme_name: String,
+    pub statusbar_modules: Vec<String>,
 
     pub version: String,
     pub current_time: String,
     pub use_nerd_fonts: bool,
+    pub enable_animations: bool,
+    pub layout: String,
 
     /// Vim-style `:cmd` buffer
     pub command_buffer: String,
@@ -269,11 +321,20 @@ pub struct App {
     pub add_modal_field: usize,
 
     /// Preview info for confirmation
-    pub preview_info: Option<mangofetch_core::models::queue::QueueItemInfo>,
+    pub preview_info: Option<mangofetch_core::models::media::MediaInfo>,
     /// Whether we are currently fetching info for preview
     pub is_fetching_preview: bool,
     /// Error message during preview fetch
     pub preview_error: Option<String>,
+
+    /// Selected quality index in AddConfirm modal
+    pub confirm_quality_idx: usize,
+    /// Selected field in AddConfirm modal (0 = Quality list, 1 = Subtitles, 2 = Download mode)
+    pub confirm_focused_field: usize,
+    /// Subtitles toggle in confirmation modal
+    pub confirm_download_subtitles: bool,
+    /// Download format mode override in confirmation modal ("video" or "audio")
+    pub confirm_download_mode: String,
 
     pub msg_tx: tokio::sync::mpsc::UnboundedSender<AppMsg>,
     pub msg_rx: tokio::sync::mpsc::UnboundedReceiver<AppMsg>,
@@ -287,6 +348,7 @@ pub struct App {
     pub status_message: Option<String>,
     pub status_is_error: bool,
     pub message_time: Option<std::time::Instant>,
+    pub last_q_press: Option<std::time::Instant>,
 
     /// Ring-buffer for live log lines displayed on the Logs tab
     pub log_lines: Vec<String>,
@@ -348,24 +410,33 @@ impl App {
             queue,
             registry,
             theme,
+            theme_name: settings.appearance.tui_theme.clone(),
+            statusbar_modules: settings.appearance.statusbar_modules.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             current_time: Local::now().format("%H:%M").to_string(),
             use_nerd_fonts: settings.appearance.use_nerd_fonts,
+            enable_animations: settings.appearance.enable_animations,
+            layout: settings.appearance.layout.clone(),
             command_buffer: String::new(),
             url_input: String::new(),
             quality_input: String::new(),
             add_modal_field: 0,
             settings_index: 0,
-            settings_count: 20, // Expanded list
+            settings_count: SettingKind::ALL.len(),
             show_help: false,
             preview_info: None,
             is_fetching_preview: false,
             preview_error: None,
+            confirm_quality_idx: 0,
+            confirm_focused_field: 0,
+            confirm_download_subtitles: false,
+            confirm_download_mode: "video".to_string(),
             msg_tx: tx,
             msg_rx: rx,
             status_message: None,
             status_is_error: false,
             message_time: None,
+            last_q_press: None,
             log_lines: Vec::new(),
             log_scroll: 0,
             output_lines: Vec::new(),
@@ -528,6 +599,18 @@ impl App {
         }
     }
 
+    pub fn toggle_layout(&mut self) {
+        let next = match self.layout.as_str() {
+            "sidebar" => "topbar",
+            _ => "sidebar",
+        };
+        self.layout = next.to_string();
+        let mut settings = AppSettings::load_from_disk();
+        settings.appearance.layout = next.to_string();
+        let _ = settings.save_to_disk();
+        self.set_status(format!("Layout: {}", self.layout.to_uppercase()));
+    }
+
     pub fn toggle_setting(&mut self) {
         let mut settings = AppSettings::load_from_disk();
         let kind = SettingKind::ALL[self.settings_index % SettingKind::ALL.len()];
@@ -549,10 +632,23 @@ impl App {
                 };
                 settings.appearance.tui_theme = next.to_string();
                 self.theme = Self::make_theme(next);
+                self.theme_name = next.to_string();
             }
             SettingKind::UseNerdFonts => {
                 settings.appearance.use_nerd_fonts = !settings.appearance.use_nerd_fonts;
                 self.use_nerd_fonts = settings.appearance.use_nerd_fonts;
+            }
+            SettingKind::EnableAnimations => {
+                settings.appearance.enable_animations = !settings.appearance.enable_animations;
+                self.enable_animations = settings.appearance.enable_animations;
+            }
+            SettingKind::NavigationLayout => {
+                let next = match settings.appearance.layout.as_str() {
+                    "sidebar" => "topbar",
+                    _ => "sidebar",
+                };
+                settings.appearance.layout = next.to_string();
+                self.layout = next.to_string();
             }
             SettingKind::MaxDownloads => {
                 settings.advanced.max_concurrent_downloads =
@@ -572,6 +668,9 @@ impl App {
                     _ => "best",
                 }
                 .to_string();
+            }
+            SettingKind::AlwaysAskConfirm => {
+                settings.download.always_ask_confirm = !settings.download.always_ask_confirm;
             }
             SettingKind::OrganizeByPlatform => {
                 settings.download.organize_by_platform = !settings.download.organize_by_platform;
@@ -637,10 +736,89 @@ impl App {
             SettingKind::PortableMode => {
                 settings.portable_mode = !settings.portable_mode;
             }
+            SettingKind::StatusbarMode
+            | SettingKind::StatusbarTab
+            | SettingKind::StatusbarRadar
+            | SettingKind::StatusbarCpu
+            | SettingKind::StatusbarRam
+            | SettingKind::StatusbarSpeed
+            | SettingKind::StatusbarQueue
+            | SettingKind::StatusbarTime => {
+                let name = match kind {
+                    SettingKind::StatusbarMode => "mode",
+                    SettingKind::StatusbarTab => "tab",
+                    SettingKind::StatusbarRadar => "radar",
+                    SettingKind::StatusbarCpu => "cpu",
+                    SettingKind::StatusbarRam => "ram",
+                    SettingKind::StatusbarSpeed => "speed",
+                    SettingKind::StatusbarQueue => "queue",
+                    SettingKind::StatusbarTime => "time",
+                    _ => unreachable!(),
+                };
+                if self.statusbar_modules.contains(&name.to_string()) {
+                    self.statusbar_modules.retain(|m| m != name);
+                } else {
+                    self.statusbar_modules.push(name.to_string());
+                }
+                settings.appearance.statusbar_modules = self.statusbar_modules.clone();
+            }
         }
 
         let _ = settings.save_to_disk();
         self.set_status(format!("Updated: {}", kind.label()));
+    }
+
+    pub fn reorder_statusbar_module(&mut self, move_up: bool) {
+        let kind = SettingKind::ALL[self.settings_index % SettingKind::ALL.len()];
+        let name = match kind {
+            SettingKind::StatusbarMode => "mode",
+            SettingKind::StatusbarTab => "tab",
+            SettingKind::StatusbarRadar => "radar",
+            SettingKind::StatusbarCpu => "cpu",
+            SettingKind::StatusbarRam => "ram",
+            SettingKind::StatusbarSpeed => "speed",
+            SettingKind::StatusbarQueue => "queue",
+            SettingKind::StatusbarTime => "time",
+            _ => return,
+        };
+
+        let current_index = match self.statusbar_modules.iter().position(|m| m == name) {
+            Some(idx) => idx,
+            None => {
+                self.set_error(format!(
+                    "Cannot reorder deactivated module: {}",
+                    kind.label()
+                ));
+                return;
+            }
+        };
+
+        let len = self.statusbar_modules.len();
+        if move_up {
+            if current_index > 0 {
+                self.statusbar_modules
+                    .swap(current_index, current_index - 1);
+            } else if len > 1 {
+                // Wrap around
+                let target = len - 1;
+                self.statusbar_modules.remove(current_index);
+                self.statusbar_modules.insert(target, name.to_string());
+            }
+        } else {
+            if current_index < len - 1 {
+                self.statusbar_modules
+                    .swap(current_index, current_index + 1);
+            } else if len > 1 {
+                // Wrap around
+                self.statusbar_modules.remove(current_index);
+                self.statusbar_modules.insert(0, name.to_string());
+            }
+        }
+
+        let mut settings = AppSettings::load_from_disk();
+        settings.appearance.statusbar_modules = self.statusbar_modules.clone();
+        let _ = settings.save_to_disk();
+        self.set_status(format!("Reordered modules: {:?}", self.statusbar_modules));
     }
 
     // ── Message processing ───────────────────────────────────────────────────
@@ -652,6 +830,27 @@ impl App {
                     self.is_fetching_preview = false;
                     match result {
                         Ok(info) => {
+                            let settings = AppSettings::load_from_disk();
+                            if let Some(closest) =
+                                info.get_closest_quality(&settings.download.video_quality)
+                            {
+                                self.confirm_quality_idx = info
+                                    .available_qualities
+                                    .iter()
+                                    .position(|q| q.label == closest.label)
+                                    .unwrap_or(0);
+                            } else {
+                                self.confirm_quality_idx = 0;
+                            }
+                            self.confirm_focused_field = 0;
+                            self.confirm_download_subtitles = settings.download.download_subtitles;
+                            self.confirm_download_mode = if info.media_type
+                                == mangofetch_core::models::media::MediaType::Audio
+                            {
+                                "audio".to_string()
+                            } else {
+                                "video".to_string()
+                            };
                             self.preview_info = Some(info);
                             self.preview_error = None;
                         }

@@ -9,16 +9,17 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
             let value = get_setting_value(kind, &settings, app);
             let is_sel = i == app.settings_index;
 
-            let key_cell = Cell::from(kind.label()).style(if is_sel {
+            let prefix = if is_sel { "▶ " } else { "  " };
+            let key_cell = Cell::from(format!("{}{}", prefix, kind.label())).style(if is_sel {
                 Style::new().fg(t.accent).bold()
             } else {
-                Style::new().fg(t.secondary)
+                Style::new().fg(t.text_dim)
             });
 
-            let val_cell = Cell::from(format!(" [ {} ] ", value)).style(if is_sel {
-                Style::new().fg(t.text).bold().bg(t.highlight)
+            let val_cell = Cell::from(format!(" ◀ {} ▶ ", value)).style(if is_sel {
+                Style::new().fg(t.background).bg(t.accent).bold()
             } else {
-                Style::new().fg(t.text)
+                Style::new().fg(t.secondary)
             });
 
             let hint_cell =
@@ -27,6 +28,12 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
             Row::new([key_cell, val_cell, hint_cell]).height(1)
         })
         .collect();
+
+    let title = if app.use_nerd_fonts {
+        " 󰒓 Configuration & Appearance "
+    } else {
+        " Configuration & Appearance "
+    };
 
     let table = Table::new(
         rows,
@@ -48,7 +55,7 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" ⚙  Configuration & Appearance ")
+            .title(title)
             .border_style(Style::new().fg(t.surface)),
     );
 
@@ -56,6 +63,14 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
+    let get_statusbar_val = |name: &str| {
+        if let Some(pos) = app.statusbar_modules.iter().position(|m| m == name) {
+            format!("ACTIVE (Pos {})", pos + 1)
+        } else {
+            "DISABLED".to_string()
+        }
+    };
+
     match kind {
         SettingKind::TuiTheme => s.appearance.tui_theme.clone(),
         SettingKind::UseNerdFonts => {
@@ -65,8 +80,23 @@ fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
                 "OFF".into()
             }
         }
+        SettingKind::EnableAnimations => {
+            if app.enable_animations {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::NavigationLayout => app.layout.to_uppercase(),
         SettingKind::MaxDownloads => s.advanced.max_concurrent_downloads.to_string(),
         SettingKind::VideoQuality => s.download.video_quality.clone(),
+        SettingKind::AlwaysAskConfirm => {
+            if s.download.always_ask_confirm {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
         SettingKind::OrganizeByPlatform => {
             if s.download.organize_by_platform {
                 "ON".into()
@@ -155,5 +185,13 @@ fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
                 "OFF".into()
             }
         }
+        SettingKind::StatusbarMode => get_statusbar_val("mode"),
+        SettingKind::StatusbarTab => get_statusbar_val("tab"),
+        SettingKind::StatusbarRadar => get_statusbar_val("radar"),
+        SettingKind::StatusbarCpu => get_statusbar_val("cpu"),
+        SettingKind::StatusbarRam => get_statusbar_val("ram"),
+        SettingKind::StatusbarSpeed => get_statusbar_val("speed"),
+        SettingKind::StatusbarQueue => get_statusbar_val("queue"),
+        SettingKind::StatusbarTime => get_statusbar_val("time"),
     }
 }

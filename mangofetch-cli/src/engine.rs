@@ -66,8 +66,9 @@ pub async fn enqueue_download_with_quality(
                     entry.label.clone(),
                     output.clone(),
                     None,
-                    None,
                     quality.clone(),
+                    None,
+                    None,
                     None,
                     None,
                     None,
@@ -96,8 +97,105 @@ pub async fn enqueue_download_with_quality(
             .unwrap_or_else(|| url.to_string()),
         output,
         None,
-        None,
         quality,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        media_info,
+        None,
+        None,
+        downloader,
+        deps.ytdlp,
+        false,
+    );
+
+    drop(q);
+    mangofetch_core::core::manager::queue::try_start_next(queue.clone()).await;
+    Ok(())
+}
+
+pub async fn enqueue_download_with_overrides(
+    url: &str,
+    output_dir: Option<String>,
+    quality: Option<String>,
+    download_mode: Option<String>,
+    download_subtitles: Option<bool>,
+    registry: Arc<PlatformRegistry>,
+    queue: Arc<Mutex<DownloadQueue>>,
+) -> Result<()> {
+    let downloader = registry
+        .find_platform(url)
+        .ok_or_else(|| anyhow::anyhow!("No supported platform found for URL"))?;
+    let platform_name = downloader.name().to_string();
+
+    let output = output_dir.unwrap_or_else(|| {
+        dirs::download_dir()
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+            .to_string_lossy()
+            .to_string()
+    });
+
+    let deps = ensure_dependencies(false, None).await?;
+
+    let media_info = mangofetch_core::core::manager::queue::fetch_and_cache_info(
+        url,
+        &*downloader,
+        &platform_name,
+    )
+    .await
+    .ok();
+
+    let id = mangofetch_core::core::manager::recovery::get_next_id();
+
+    if let Some(ref info) = media_info {
+        if info.media_type == mangofetch_core::models::media::MediaType::Playlist {
+            for entry in &info.available_qualities {
+                let pid = mangofetch_core::core::manager::recovery::get_next_id();
+                let mut q = queue.lock().await;
+                q.enqueue(
+                    pid,
+                    entry.url.clone(),
+                    platform_name.clone(),
+                    entry.label.clone(),
+                    output.clone(),
+                    download_mode.clone(),
+                    quality.clone(),
+                    download_subtitles,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    downloader.clone(),
+                    deps.ytdlp.clone(),
+                    false,
+                );
+            }
+            mangofetch_core::core::manager::queue::try_start_next(queue.clone()).await;
+            return Ok(());
+        }
+    }
+
+    let mut q = queue.lock().await;
+    q.enqueue(
+        id,
+        url.to_string(),
+        platform_name,
+        media_info
+            .as_ref()
+            .map(|i| i.title.clone())
+            .unwrap_or_else(|| url.to_string()),
+        output,
+        download_mode,
+        quality,
+        download_subtitles,
+        None,
         None,
         None,
         None,
@@ -136,7 +234,6 @@ pub async fn enqueue_download(
 
     let deps = ensure_dependencies(false, None).await?;
 
-    // Fetch info
     let media_info = mangofetch_core::core::manager::queue::fetch_and_cache_info(
         url,
         &*downloader,
@@ -157,6 +254,7 @@ pub async fn enqueue_download(
             .map(|i| i.title.clone())
             .unwrap_or_else(|| url.to_string()),
         output,
+        None,
         None,
         None,
         None,

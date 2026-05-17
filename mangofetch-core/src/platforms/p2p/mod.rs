@@ -100,6 +100,8 @@ impl PlatformDownloader for P2pDownloader {
                 height: 0,
                 url: url.to_string(),
                 format: "p2p".to_string(),
+
+                filesize_bytes: None,
             }],
             media_type: MediaType::Video,
             file_size_bytes: None,

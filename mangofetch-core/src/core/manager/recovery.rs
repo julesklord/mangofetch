@@ -61,11 +61,11 @@ fn write_to_disk(items: &HashMap<u64, RecoveryItem>) {
     let write_result = (|| -> anyhow::Result<()> {
         let f = std::fs::File::create(&tmp)?;
         let mut writer = std::io::BufWriter::new(f);
-        
+
         let file_data = RecoveryFile {
             items: items.values().cloned().collect(),
         };
-        
+
         serde_json::to_writer_pretty(&mut writer, &file_data)?;
         writer.into_inner()?.sync_all()?;
         Ok(())

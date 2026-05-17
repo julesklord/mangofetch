@@ -40,16 +40,19 @@ pub fn render(f: &mut Frame, app: &mut App) {
         height: chunks[0].height,
     };
 
-    // Horizontal split: [ Sidebar (Fixed 24), Main (Min 0) ]
-    // Fixed width optimizes main workspace and prevents UI jitter
-    let top_chunks = Layout::horizontal([
-        Constraint::Length(24),
-        Constraint::Min(0),
-    ])
-    .split(main_padded);
+    if app.layout == "topbar" {
+        let top_chunks =
+            Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).split(main_padded);
 
-    render_sidebar(f, app, top_chunks[0]);
-    render_main(f, app, top_chunks[1]);
+        render_topbar(f, app, top_chunks[0]);
+        render_main(f, app, top_chunks[1]);
+    } else {
+        let top_chunks =
+            Layout::horizontal([Constraint::Length(24), Constraint::Min(0)]).split(main_padded);
+
+        render_sidebar(f, app, top_chunks[0]);
+        render_main(f, app, top_chunks[1]);
+    }
 
     // Keybindings area padded
     let keybindings_padded = Rect {
@@ -89,25 +92,48 @@ pub fn render(f: &mut Frame, app: &mut App) {
 fn render_splash(f: &mut Frame, app: &App) {
     let area = f.area();
     let t = &app.theme;
+    let nf = app.use_nerd_fonts;
 
     // Colors
     let orange = Color::Rgb(255, 160, 30);
     let gold = Color::Rgb(255, 220, 60);
     let green_stem = Color::Rgb(60, 200, 80);
     let green_leaf = Color::Rgb(30, 160, 50);
-    let dim_border = t.surface;
     let accent = t.accent;
     let secondary = t.secondary;
 
+    // Define a beautiful mechanical container centered on screen
+    let splash_w = 72;
+    let splash_h = 23;
+    let margin_x = area.width.saturating_sub(splash_w) / 2;
+    let margin_y = area.height.saturating_sub(splash_h) / 2;
+
+    let centered_splash = Rect {
+        x: area.x + margin_x,
+        y: area.y + margin_y,
+        width: splash_w.min(area.width),
+        height: splash_h.min(area.height),
+    };
+
+    // Render container block with mechanical corners and cybernetic style
+    let container = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(t.surface))
+        .title(Span::styled(
+            " MANGOFETCH CORE TERMINAL v0.5.x ",
+            Style::new().fg(t.accent).bold(),
+        ));
+
+    f.render_widget(container.clone(), centered_splash);
+    let inner = container.inner(centered_splash);
+
+    // Split inner area of container
     let stem_h = MANGO_STEM.len() as u16;
     let body_h = MANGO_BODY.len() as u16;
     let title_h = BLOCK_TITLE.len() as u16; // 5
-                                            // total content height: stem + body + 1 gap + title + 1 gap + tagline + 1 gap + hint
-    let content_h = stem_h + body_h + 1 + title_h + 1 + 1 + 1 + 1;
-    let pad_top = area.height.saturating_sub(content_h) / 2;
 
+    // Split vertical chunks within the inner block (height 21)
     let chunks = Layout::vertical([
-        Constraint::Length(pad_top),
         Constraint::Length(stem_h),
         Constraint::Length(body_h),
         Constraint::Length(1), // gap
@@ -118,9 +144,9 @@ fn render_splash(f: &mut Frame, app: &App) {
         Constraint::Length(1), // hint
         Constraint::Min(0),
     ])
-    .split(area);
+    .split(inner);
 
-    // ── Stem (green) ─────────────────────────────────────────────────────────
+    // Stem
     let stem_text: Text = Text::from(
         MANGO_STEM
             .iter()
@@ -132,14 +158,13 @@ fn render_splash(f: &mut Frame, app: &App) {
             })
             .collect::<Vec<_>>(),
     );
-    f.render_widget(Paragraph::new(stem_text), chunks[1]);
+    f.render_widget(Paragraph::new(stem_text), chunks[0]);
 
-    // ── Mango body (orange + gold highlight) ──────────────────────────────────
+    // Body
     let body_text: Text = Text::from(
         MANGO_BODY
             .iter()
             .map(|&line| {
-                // Split each line on '░' zones → render those in gold
                 let mut spans: Vec<Span> = Vec::new();
                 let mut seg = String::new();
                 let mut in_highlight = false;
@@ -163,44 +188,57 @@ fn render_splash(f: &mut Frame, app: &App) {
             })
             .collect::<Vec<_>>(),
     );
-    f.render_widget(Paragraph::new(body_text), chunks[2]);
+    f.render_widget(Paragraph::new(body_text), chunks[1]);
 
-    // ── Block title (MANGOFETCH) ───────────────────────────────────────────────
+    // Title
     let title_text: Text = Text::from(
         BLOCK_TITLE
             .iter()
             .enumerate()
             .map(|(i, &row)| {
-                // Rows alternate accent / secondary for a gradient feel
                 let col = if i % 2 == 0 { accent } else { secondary };
                 Line::from(Span::styled(row, Style::new().fg(col).bold()))
                     .alignment(Alignment::Center)
             })
             .collect::<Vec<_>>(),
     );
-    f.render_widget(Paragraph::new(title_text), chunks[4]);
+    f.render_widget(Paragraph::new(title_text), chunks[3]);
 
-    // ── Tagline ───────────────────────────────────────────────────────────────
+    // Tagline
+    let splash_icon = if nf { " 󰄖 " } else { " v " };
+    let separator = if nf { " │ " } else { " │ " };
     let tagline = Paragraph::new(Line::from(vec![
-        Span::styled(" ⬇ ", Style::new().fg(accent)),
+        Span::styled(splash_icon, Style::new().fg(accent)),
         Span::styled(
-            format!("download anything  ·  1000+ platforms  ·  v{}", app.version),
+            format!(
+                "download anything{}1000+ platforms{}v{}",
+                separator, separator, app.version
+            ),
             Style::new().fg(t.text_dim),
         ),
     ]))
     .alignment(Alignment::Center);
-    f.render_widget(tagline, chunks[6]);
+    f.render_widget(tagline, chunks[5]);
 
-    // ── Hint ─────────────────────────────────────────────────────────────────
+    // Hint / Mechanical Initializer block
+    let enter_prompt = if nf { " 󰌑 ANY KEY " } else { " ANY KEY " };
+    let quit_prompt = if nf { " 󱊷 Q " } else { " Q " };
+
     let hint = Paragraph::new(Line::from(vec![
-        Span::styled("  [ ", Style::new().fg(dim_border)),
-        Span::styled("any key", Style::new().fg(secondary).bold()),
-        Span::styled(" ] start    [ ", Style::new().fg(dim_border)),
-        Span::styled("q", Style::new().fg(t.error).bold()),
-        Span::styled(" ] quit  ", Style::new().fg(dim_border)),
+        Span::styled(
+            enter_prompt,
+            Style::new().fg(t.background).bg(t.accent).bold(),
+        ),
+        Span::styled(" INITIALIZE SYSTEMS", Style::new().fg(t.accent).bold()),
+        Span::styled("     ", Style::new()),
+        Span::styled(
+            quit_prompt,
+            Style::new().fg(t.background).bg(t.error).bold(),
+        ),
+        Span::styled(" ABORT", Style::new().fg(t.error).bold()),
     ]))
     .alignment(Alignment::Center);
-    f.render_widget(hint, chunks[8]);
+    f.render_widget(hint, chunks[7]);
 }
 
 // ── Main content router ───────────────────────────────────────────────────────
@@ -240,13 +278,16 @@ fn render_terminal_output(f: &mut Frame, app: &App, area: Rect) {
         .title(" 📡 TERMINAL_OUTPUT ")
         .title_style(Style::new().fg(t.accent).bold())
         .border_style(Style::new().fg(t.surface));
-    
+
     let inner = block.inner(area);
     f.render_widget(block, area);
 
     // Get the last N lines that fit in the area
     let visible_height = inner.height as usize;
-    let lines: Vec<ListItem> = app.log_lines.iter().rev()
+    let lines: Vec<ListItem> = app
+        .log_lines
+        .iter()
+        .rev()
         .take(visible_height)
         .rev()
         .map(|line| {
@@ -277,11 +318,17 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
     let nf = app.use_nerd_fonts;
     let is_queue = app.active_tab == Tab::Queue;
 
+    let (margin, cat_height) = if app.layout == "topbar" {
+        (0, 2)
+    } else {
+        (1, 3)
+    };
+
     // Split area: top gap, category tabs, then table
     let chunks = Layout::vertical([
-        Constraint::Length(1), // Top margin
-        Constraint::Length(3), // Categories
-        Constraint::Min(0),    // Table
+        Constraint::Length(margin),     // Top margin
+        Constraint::Length(cat_height), // Categories
+        Constraint::Min(0),             // Table
     ])
     .split(area);
 
@@ -315,12 +362,19 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
             let bar_len = 10usize;
             let filled = ((item.percent / 100.0) * bar_len as f64).round() as usize;
             let filled = filled.min(bar_len);
-            let bar = format!(
-                "[{}{}] {:.0}%",
-                "█".repeat(filled),
-                "░".repeat(bar_len - filled),
-                item.percent
-            );
+            let bar_line = Line::from(vec![
+                Span::styled("[", Style::new().fg(t.surface)),
+                Span::styled("█".repeat(filled), Style::new().fg(t.progress)),
+                Span::styled(
+                    "░".repeat(bar_len.saturating_sub(filled)),
+                    Style::new().fg(t.surface_dim),
+                ),
+                Span::styled("]", Style::new().fg(t.surface)),
+                Span::styled(
+                    format!(" {:.0}%", item.percent),
+                    Style::new().fg(t.text).bold(),
+                ),
+            ]);
 
             let speed = if item.speed_bytes_per_sec > 0.0 {
                 format!("{}/s", format_bytes(item.speed_bytes_per_sec as u64))
@@ -347,7 +401,7 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(item.platform.clone()).style(Style::new().fg(t.secondary)),
                 Cell::from(title),
                 Cell::from(status_str).style(Style::new().fg(status_color)),
-                Cell::from(bar).style(Style::new().fg(t.progress)),
+                Cell::from(bar_line),
                 Cell::from(speed).style(Style::new().fg(t.accent)),
                 Cell::from(eta).style(Style::new().fg(t.text_dim)),
             ])
@@ -363,9 +417,17 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let title = if is_queue {
-        " ⬇ Active Downloads "
+        if nf {
+            " 󰄖 Active Downloads "
+        } else {
+            " Active Downloads "
+        }
     } else {
-        " 📜 History "
+        if nf {
+            " 󰄗 History "
+        } else {
+            " History "
+        }
     };
 
     if app.items.is_empty() {
@@ -453,16 +515,17 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
             let value = get_setting_value(kind, &settings, app);
             let is_sel = i == app.settings_index;
 
-            let key_cell = Cell::from(kind.label()).style(if is_sel {
+            let prefix = if is_sel { "▶ " } else { "  " };
+            let key_cell = Cell::from(format!("{}{}", prefix, kind.label())).style(if is_sel {
                 Style::new().fg(t.accent).bold()
             } else {
-                Style::new().fg(t.secondary)
+                Style::new().fg(t.text_dim)
             });
 
-            let val_cell = Cell::from(format!(" [ {} ] ", value)).style(if is_sel {
-                Style::new().fg(t.text).bold().bg(t.highlight)
+            let val_cell = Cell::from(format!(" ◀ {} ▶ ", value)).style(if is_sel {
+                Style::new().fg(t.background).bg(t.accent).bold()
             } else {
-                Style::new().fg(t.text)
+                Style::new().fg(t.secondary)
             });
 
             let hint_cell =
@@ -500,6 +563,14 @@ fn render_settings(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
+    let get_statusbar_val = |name: &str| {
+        if let Some(pos) = app.statusbar_modules.iter().position(|m| m == name) {
+            format!("ACTIVE (Pos {})", pos + 1)
+        } else {
+            "DISABLED".to_string()
+        }
+    };
+
     match kind {
         SettingKind::TuiTheme => s.appearance.tui_theme.clone(),
         SettingKind::UseNerdFonts => {
@@ -509,8 +580,23 @@ fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
                 "OFF".into()
             }
         }
+        SettingKind::EnableAnimations => {
+            if app.enable_animations {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
+        SettingKind::NavigationLayout => app.layout.to_uppercase(),
         SettingKind::MaxDownloads => s.advanced.max_concurrent_downloads.to_string(),
         SettingKind::VideoQuality => s.download.video_quality.clone(),
+        SettingKind::AlwaysAskConfirm => {
+            if s.download.always_ask_confirm {
+                "ON".into()
+            } else {
+                "OFF".into()
+            }
+        }
         SettingKind::OrganizeByPlatform => {
             if s.download.organize_by_platform {
                 "ON".into()
@@ -599,6 +685,14 @@ fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
                 "OFF".into()
             }
         }
+        SettingKind::StatusbarMode => get_statusbar_val("mode"),
+        SettingKind::StatusbarTab => get_statusbar_val("tab"),
+        SettingKind::StatusbarRadar => get_statusbar_val("radar"),
+        SettingKind::StatusbarCpu => get_statusbar_val("cpu"),
+        SettingKind::StatusbarRam => get_statusbar_val("ram"),
+        SettingKind::StatusbarSpeed => get_statusbar_val("speed"),
+        SettingKind::StatusbarQueue => get_statusbar_val("queue"),
+        SettingKind::StatusbarTime => get_statusbar_val("time"),
     }
 }
 
@@ -609,32 +703,45 @@ fn render_help(f: &mut Frame, app: &App) {
     let area = centered_rect(62, 80, f.area());
     f.render_widget(Clear, area);
 
-    let items = [
-        ListItem::new("  General").style(Style::new().fg(t.secondary).bold()),
-        ListItem::new("  q          Quit").style(Style::new().fg(t.text)),
-        ListItem::new("  ?          Toggle this help").style(Style::new().fg(t.text)),
-        ListItem::new("  : or /     Command mode  (:download <url>  :quit  :clear)")
-            .style(Style::new().fg(t.text)),
-        ListItem::new("  Tab        Next tab").style(Style::new().fg(t.text)),
-        ListItem::new("  Shift+Tab  Previous tab").style(Style::new().fg(t.text)),
-        ListItem::new("  1-4        Jump to tab").style(Style::new().fg(t.text)),
+    let kb = |key: &str, desc: &str| -> ListItem<'static> {
+        ListItem::new(Line::from(vec![
+            Span::styled(format!("  {: <10} ", key), Style::new().fg(t.accent).bold()),
+            Span::styled(desc.to_string(), Style::new().fg(t.text)),
+        ]))
+    };
+    let section = |name: &str| -> ListItem<'static> {
+        ListItem::new(Line::from(vec![Span::styled(
+            format!("  {}  ", name.to_uppercase()),
+            Style::new().fg(t.secondary).bold(),
+        )]))
+    };
+    let items = vec![
+        section("General"),
+        kb("q", "Quit application"),
+        kb("?", "Toggle this help overlay"),
+        kb("l / L", "Toggle layout (Sidebar / TopBar)"),
+        kb(": or /", "Open command mode prompt"),
+        kb("Tab", "Switch to the next tab"),
+        kb("Shift+Tab", "Switch to the previous tab"),
+        kb("1-6", "Directly jump to tab number"),
         ListItem::new(""),
-        ListItem::new("  Queue / History").style(Style::new().fg(t.secondary).bold()),
-        ListItem::new("  a / n      Add URL (opens dialog)").style(Style::new().fg(t.text)),
-        ListItem::new("  ↑↓ / j k   Navigate items").style(Style::new().fg(t.text)),
-        ListItem::new("  g / G      Jump to top / bottom").style(Style::new().fg(t.text)),
-        ListItem::new("  p          Pause selected").style(Style::new().fg(t.text)),
-        ListItem::new("  r          Resume selected").style(Style::new().fg(t.text)),
-        ListItem::new("  x / Del    Delete selected (confirms)").style(Style::new().fg(t.text)),
+        section("Queue & History"),
+        kb("a / n", "Add new media URL"),
+        kb("↑↓ / j k", "Navigate item list"),
+        kb("g / G", "Jump to top / bottom of list"),
+        kb("p", "Pause the selected download"),
+        kb("r", "Resume the selected download"),
+        kb("x / Del", "Remove the selected item"),
         ListItem::new(""),
-        ListItem::new("  Add URL Modal").style(Style::new().fg(t.secondary).bold()),
-        ListItem::new("  Ctrl+V     Paste clipboard").style(Style::new().fg(t.text)),
-        ListItem::new("  Tab        Switch field (URL → Quality)").style(Style::new().fg(t.text)),
-        ListItem::new("  Enter      Confirm & enqueue").style(Style::new().fg(t.text)),
-        ListItem::new("  Esc        Cancel").style(Style::new().fg(t.text)),
+        section("Add URL Modal"),
+        kb("Ctrl+V", "Paste URL from clipboard"),
+        kb("Tab", "Switch input field (URL ⇄ Quality)"),
+        kb("Enter", "Confirm and start download"),
+        kb("Esc", "Close overlay dialog"),
         ListItem::new(""),
-        ListItem::new("  Logs").style(Style::new().fg(t.secondary).bold()),
-        ListItem::new("  ↑↓         Scroll  ·  G to bottom").style(Style::new().fg(t.text)),
+        section("Output Logs"),
+        kb("↑↓", "Scroll logs list"),
+        kb("G", "Jump to latest log line"),
     ];
 
     let list = List::new(items).block(
@@ -661,11 +768,17 @@ fn render_add_modal(f: &mut Frame, app: &App) {
     .margin(1)
     .split(area);
 
+    let title = if app.use_nerd_fonts {
+        " 󰄖 Add Download  (Tab: switch field  │  Enter: confirm  │  Esc: cancel) "
+    } else {
+        " Add Download  (Tab: switch field  │  Enter: confirm  │  Esc: cancel) "
+    };
+
     // Outer block
     f.render_widget(
         Block::default()
             .borders(Borders::ALL)
-            .title(" ➕ Add Download  (Tab: switch field  ·  Enter: confirm  ·  Esc: cancel) ")
+            .title(title)
             .border_style(Style::new().fg(t.accent))
             .bg(t.background),
         area,
@@ -680,7 +793,12 @@ fn render_add_modal(f: &mut Frame, app: &App) {
         .borders(Borders::ALL)
         .title(" URL (Ctrl+V to paste) ")
         .border_style(url_style);
-    let url_p = Paragraph::new(app.url_input.as_str())
+    let url_val = if app.add_modal_field == 0 {
+        format!("{}█", app.url_input)
+    } else {
+        app.url_input.clone()
+    };
+    let url_p = Paragraph::new(url_val)
         .block(url_block)
         .style(Style::new().fg(t.text));
     f.render_widget(url_p, chunks[0]);
@@ -694,7 +812,12 @@ fn render_add_modal(f: &mut Frame, app: &App) {
         .borders(Borders::ALL)
         .title(" Quality (optional: best, 1080p, 720p…) ")
         .border_style(q_style);
-    let q_p = Paragraph::new(app.quality_input.as_str())
+    let q_val = if app.add_modal_field == 1 {
+        format!("{}█", app.quality_input)
+    } else {
+        app.quality_input.clone()
+    };
+    let q_p = Paragraph::new(q_val)
         .block(q_block)
         .style(Style::new().fg(t.text));
     f.render_widget(q_p, chunks[1]);
@@ -719,18 +842,39 @@ fn render_confirm_delete(f: &mut Frame, app: &App) {
         .map(|item| truncate(&item.title, 36))
         .unwrap_or_else(|| "this item".into());
 
-    let text = format!(
-        "\n  Remove \"{}\"?\n\n  y = Yes     any other key = No",
-        title
-    );
+    let delete_title = if app.use_nerd_fonts {
+        " 󰅚 Confirm Remove "
+    } else {
+        " ! Confirm Remove "
+    };
+
+    let text = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  REMOVE \"", Style::new().fg(t.text)),
+            Span::styled(title, Style::new().fg(t.accent).bold()),
+            Span::styled("\"?", Style::new().fg(t.text)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                "  [Y] YES  ",
+                Style::new().fg(t.background).bg(t.error).bold(),
+            ),
+            Span::styled("   ", Style::new()),
+            Span::styled(
+                "  [ANY OTHER KEY] NO  ",
+                Style::new().fg(t.text).bg(t.surface).bold(),
+            ),
+        ]),
+    ];
     let p = Paragraph::new(text)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" ⚠ Confirm Remove ")
+                .title(delete_title)
                 .border_style(Style::new().fg(t.error)),
         )
-        .style(Style::new().fg(t.text))
         .alignment(Alignment::Left);
     f.render_widget(p, area);
 }
@@ -741,19 +885,39 @@ fn render_home(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let nf = app.use_nerd_fonts;
 
-    // Use the provided area with a small inner margin for the industrial look
+    // Outer border block representing the home panel container
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(t.surface));
     let inner_area = block.inner(area);
     f.render_widget(block, area);
 
-    // Split into Left (Logo) and Right (Info + Actions)
+    // Center the content horizontally and vertically inside the central workspace (orbital)
+    let home_w = 85;
+    let home_h = 21;
+    let margin_x = inner_area.width.saturating_sub(home_w) / 2;
+    let margin_y = inner_area.height.saturating_sub(home_h) / 2;
+
+    let centered_vertical = Layout::vertical([
+        Constraint::Length(margin_y),
+        Constraint::Length(home_h.min(inner_area.height)),
+        Constraint::Length(margin_y),
+    ])
+    .split(inner_area)[1];
+
+    let centered_area = Layout::horizontal([
+        Constraint::Length(margin_x),
+        Constraint::Length(home_w.min(inner_area.width)),
+        Constraint::Length(margin_x),
+    ])
+    .split(centered_vertical)[1];
+
+    // Split centered area into Left (Logo) and Right (Info + Actions)
     let main_chunks = Layout::horizontal([
         Constraint::Length(35), // Space for logo
         Constraint::Min(0),     // Space for info and menu
     ])
-    .split(inner_area);
+    .split(centered_area);
 
     // ── Left: Mango Art (Center aligned in its column) ────────────────────
     let orange = Color::Rgb(255, 160, 30);
@@ -886,18 +1050,21 @@ fn render_home(f: &mut Frame, app: &App, area: Rect) {
         let is_sel = i == app.home_index;
         if is_sel {
             action_lines.push(Line::from(vec![
-                Span::styled(" ▸ ", Style::new().fg(t.accent).bold()),
+                Span::styled(" ┣━❯ ", Style::new().fg(t.accent).bold()),
                 Span::styled(
-                    format!(" {} {} ", icon, name),
+                    format!(" {} {} ", icon, name.to_uppercase()),
                     Style::new().fg(t.background).bg(t.accent).bold(),
                 ),
-                Span::styled(format!("  {}", desc), Style::new().fg(t.text)),
+                Span::styled(format!("  {}", desc), Style::new().fg(t.text).bold()),
             ]));
         } else {
             action_lines.push(Line::from(vec![
-                Span::styled("   ", Style::new()),
-                Span::styled(format!(" {} {} ", icon, name), Style::new().fg(t.text_dim)),
-                Span::styled(format!("  {}", desc), Style::new().fg(t.surface)),
+                Span::styled(" ┃   ", Style::new().fg(t.surface_dim)),
+                Span::styled(
+                    format!(" {} {} ", icon, name.to_uppercase()),
+                    Style::new().fg(t.text_dim),
+                ),
+                Span::styled(format!("  {}", desc), Style::new().fg(t.text_dim)),
             ]));
         }
         action_lines.push(Line::from(""));
@@ -926,20 +1093,28 @@ fn render_about(f: &mut Frame, app: &App, area: Rect) {
         .enumerate()
         .map(|(i, &s)| {
             let is_sel = i == app.about_index;
-            let style = if is_sel {
-                Style::new().fg(t.accent).bold()
+            if is_sel {
+                ListItem::new(Line::from(vec![
+                    Span::styled(" ┣━❯ ", Style::new().fg(t.accent).bold()),
+                    Span::styled(
+                        format!(" {} ", s.to_uppercase()),
+                        Style::new().fg(t.background).bg(t.accent).bold(),
+                    ),
+                ]))
             } else {
-                Style::new().fg(t.text_dim)
-            };
-            ListItem::new(format!("  {}  ", s)).style(style)
+                ListItem::new(Line::from(vec![
+                    Span::styled(" ┃   ", Style::new().fg(t.surface_dim)),
+                    Span::styled(s.to_uppercase(), Style::new().fg(t.text_dim)),
+                ]))
+            }
         })
         .collect();
 
     let sidebar = List::new(sidebar_items).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" About ")
-            .border_style(Style::new().fg(t.text_dim)),
+            .title(" ABOUT ")
+            .border_style(Style::new().fg(t.surface)),
     );
     f.render_widget(sidebar, chunks[0]);
 
@@ -968,7 +1143,7 @@ fn render_about(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::new().fg(t.text_dim)),
+                .border_style(Style::new().fg(t.surface)),
         )
         .wrap(Wrap { trim: false });
     f.render_widget(p, chunks[1]);
@@ -1010,13 +1185,19 @@ fn render_categories(f: &mut Frame, app: &App, area: Rect) {
     spans.push(Span::styled("   ", Style::new()));
     spans.push(Span::styled(" Tab ", Style::new().fg(t.surface).italic()));
 
+    let alignment = if app.layout == "topbar" {
+        Alignment::Center
+    } else {
+        Alignment::Left
+    };
+
     let p = Paragraph::new(Line::from(spans))
         .block(
             Block::default()
                 .borders(Borders::BOTTOM)
                 .border_style(Style::new().fg(t.surface)),
         )
-        .alignment(Alignment::Left);
+        .alignment(alignment);
     f.render_widget(p, area);
 }
 
@@ -1060,9 +1241,15 @@ fn render_add_confirm_modal(f: &mut Frame, app: &App) {
     let area = centered_rect(60, 45, f.area());
     f.render_widget(Clear, area);
 
+    let preview_title = if nf {
+        " 󰄖 DOWNLOAD_PREVIEW "
+    } else {
+        " DOWNLOAD_PREVIEW "
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" 📡 DOWNLOAD_PREVIEW ")
+        .title(preview_title)
         .title_style(Style::new().fg(t.accent).bold())
         .border_style(Style::new().fg(t.surface))
         .bg(t.background);
@@ -1076,58 +1263,155 @@ fn render_add_confirm_modal(f: &mut Frame, app: &App) {
     .split(area);
 
     if app.is_fetching_preview {
-        let loading = Paragraph::new("\n\n  ░▒▓ FETCHING_METADATA... ▓▒░\n\n  Please wait for system handshake.")
-            .style(Style::new().fg(t.text_dim))
-            .alignment(Alignment::Center);
+        let loading = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  ░▒▓ ", Style::new().fg(t.accent)),
+                Span::styled(
+                    "SYNAPSE_HANDSHAKE_IN_PROGRESS",
+                    Style::new().fg(t.text).bold(),
+                ),
+                Span::styled(" ▓▒░", Style::new().fg(t.accent)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "  Attempting to fetch remote metadata... Please wait.",
+                Style::new().fg(t.text_dim),
+            )),
+        ])
+        .alignment(Alignment::Center);
         f.render_widget(loading, chunks[0]);
     } else if let Some(err) = &app.preview_error {
-        let error = Paragraph::new(format!(
-            "\n  ❌ PROTOCOL_ERROR\n\n  {}\n\n  System bypass available (ENTER to force).",
-            err
-        ))
-        .style(Style::new().fg(t.error))
+        let err_icon = if nf { " 󰅖 " } else { " ! " };
+        let error = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(err_icon, Style::new().fg(t.background).bg(t.error).bold()),
+                Span::styled(" PROTOCOL_ERROR ", Style::new().fg(t.error).bold()),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(format!("  {}", err), Style::new().fg(t.text))),
+            Line::from(""),
+            Line::from(Span::styled(
+                "  [System bypass available: Press ENTER to force queue]",
+                Style::new().fg(t.secondary).italic(),
+            )),
+        ])
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
         f.render_widget(error, chunks[0]);
     } else if let Some(info) = &app.preview_info {
-        let mut info_lines = vec![
+        let content_chunks = Layout::vertical([
+            Constraint::Length(6), // Info header
+            Constraint::Min(4),    // Qualities list
+            Constraint::Length(4), // Options
+        ])
+        .split(chunks[0]);
+
+        let title_label = if nf { " 󰄖 TARGET " } else { " [TARGET] " };
+        let platform_label = if nf { " 󰏘 SOURCE " } else { " [SOURCE] " };
+        let url_label = if nf { " 󰌷 URL    " } else { " [URL]    " };
+        let status_label = if nf { " 󰔛 STATUS " } else { " [STATUS] " };
+
+        let info_lines = vec![
             Line::from(vec![
-                Span::styled(" ❯ TARGET:  ", Style::new().fg(t.accent).bold()),
-                Span::styled(&info.title, Style::new().fg(t.text).bold()),
+                Span::styled(title_label, Style::new().fg(t.accent).bold()),
+                Span::styled(" ", Style::new()),
+                Span::styled(truncate(&info.title, 50), Style::new().fg(t.text).bold()),
             ]),
             Line::from(vec![
-                Span::styled(" ❯ SOURCE:  ", Style::new().fg(t.text_dim)),
-                Span::styled(&info.platform, Style::new().fg(t.secondary).bold()),
+                Span::styled(platform_label, Style::new().fg(t.secondary).bold()),
+                Span::styled(" ", Style::new()),
+                Span::styled(info.platform.to_uppercase(), Style::new().fg(t.text)),
             ]),
             Line::from(vec![
-                Span::styled(" ❯ URL:     ", Style::new().fg(t.text_dim)),
-                Span::styled(&info.url, Style::new().fg(t.text_dim)),
+                Span::styled(url_label, Style::new().fg(t.text_dim)),
+                Span::styled(" ", Style::new()),
+                Span::styled(truncate(&app.url_input, 50), Style::new().fg(t.text_dim)),
             ]),
-            Line::from(""),
             Line::from(vec![
-                Span::styled(" ❯ STATUS:  ", Style::new().fg(t.text_dim)),
-                Span::styled(" READY_FOR_TRANSFER ", Style::new().bg(t.surface).fg(t.success).bold()),
+                Span::styled(status_label, Style::new().fg(t.text_dim)),
+                Span::styled(" ", Style::new()),
+                Span::styled(
+                    " READY_FOR_TRANSFER ",
+                    Style::new().bg(t.success).fg(t.background).bold(),
+                ),
             ]),
         ];
 
-        // Add extra technical detail if available
-        info_lines.push(Line::from(vec![
-            Span::styled(" ❯ ENGINE:  ", Style::new().fg(t.text_dim)),
-            Span::styled("MANGOFETCH_CORE_v0.5.x", Style::new().fg(t.text_dim).italic()),
-        ]));
-
         let info_p = Paragraph::new(info_lines).wrap(Wrap { trim: true });
-        f.render_widget(info_p, chunks[0]);
+        f.render_widget(info_p, content_chunks[0]);
+
+        // Qualities
+        let mut q_items = vec![];
+        if info.available_qualities.is_empty() {
+            q_items.push(ListItem::new(Line::from(Span::styled("  No specific qualities found. Will use default/best.", Style::new().fg(t.text_dim)))));
+        } else {
+            for (i, q) in info.available_qualities.iter().enumerate() {
+                let prefix = if i == app.confirm_quality_idx {
+                    if app.confirm_focused_field == 0 { "  ▶ " } else { "  ▷ " }
+                } else {
+                    "    "
+                };
+                let style = if i == app.confirm_quality_idx {
+                    if app.confirm_focused_field == 0 {
+                        Style::new().fg(t.background).bg(t.accent).bold()
+                    } else {
+                        Style::new().fg(t.accent)
+                    }
+                } else {
+                    Style::new().fg(t.text)
+                };
+                
+                let size_str = if let Some(bytes) = q.filesize_bytes {
+                    format!(" ({:.1} MB)", bytes as f64 / 1_048_576.0)
+                } else {
+                    String::new()
+                };
+
+                let label = format!("{}{} ({}x{}){}", prefix, q.label, q.width, q.height, size_str);
+                q_items.push(ListItem::new(Line::from(Span::styled(label, style))));
+            }
+        }
+        
+        let q_list = ratatui::widgets::List::new(q_items)
+            .block(Block::default().borders(Borders::TOP).title(" Resoluciones Disponibles ").border_style(Style::new().fg(t.surface)));
+        f.render_widget(q_list, content_chunks[1]);
+
+        // Options
+        let opt_style_1 = if app.confirm_focused_field == 1 { Style::new().bg(t.secondary).fg(t.background).bold() } else { Style::new().fg(t.text) };
+        let opt_style_2 = if app.confirm_focused_field == 2 { Style::new().bg(t.secondary).fg(t.background).bold() } else { Style::new().fg(t.text) };
+        
+        let format_lbl = format!(" Format: < {} > ", app.confirm_download_mode.to_uppercase());
+        let subs_lbl = format!(" Subtitles: < {} > ", if app.confirm_download_subtitles { "YES" } else { "NO" });
+
+        let opts_lines = vec![
+            Line::from(vec![
+                Span::styled(if app.confirm_focused_field == 1 { " ▶" } else { "  " }, Style::new().fg(t.secondary)),
+                Span::styled(format_lbl, opt_style_1),
+            ]),
+            Line::from(vec![
+                Span::styled(if app.confirm_focused_field == 2 { " ▶" } else { "  " }, Style::new().fg(t.secondary)),
+                Span::styled(subs_lbl, opt_style_2),
+            ]),
+        ];
+        let opts_p = Paragraph::new(opts_lines)
+            .block(Block::default().borders(Borders::TOP).title(" Opciones Extras ").border_style(Style::new().fg(t.surface)));
+        f.render_widget(opts_p, content_chunks[2]);
     }
 
-    let enter_key = if nf { "󰌑" } else { "ENTER" };
-    let esc_key = if nf { "󱊷" } else { "ESC" };
+    let enter_key = if nf { " 󰌑 ENTER " } else { " ENTER " };
+    let esc_key = if nf { " 󱊷 ESC " } else { " ESC " };
 
     let help = Paragraph::new(Line::from(vec![
-        Span::styled(format!("  [{}] ", enter_key), Style::new().fg(t.success).bold()),
-        Span::raw("INIT_DOWNLOAD    "),
-        Span::styled(format!(" [{}] ", esc_key), Style::new().fg(t.error).bold()),
-        Span::raw("ABORT"),
+        Span::styled(
+            enter_key,
+            Style::new().fg(t.background).bg(t.success).bold(),
+        ),
+        Span::styled(" INIT_DOWNLOAD", Style::new().fg(t.success).bold()),
+        Span::styled("    ", Style::new()),
+        Span::styled(esc_key, Style::new().fg(t.background).bg(t.error).bold()),
+        Span::styled(" ABORT", Style::new().fg(t.error).bold()),
     ]))
     .alignment(Alignment::Center);
     f.render_widget(help, chunks[1]);
@@ -1161,68 +1445,154 @@ fn truncate(s: &str, max: usize) -> String {
 
 // ── TropicalUI Components ───────────────────────────────────────────────────
 
+fn render_topbar(f: &mut Frame, app: &App, area: Rect) {
+    let t = &app.theme;
+    let nf = app.use_nerd_fonts;
+
+    // TopBar block with borders
+    let block = Block::default()
+        .borders(Borders::BOTTOM)
+        .border_style(Style::new().fg(t.accent));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    // Split inner area into: [ Logo/Identity (Length 25), Tabs (Min 0), Status (Length 20) ]
+    let cols = Layout::horizontal([
+        Constraint::Length(25),
+        Constraint::Min(0),
+        Constraint::Length(20),
+    ])
+    .split(inner);
+
+    // 1. Logo & Identity
+    let logo_span = if nf {
+        Span::styled("󰄖 MANGOFETCH", Style::new().fg(t.accent).bold())
+    } else {
+        Span::styled("MANGOFETCH", Style::new().fg(t.accent).bold())
+    };
+    let logo_para = Paragraph::new(Line::from(vec![
+        logo_span,
+        Span::styled(format!(" v{}", app.version), Style::new().fg(t.text_dim)),
+    ]))
+    .alignment(Alignment::Left);
+    f.render_widget(logo_para, cols[0]);
+
+    // 2. Navigation Tabs (Horizontal)
+    let mut nav_spans = Vec::new();
+    for (i, tab) in Tab::ALL.iter().enumerate() {
+        let is_active = i == app.active_tab.index();
+        let label = match tab {
+            Tab::Home => "OVERVIEW",
+            Tab::Queue => "ACTIVE",
+            Tab::History => "HISTORY",
+            Tab::Settings => "SETTINGS",
+            Tab::About => "ABOUT",
+            Tab::Logs => "OUTPUT",
+        };
+
+        if i > 0 {
+            nav_spans.push(Span::styled(" │ ", Style::new().fg(t.surface_dim)));
+        }
+
+        if is_active {
+            nav_spans.push(Span::styled(
+                format!(" █ {} ", label),
+                Style::new().fg(t.background).bg(t.accent).bold(),
+            ));
+        } else {
+            nav_spans.push(Span::styled(
+                format!("  {} ", label),
+                Style::new().fg(t.text_dim),
+            ));
+        }
+    }
+
+    let tabs_para = Paragraph::new(Line::from(nav_spans)).alignment(Alignment::Center);
+    f.render_widget(tabs_para, cols[1]);
+
+    // 3. Status/Active Info
+    let (status_dot, status_color, status_text) = if app.active_count > 0 {
+        ("●", t.accent, "TRANSFERRING")
+    } else if app.queued_count > 0 {
+        ("●", t.warning, "QUEUED")
+    } else {
+        ("●", t.success, "SYSTEM IDLE")
+    };
+
+    let status_para = Paragraph::new(Line::from(vec![
+        Span::styled(status_dot, Style::new().fg(status_color)),
+        Span::styled(format!(" {}", status_text), Style::new().fg(t.text).bold()),
+    ]))
+    .alignment(Alignment::Right);
+    f.render_widget(status_para, cols[2]);
+}
+
 fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let nf = app.use_nerd_fonts;
 
-    // Sidebar block with surface background
+    // Sidebar block with right border in brand color
     let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(t.surface))
-        .bg(t.surface); // Slightly lighter background for the sidebar
+        .borders(Borders::RIGHT)
+        .border_style(Style::new().fg(t.accent));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
     let side_chunks = Layout::vertical([
         Constraint::Length(10), // Logo + Identity
-        Constraint::Min(0),    // Nav area
+        Constraint::Min(0),     // Nav area
     ])
     .split(inner);
 
     // ── TUI_IDENTITY ───────────────────────────────────────────────────────
-    
-    let mut identity_lines = Vec::new();
-    identity_lines.push(Line::from("")); // top padding
-
-    // Mini Stylized Logo
-    if nf {
-        identity_lines.push(
-            Line::from(vec![
-                Span::styled(" 󰄖 ", Style::new().fg(t.accent).bold()),
-                Span::styled("MANGO", Style::new().fg(t.accent).bold()),
-                Span::styled("FETCH", Style::new().fg(t.secondary).bold()),
-            ])
-            .alignment(Alignment::Center),
-        );
+    let logo_line = if nf {
+        Line::from(vec![
+            Span::styled("󰄖 ", Style::new().fg(t.accent).bold()),
+            Span::styled("MANGO", Style::new().fg(t.accent).bold()),
+            Span::styled("FETCH", Style::new().fg(t.secondary).bold()),
+        ])
     } else {
-        identity_lines.push(
-            Line::from(vec![
-                Span::styled(" (", Style::new().fg(t.accent)),
-                Span::styled("M", Style::new().fg(t.accent).bold()),
-                Span::styled(")", Style::new().fg(t.accent)),
-                Span::styled(" MANGO", Style::new().fg(t.accent).bold()),
-            ])
-            .alignment(Alignment::Center),
-        );
-    }
+        Line::from(vec![
+            Span::styled("MANGO", Style::new().fg(t.accent).bold()),
+            Span::styled("FETCH", Style::new().fg(t.secondary).bold()),
+        ])
+    };
 
-    identity_lines.push(Line::from(vec![
-        Span::styled("──────────────", Style::new().fg(t.background)), // Darker separator on surface
-    ]).alignment(Alignment::Center));
+    let separator_line = Line::from(vec![Span::styled(
+        "────────────────────",
+        Style::new().fg(t.surface_dim),
+    )]);
 
-    // Stats
-    identity_lines.push(Line::from(vec![
-        Span::styled(format!(" v{} ", app.version), Style::new().fg(t.text_dim)),
-        Span::styled("·", Style::new().fg(t.background)),
-        Span::styled(format!(" {} ", std::env::consts::OS.to_uppercase()), Style::new().fg(t.text_dim)),
-    ]).alignment(Alignment::Center));
+    let stats_line = Line::from(vec![
+        Span::styled(format!("v{}", app.version), Style::new().fg(t.text_dim)),
+        Span::styled(" │ ", Style::new().fg(t.surface_dim)),
+        Span::styled(
+            std::env::consts::OS.to_uppercase(),
+            Style::new().fg(t.text_dim),
+        ),
+    ]);
 
-    identity_lines.push(Line::from("")); // spacing
+    let (status_dot, status_color, status_text) = if app.active_count > 0 {
+        ("●", t.accent, "TRANSFERRING")
+    } else if app.queued_count > 0 {
+        ("●", t.warning, "QUEUED")
+    } else {
+        ("●", t.success, "SYSTEM IDLE")
+    };
 
-    identity_lines.push(Line::from(vec![
-        Span::styled(" ● ", Style::new().fg(t.success)),
-        Span::styled("SYSTEM ONLINE", Style::new().fg(t.text).bold()),
-    ]).alignment(Alignment::Center));
+    let status_line = Line::from(vec![
+        Span::styled(status_dot, Style::new().fg(status_color)),
+        Span::styled(format!(" {} ", status_text), Style::new().fg(t.text).bold()),
+    ]);
+
+    let identity_lines = vec![
+        Line::from(""), // top padding
+        logo_line.alignment(Alignment::Center),
+        separator_line.alignment(Alignment::Center),
+        stats_line.alignment(Alignment::Center),
+        Line::from(""), // spacing
+        status_line.alignment(Alignment::Center),
+    ];
 
     f.render_widget(Paragraph::new(identity_lines), side_chunks[0]);
 
@@ -1244,15 +1614,15 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
 
         if is_active {
             nav_lines.push(Line::from(vec![
-                Span::styled(" ❯ ", Style::new().fg(t.accent).bold().bg(t.highlight)),
+                Span::styled(" ┣━❯ ", Style::new().fg(t.accent).bold()),
                 Span::styled(
                     format!("{}. {} ", num, label.to_uppercase()),
-                    Style::new().fg(t.accent).bold().bg(t.highlight),
+                    Style::new().fg(t.background).bg(t.accent).bold(),
                 ),
             ]));
         } else {
             nav_lines.push(Line::from(vec![
-                Span::styled("    ", Style::new()),
+                Span::styled(" ┃   ", Style::new().fg(t.surface_dim)),
                 Span::styled(
                     format!("{}. {}", num, label.to_uppercase()),
                     Style::new().fg(t.text_dim),
@@ -1274,114 +1644,250 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
 fn render_keybindings(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
 
-    let inner = area;
-
     let keybindings = vec![
         ("a", "add"),
         ("p", "pause"),
         ("r", "resume"),
         ("x", "delete"),
         ("/", "cmd"),
-        ("Tab", "cat"),
+        ("l", "layout"),
         ("Tab", "tab"),
+        ("Esc", "clear"),
         ("?", "help"),
         ("q", "quit"),
     ];
 
-    let spans: Vec<Span> = keybindings
-        .iter()
-        .flat_map(|(key, action)| {
-            vec![
-                Span::styled(*key, Style::new().fg(t.secondary).bold()),
-                Span::styled(":", Style::new().fg(t.text_dim)),
-                Span::styled(*action, Style::new().fg(t.text_dim)),
-                Span::styled("  ", Style::new()),
-            ]
-        })
-        .collect();
+    let mut left_spans: Vec<Span> = Vec::new();
+    for (i, (key, action)) in keybindings.iter().enumerate() {
+        if i > 0 {
+            left_spans.push(Span::styled(" │ ", Style::new().fg(t.surface_dim)));
+        }
+        left_spans.push(Span::styled(
+            format!(" {} ", key),
+            Style::new().fg(t.secondary).bold(),
+        ));
+        left_spans.push(Span::styled(action.to_uppercase(), Style::new().fg(t.text)));
+    }
 
-    f.render_widget(Paragraph::new(Line::from(spans)), inner);
+    // System status indicator tags (Right-aligned)
+    let layout_tag = if app.layout == "topbar" {
+        "TOPBAR"
+    } else {
+        "SIDEBAR"
+    };
+    let nf_tag = if app.use_nerd_fonts {
+        "NF:ON"
+    } else {
+        "NF:OFF"
+    };
+    let theme_tag = app.theme_name.to_uppercase();
+
+    let bracket_style = Style::new().fg(t.surface_dim);
+    let right_spans = vec![
+        Span::styled(" [ ", bracket_style),
+        Span::styled(
+            format!("LAY:{}", layout_tag),
+            Style::new().fg(t.accent).bold(),
+        ),
+        Span::styled(" │ ", bracket_style),
+        Span::styled(
+            format!("FONTS:{}", nf_tag),
+            Style::new().fg(t.secondary).bold(),
+        ),
+        Span::styled(" │ ", bracket_style),
+        Span::styled(
+            format!("THEME:{}", theme_tag),
+            Style::new().fg(t.text).bold(),
+        ),
+        Span::styled(" ] ", bracket_style),
+    ];
+
+    let left_w: u16 = left_spans.iter().map(|s| s.width() as u16).sum();
+    let right_w: u16 = right_spans.iter().map(|s| s.width() as u16).sum();
+    let gap = area.width.saturating_sub(left_w + right_w);
+
+    let mut all_spans = left_spans;
+    if gap > 0 {
+        all_spans.push(Span::raw(" ".repeat(gap as usize)));
+    }
+    all_spans.extend(right_spans);
+
+    f.render_widget(Paragraph::new(Line::from(all_spans)), area);
 }
 
 fn render_dense_statusbar(f: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let nf = app.use_nerd_fonts;
 
-    // Single line status bar
-    let mode_str = match app.mode {
-        Mode::Normal => "NORMAL",
-        Mode::AddUrl | Mode::AddConfirm => "INPUT",
-        Mode::Command => "COMMAND",
-        Mode::ConfirmDelete => "CONFIRM",
-    };
-
     let is_downloading = app.total_speed > 0.0 || app.active_count > 0;
+    let millisecond = Local::now().timestamp_subsec_millis();
 
-    // ── LEFT: Identity ───────────────────────────────────────────────────
-    let left_spans = vec![
-        Span::styled(
-            mode_str,
-            Style::new().fg(t.accent).bold(),
-        ),
-        Span::styled(" | ", Style::new().fg(t.surface)),
-        Span::styled(
-            app.active_tab.label(false).trim().to_uppercase(),
-            Style::new().fg(t.secondary),
-        ),
-        Span::styled(" | ", Style::new().fg(t.surface)),
-        Span::styled(
-            Local::now().format("%H:%M").to_string(),
-            Style::new().fg(t.text_dim),
-        ),
-    ];
-
-    // ── RIGHT: System & Progress ─────────────────────────────────────────
+    let mut left_spans = Vec::new();
     let mut right_spans = Vec::new();
 
-    // CPU
-    let cpu_icon = if nf { "󰻠 " } else { "CPU " };
-    right_spans.push(Span::styled(
-        format!("{}{:.0}%", cpu_icon, app.cpu_usage),
-        Style::new().fg(t.text_dim),
-    ));
-    right_spans.push(Span::styled(" | ", Style::new().fg(t.surface)));
+    // Start Left with a leading block
+    left_spans.push(Span::styled(" █ ", Style::new().fg(t.background)));
 
-    // MEM
-    let mem_icon = if nf { "󰍛 " } else { "RAM " };
-    right_spans.push(Span::styled(
-        format!("{}{}", mem_icon, format_bytes(app.mem_usage)),
-        Style::new().fg(t.text_dim),
-    ));
-    right_spans.push(Span::styled(" | ", Style::new().fg(t.surface)));
+    let active_count = app.statusbar_modules.len();
+    let left_limit = active_count / 2;
 
-    if is_downloading {
-        right_spans.push(Span::styled(
-            format!("{}/s", format_bytes(app.total_speed as u64)),
-            Style::new().fg(t.success).bold(),
-        ));
-        right_spans.push(Span::styled(" | ", Style::new().fg(t.surface)));
+    for (idx, module_name) in app.statusbar_modules.iter().enumerate() {
+        let spans = match module_name.as_str() {
+            "mode" => {
+                let mode_str = match app.mode {
+                    Mode::Normal => "NORMAL",
+                    Mode::AddUrl | Mode::AddConfirm => "INPUT",
+                    Mode::Command => "COMMAND",
+                    Mode::ConfirmDelete => "CONFIRM",
+                };
+                let pulse_char = if !app.enable_animations {
+                    if nf { "⬢" } else { "o" }
+                } else if nf {
+                    let pulse_idx = ((millisecond / 250) % 4) as usize;
+                    ["⬡", "⬢", "⬡", "⬢"][pulse_idx]
+                } else {
+                    let pulse_idx = ((millisecond / 250) % 4) as usize;
+                    ["-", "o", "-", "o"][pulse_idx]
+                };
+                vec![
+                    Span::styled(
+                        format!(" {} ", pulse_char),
+                        Style::new().fg(t.background).bold(),
+                    ),
+                    Span::styled(
+                        format!("MODE: {} ", mode_str.to_uppercase()),
+                        Style::new().fg(t.background).bold(),
+                    ),
+                ]
+            }
+            "tab" => vec![Span::styled(
+                app.active_tab.label(false).trim().to_uppercase(),
+                Style::new().fg(t.background).bold(),
+            )],
+            "time" => vec![Span::styled(
+                Local::now().format("%H:%M").to_string(),
+                Style::new().fg(t.background),
+            )],
+            "radar" => {
+                let scan_chars = if nf {
+                    ["░", "▒", "▓", "█", "▓", "▒", "░", " "]
+                } else {
+                    ["=", "o", "x", "X", "x", "o", "=", " "]
+                };
+                let scan_idx = if !app.enable_animations {
+                    0
+                } else {
+                    ((millisecond / 120) % 8) as usize
+                };
+                let mut scan_bar = String::new();
+                for i in 0..6 {
+                    let char_idx = (scan_idx + i) % 8;
+                    scan_bar.push(scan_chars[char_idx].chars().next().unwrap_or(' '));
+                }
+                vec![Span::styled(
+                    format!("[SYS: {}] ", scan_bar),
+                    Style::new().fg(t.background).bold(),
+                )]
+            }
+            "cpu" => {
+                let cpu_icon = if nf { "󰻠 " } else { "CPU " };
+                vec![Span::styled(
+                    format!("{}{:.0}%", cpu_icon, app.cpu_usage),
+                    Style::new().fg(t.background),
+                )]
+            }
+            "ram" => {
+                let mem_icon = if nf { "󰍛 " } else { "RAM " };
+                vec![Span::styled(
+                    format!("{}{}", mem_icon, format_bytes(app.mem_usage)),
+                    Style::new().fg(t.background),
+                )]
+            }
+            "speed" => {
+                let mut s_spans = Vec::new();
+                let dl_indicator = if nf {
+                    if is_downloading && app.enable_animations {
+                        let idx = ((millisecond / 150) % 4) as usize;
+                        [" 󰇚 ", " 󰇛 ", " 󰇜 ", " 󰇚 "][idx]
+                    } else {
+                        " 󰇚 "
+                    }
+                } else {
+                    if is_downloading && app.enable_animations {
+                        let idx = ((millisecond / 200) % 2) as usize;
+                        if idx == 0 {
+                            " v "
+                        } else {
+                            " . "
+                        }
+                    } else {
+                        " v "
+                    }
+                };
+                if is_downloading {
+                    s_spans.push(Span::styled(
+                        dl_indicator,
+                        Style::new().fg(t.background).bold(),
+                    ));
+                    s_spans.push(Span::styled(
+                        format!("{}/s", format_bytes(app.total_speed as u64)),
+                        Style::new().fg(t.background).bold(),
+                    ));
+                } else {
+                    let net_icon = if nf { "󰇚 " } else { "NET " };
+                    s_spans.push(Span::styled(
+                        format!("{}OFFLINE", net_icon),
+                        Style::new().fg(t.background),
+                    ));
+                }
+                s_spans
+            }
+            "queue" => vec![Span::styled(
+                format!("Q: {}/{}", app.active_count, app.items.len()),
+                Style::new().fg(t.background),
+            )],
+            _ => vec![],
+        };
+
+        if spans.is_empty() {
+            continue;
+        }
+
+        if idx < left_limit {
+            if left_spans.len() > 1 {
+                left_spans.push(Span::styled(" │ ", Style::new().fg(t.surface_dim)));
+            }
+            left_spans.extend(spans);
+        } else {
+            if !right_spans.is_empty() {
+                right_spans.push(Span::styled(" │ ", Style::new().fg(t.surface_dim)));
+            }
+            right_spans.extend(spans);
+        }
     }
 
-    right_spans.push(Span::styled(
-        format!("Q: {}/{}", app.active_count, app.items.len()),
-        Style::new().fg(t.secondary),
-    ));
+    // End Right with a closing block
+    right_spans.push(Span::styled(" █", Style::new().fg(t.background)));
 
     // ── CENTER: Commands & Notifications ──────────────────────────────────
     let left_w: u16 = left_spans.iter().map(|s| s.width() as u16).sum();
     let right_w: u16 = right_spans.iter().map(|s| s.width() as u16).sum();
-    
-    let center_area_w = area.width.saturating_sub(left_w + right_w + 4);
-    
+
+    let center_area_w = area.width.saturating_sub(left_w + right_w);
+
     let center_span = if app.mode == Mode::Command {
         Span::styled(
             format!(":{}█", app.command_buffer),
-            Style::new().fg(t.accent).bold().bg(t.highlight),
+            Style::new().fg(t.accent).bold().bg(t.background),
         )
     } else if let Some(msg) = &app.status_message {
-        let col = if app.status_is_error { t.error } else { t.success };
+        let col = if app.status_is_error {
+            t.error
+        } else {
+            t.success
+        };
         Span::styled(
-            format!(" {} ", msg),
+            format!(" {} ", msg.to_uppercase()),
             Style::new().fg(t.background).bg(col).bold(),
         )
     } else {
@@ -1393,12 +1899,19 @@ fn render_dense_statusbar(f: &mut Frame, app: &App, area: Rect) {
     let right_gap = center_area_w.saturating_sub(center_w + left_gap);
 
     let mut all_spans = left_spans;
-    all_spans.push(Span::raw("  "));
-    all_spans.push(Span::raw(" ".repeat(left_gap as usize)));
+    all_spans.push(Span::styled(
+        " ".repeat(left_gap as usize),
+        Style::new().bg(t.accent),
+    ));
     all_spans.push(center_span);
-    all_spans.push(Span::raw(" ".repeat(right_gap as usize)));
-    all_spans.push(Span::raw("  "));
+    all_spans.push(Span::styled(
+        " ".repeat(right_gap as usize),
+        Style::new().bg(t.accent),
+    ));
     all_spans.append(&mut right_spans);
 
-    f.render_widget(Paragraph::new(Line::from(all_spans)), area);
+    let p = Paragraph::new(Line::from(all_spans))
+        .style(Style::new().bg(t.accent).fg(t.background).bold());
+
+    f.render_widget(p, area);
 }

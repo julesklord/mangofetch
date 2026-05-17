@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -85,6 +83,8 @@ impl YouTubeDownloader {
                     height: 0,
                     url: entry.url,
                     format: "ytdlp_playlist".to_string(),
+
+                    filesize_bytes: None,
                 })
                 .collect();
 
@@ -105,14 +105,6 @@ impl YouTubeDownloader {
 
         let json = ytdlp::get_video_info(ytdlp_path, url, &[]).await?;
         Self::parse_video_info(&json)
-    }
-
-    fn extract_quality_height(quality_str: &str) -> Option<u32> {
-        let s = quality_str.trim().to_lowercase();
-        if s == "best" || s == "highest" {
-            return None;
-        }
-        s.trim_end_matches('p').parse::<u32>().ok()
     }
 
     pub fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
@@ -151,8 +143,8 @@ impl YouTubeDownloader {
             return Err(anyhow!("Livestreams not supported"));
         }
 
-        let mut qualities: Vec<MediaVideoQuality> = Vec::new();
-        let mut seen_heights: HashSet<u32> = HashSet::new();
+        let mut quality_map: std::collections::BTreeMap<u32, MediaVideoQuality> =
+            std::collections::BTreeMap::new();
 
         if let Some(formats) = json.get("formats").and_then(|v| v.as_array()) {
             for f in formats {
@@ -166,26 +158,40 @@ impl YouTubeDownloader {
                 }
 
                 let has_audio = acodec != "none";
+                let filesize_bytes = f
+                    .get("filesize")
+                    .and_then(|v| v.as_u64())
+                    .or_else(|| f.get("filesize_approx").and_then(|v| v.as_u64()));
 
-                if seen_heights.insert(height) {
-                    let label = if has_audio {
-                        format!("{}p", height)
-                    } else {
-                        format!("{}p (HD)", height)
-                    };
+                let label = if has_audio {
+                    format!("{}p", height)
+                } else {
+                    format!("{}p (HD)", height)
+                };
 
-                    qualities.push(MediaVideoQuality {
-                        label,
-                        width,
-                        height,
-                        url: format!("https://www.youtube.com/watch?v={}", video_id),
-                        format: "ytdlp".to_string(),
-                    });
+                let q = MediaVideoQuality {
+                    label,
+                    width,
+                    height,
+                    url: format!("https://www.youtube.com/watch?v={}", video_id),
+                    format: "ytdlp".to_string(),
+                    filesize_bytes,
+                };
+
+                if let Some(existing) = quality_map.get(&height) {
+                    let existing_has_audio = !existing.label.contains("(HD)");
+                    let replace = (!existing_has_audio && has_audio)
+                        || (filesize_bytes.is_some() && existing.filesize_bytes.is_none());
+                    if replace {
+                        quality_map.insert(height, q);
+                    }
+                } else {
+                    quality_map.insert(height, q);
                 }
             }
         }
 
-        qualities.sort_by_key(|q| std::cmp::Reverse(q.height));
+        let mut qualities: Vec<MediaVideoQuality> = quality_map.into_values().rev().collect();
 
         if qualities.is_empty() {
             qualities.push(MediaVideoQuality {
@@ -194,6 +200,8 @@ impl YouTubeDownloader {
                 height: 0,
                 url: format!("https://www.youtube.com/watch?v={}", video_id),
                 format: "ytdlp".to_string(),
+
+                filesize_bytes: None,
             });
         }
 
@@ -254,6 +262,8 @@ impl PlatformDownloader for YouTubeDownloader {
                     height: 0,
                     url: entry.url,
                     format: "ytdlp_playlist".to_string(),
+
+                    filesize_bytes: None,
                 })
                 .collect();
 
@@ -301,27 +311,15 @@ impl PlatformDownloader for YouTubeDownloader {
             .first()
             .ok_or_else(|| anyhow!("No quality available"))?;
 
-        let quality_height = if let Some(ref wanted) = opts.quality {
-            if wanted == "best" {
-                None
-            } else {
-                Self::extract_quality_height(wanted)
-            }
-        } else {
-            None
-        };
-
         let selected = if let Some(ref wanted) = opts.quality {
-            if wanted == "best" {
-                first
-            } else {
-                info.available_qualities
-                    .iter()
-                    .find(|q| q.label == *wanted)
-                    .unwrap_or(first)
-            }
+            info.get_closest_quality(wanted).unwrap_or(first)
         } else {
             first
+        };
+        let quality_height = if selected.height > 0 {
+            Some(selected.height)
+        } else {
+            None
         };
         let video_url = &selected.url;
 

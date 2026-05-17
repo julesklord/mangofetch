@@ -76,6 +76,8 @@ impl TwitchClipsDownloader {
                     height,
                     url: authenticated_url,
                     format: "mp4".to_string(),
+
+                    filesize_bytes: None,
                 }
             })
             .collect();

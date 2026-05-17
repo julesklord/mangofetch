@@ -29,7 +29,6 @@ pub const BLOCK_TITLE: &[&str] = &[
     "█   █ █   █ █   █  ████  ███  █     █████   █    ████ █   █ ",
 ];
 
-
 #[allow(dead_code)]
 pub const STYLIZED_MANGO: &[&str] = &[
     "      ╭──╮     ",

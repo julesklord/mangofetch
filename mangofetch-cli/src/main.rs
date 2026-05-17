@@ -723,6 +723,7 @@ async fn perform_download(
                     None,
                     None,
                     None,
+                    None,
                     None, // We don't have full info for each entry yet
                     None,
                     None,
@@ -769,6 +770,7 @@ async fn perform_download(
         output_dir,
         None,
         quality,
+        None,
         None,
         None,
         None,
