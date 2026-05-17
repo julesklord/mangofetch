@@ -43,6 +43,62 @@ pub fn init_logging_ext(verbose: bool, use_stdout: bool) {
     }
 }
 
+const DEFAULT_MAX_LOG_AGE_DAYS: u64 = 7;
+const DEFAULT_MAX_LOG_SIZE_MB: u64 = 100;
+
+pub fn clean_old_logs(max_age_days: u64, max_size_mb: u64) -> std::io::Result<u64> {
+    let log_dir = crate::core::paths::app_data_dir()
+        .map(|d| d.join("logs"))
+        .unwrap_or_else(|| PathBuf::from("logs"));
+
+    if !log_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut removed_count = 0u64;
+    let mut total_size: u64 = 0;
+    let mut file_times: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
+
+    for entry in std::fs::read_dir(&log_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            if let Ok(metadata) = entry.metadata() {
+                total_size += metadata.len();
+                if let Ok(modified) = metadata.modified() {
+                    file_times.push((path.clone(), modified));
+                }
+            }
+        }
+    }
+
+    let max_size_bytes = max_size_mb * 1024 * 1024;
+    let now = std::time::SystemTime::now();
+
+    for (path, modified) in file_times {
+        let age_days = if let Ok(duration) = now.duration_since(modified) {
+            duration.as_secs() / 86400
+        } else {
+            0
+        };
+
+        let should_remove = age_days > max_age_days || total_size > max_size_bytes;
+
+        if should_remove && std::fs::remove_file(&path).is_ok() {
+            removed_count += 1;
+            if let Ok(metadata) = std::fs::metadata(&path) {
+                total_size = total_size.saturating_sub(metadata.len());
+            }
+        }
+    }
+
+    Ok(removed_count)
+}
+
+pub fn clean_logs() -> std::io::Result<u64> {
+    clean_old_logs(DEFAULT_MAX_LOG_AGE_DAYS, DEFAULT_MAX_LOG_SIZE_MB)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

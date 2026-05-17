@@ -459,6 +459,10 @@ impl App {
     }
 
     fn make_theme(name: &str) -> Theme {
+        if let Some(custom) = Theme::from_json(name) {
+            return custom;
+        }
+
         match name {
             "pitaya" => Theme::pitaya(),
             "coconut" => Theme::coconut(),

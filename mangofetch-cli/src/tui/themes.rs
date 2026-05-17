@@ -1,4 +1,5 @@
 use ratatui::prelude::*;
+use std::path::PathBuf;
 
 /// A complete color palette for the TUI.
 pub struct Theme {
@@ -225,5 +226,57 @@ impl Theme {
             error: Color::Rgb(255, 60, 100),     // Emergency red
             progress: Color::Rgb(0, 180, 255),
         }
+    }
+
+    pub fn from_json(name: &str) -> Option<Self> {
+        let config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        let theme_path = config_dir.join("mangofetch").join("themes").join(format!("{}.json", name));
+
+        if !theme_path.exists() {
+            return None;
+        }
+
+        let content = std::fs::read_to_string(&theme_path).ok()?;
+        let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+        fn parse_hex(s: &str) -> Option<Color> {
+            let s = s.trim_start_matches('#');
+            if s.len() == 6 {
+                let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+                Some(Color::Rgb(r, g, b))
+            } else {
+                None
+            }
+        }
+
+        let accent = json.get("accent").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let secondary = json.get("secondary").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let highlight = json.get("highlight").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let background = json.get("background").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let surface = json.get("surface").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let surface_dim = json.get("surface_dim").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let text = json.get("text").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let text_dim = json.get("text_dim").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let success = json.get("success").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let warning = json.get("warning").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let error = json.get("error").and_then(|v| v.as_str()).and_then(parse_hex)?;
+        let progress = json.get("progress").and_then(|v| v.as_str()).and_then(parse_hex).unwrap_or(accent);
+
+        Some(Self {
+            accent,
+            secondary,
+            highlight,
+            background,
+            surface,
+            surface_dim,
+            text,
+            text_dim,
+            success,
+            warning,
+            error,
+            progress,
+        })
     }
 }

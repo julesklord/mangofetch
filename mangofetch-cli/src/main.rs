@@ -123,6 +123,10 @@ enum Commands {
         /// Remove only failed downloads
         #[arg(long)]
         failed: bool,
+
+        /// Clean old log files (older than 7 days or when total > 100MB)
+        #[arg(long)]
+        logs: bool,
     },
 
     /// Manage settings
@@ -375,7 +379,36 @@ async fn main() -> Result<()> {
             println!("{}", format_queue_list(display_items, &theme));
         }
 
-        Commands::Clean { finished, failed } => {
+        Commands::Clean { finished, failed, logs } => {
+            if logs {
+                match mangofetch_core::core::logger::clean_logs() {
+                    Ok(count) => {
+                        if count > 0 {
+                            println!(
+                                "{}✓ Cleaned {} old log file(s){}",
+                                theme.color_success(),
+                                count,
+                                theme.color_reset()
+                            );
+                        } else {
+                            println!(
+                                "{}✓ No old log files to clean{}",
+                                theme.color_success(),
+                                theme.color_reset()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "{}✗ Failed to clean logs: {}{}",
+                            theme.color_error(),
+                            e,
+                            theme.color_reset()
+                        );
+                    }
+                }
+            }
+
             let items_before = recovery::list().len();
 
             if finished || failed {
