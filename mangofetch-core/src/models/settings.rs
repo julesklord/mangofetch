@@ -1,8 +1,21 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+// Default constants
+const DEFAULT_TUI_THEME: &str = "mango";
+const DEFAULT_VIDEO_QUALITY: &str = "720p";
+const DEFAULT_CONCURRENT_FRAGMENTS: u32 = 8;
+const DEFAULT_MAX_CONCURRENT_DOWNLOADS: u32 = 2;
+const DEFAULT_STAGGER_DELAY_MS: u64 = 150;
+const DEFAULT_TORRENT_LISTEN_PORT: u16 = 6881;
+const DEFAULT_FILENAME_TEMPLATE: &str = "%(title).200s [%(id)s].%(ext)s";
+const DEFAULT_HOTKEY_BINDING: &str = "CmdOrCtrl+Shift+D";
+const DEFAULT_PROXY_TYPE: &str = "http";
+const DEFAULT_PROXY_PORT: u16 = 8080;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
+    #[serde(default = "default_schema_version")]
     pub schema_version: u32,
     pub appearance: AppearanceSettings,
     pub download: DownloadSettings,
@@ -23,6 +36,10 @@ pub struct AppSettings {
     pub last_download_options: LastDownloadOptions,
 }
 
+fn default_schema_version() -> u32 {
+    1
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LastDownloadOptions {
     #[serde(default)]
@@ -41,8 +58,19 @@ pub struct AppearanceSettings {
     pub use_nerd_fonts: bool,
 }
 
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            theme: "system".into(),
+            language: "en".into(),
+            tui_theme: DEFAULT_TUI_THEME.into(),
+            use_nerd_fonts: false,
+        }
+    }
+}
+
 fn default_tui_theme() -> String {
-    "mango".into()
+    DEFAULT_TUI_THEME.into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +113,34 @@ pub struct DownloadSettings {
     pub cookie_file: String,
 }
 
+impl Default for DownloadSettings {
+    fn default() -> Self {
+        Self {
+            default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),
+            always_ask_path: true,
+            video_quality: DEFAULT_VIDEO_QUALITY.into(),
+            skip_existing: true,
+            download_attachments: true,
+            download_descriptions: true,
+            embed_metadata: true,
+            embed_thumbnail: true,
+            clipboard_detection: false,
+            filename_template: DEFAULT_FILENAME_TEMPLATE.into(),
+            organize_by_platform: false,
+            download_subtitles: false,
+            include_auto_subtitles: false,
+            translate_metadata: false,
+            youtube_sponsorblock: false,
+            split_by_chapters: false,
+            hotkey_enabled: false,
+            hotkey_binding: DEFAULT_HOTKEY_BINDING.into(),
+            extra_ytdlp_flags: Vec::new(),
+            copy_to_clipboard_on_hotkey: true,
+            cookie_file: String::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdvancedSettings {
     pub max_concurrent_segments: u32,
@@ -103,20 +159,35 @@ pub struct AdvancedSettings {
     pub twitter_manual_cookie: String,
 }
 
+impl Default for AdvancedSettings {
+    fn default() -> Self {
+        Self {
+            max_concurrent_segments: 20,
+            max_retries: 3,
+            max_concurrent_downloads: DEFAULT_MAX_CONCURRENT_DOWNLOADS,
+            concurrent_fragments: DEFAULT_CONCURRENT_FRAGMENTS,
+            stagger_delay_ms: DEFAULT_STAGGER_DELAY_MS,
+            torrent_listen_port: DEFAULT_TORRENT_LISTEN_PORT,
+            cookies_from_browser: String::new(),
+            twitter_manual_cookie: String::new(),
+        }
+    }
+}
+
 fn default_concurrent_fragments() -> u32 {
-    8
+    DEFAULT_CONCURRENT_FRAGMENTS
 }
 
 fn default_max_concurrent_downloads() -> u32 {
-    2
+    DEFAULT_MAX_CONCURRENT_DOWNLOADS
 }
 
 fn default_stagger_delay_ms() -> u64 {
-    150
+    DEFAULT_STAGGER_DELAY_MS
 }
 
 fn default_torrent_listen_port() -> u16 {
-    6881
+    DEFAULT_TORRENT_LISTEN_PORT
 }
 
 fn default_true() -> bool {
@@ -124,11 +195,11 @@ fn default_true() -> bool {
 }
 
 pub fn default_filename_template() -> String {
-    "%(title).200s [%(id)s].%(ext)s".into()
+    DEFAULT_FILENAME_TEMPLATE.into()
 }
 
 fn default_hotkey_binding() -> String {
-    "CmdOrCtrl+Shift+D".into()
+    DEFAULT_HOTKEY_BINDING.into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,59 +233,36 @@ pub struct ProxySettings {
     pub password: String,
 }
 
+impl ProxySettings {
+    fn default_internal() -> Self {
+        Self {
+            enabled: false,
+            proxy_type: DEFAULT_PROXY_TYPE.into(),
+            host: String::new(),
+            port: DEFAULT_PROXY_PORT,
+            username: String::new(),
+            password: String::new(),
+        }
+    }
+}
+
 fn default_proxy_type() -> String {
-    "http".into()
+    DEFAULT_PROXY_TYPE.into()
 }
 
 fn default_proxy_port() -> u16 {
-    8080
+    DEFAULT_PROXY_PORT
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             schema_version: 1,
-            appearance: AppearanceSettings {
-                theme: "system".into(),
-                language: "en".into(),
-                tui_theme: "mango".into(),
-                use_nerd_fonts: false,
-            },
-            download: DownloadSettings {
-                default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),
-                always_ask_path: true,
-                video_quality: "720p".into(),
-                skip_existing: true,
-                download_attachments: true,
-                download_descriptions: true,
-                embed_metadata: true,
-                embed_thumbnail: true,
-                clipboard_detection: false,
-                filename_template: default_filename_template(),
-                organize_by_platform: false,
-                download_subtitles: false,
-                include_auto_subtitles: false,
-                translate_metadata: false,
-                youtube_sponsorblock: false,
-                split_by_chapters: false,
-                hotkey_enabled: false,
-                hotkey_binding: default_hotkey_binding(),
-                extra_ytdlp_flags: Vec::new(),
-                copy_to_clipboard_on_hotkey: true,
-                cookie_file: String::new(),
-            },
-            advanced: AdvancedSettings {
-                max_concurrent_segments: 20,
-                max_retries: 3,
-                max_concurrent_downloads: 2,
-                concurrent_fragments: 8,
-                stagger_delay_ms: 150,
-                torrent_listen_port: 6881,
-                cookies_from_browser: String::new(),
-                twitter_manual_cookie: String::new(),
-            },
+            appearance: AppearanceSettings::default(),
+            download: DownloadSettings::default(),
+            advanced: AdvancedSettings::default(),
             telegram: TelegramSettings::default(),
-            proxy: ProxySettings::default(),
+            proxy: ProxySettings::default_internal(),
             onboarding_completed: false,
             start_with_windows: false,
             portable_mode: false,
@@ -226,25 +274,27 @@ impl Default for AppSettings {
 
 impl AppSettings {
     pub fn load_from_disk() -> Self {
-        let data_dir = match crate::core::paths::app_data_dir() {
-            Some(d) => d,
-            None => return Self::default(),
-        };
-        Self::load_from_path(&data_dir.join("settings.json"))
+        crate::core::paths::app_data_dir()
+            .map(|d| Self::load_from_path(&d.join("settings.json")))
+            .unwrap_or_default()
     }
 
-    pub fn load_from_path(store_path: &std::path::Path) -> Self {
+    pub fn load_from_path(store_path: &Path) -> Self {
         let content = match std::fs::read_to_string(store_path) {
             Ok(c) => c,
             Err(_) => return Self::default(),
         };
-        let json: serde_json::Value = match serde_json::from_str(&content) {
+
+        let mut json: serde_json::Value = match serde_json::from_str(&content) {
             Ok(v) => v,
             Err(_) => return Self::default(),
         };
-        match json.get("app_settings") {
-            Some(val) => serde_json::from_value::<Self>(val.clone()).unwrap_or_default(),
-            None => Self::default(),
+
+        if let Some(val) = json.get_mut("app_settings") {
+            // Use take() to avoid cloning the Value
+            serde_json::from_value::<Self>(val.take()).unwrap_or_default()
+        } else {
+            Self::default()
         }
     }
 
@@ -254,7 +304,7 @@ impl AppSettings {
         self.save_to_path(&data_dir.join("settings.json"))
     }
 
-    pub fn save_to_path(&self, store_path: &std::path::Path) -> anyhow::Result<()> {
+    pub fn save_to_path(&self, store_path: &Path) -> anyhow::Result<()> {
         let mut json = if store_path.exists() {
             let content = std::fs::read_to_string(store_path)?;
             serde_json::from_str::<serde_json::Value>(&content).unwrap_or(serde_json::json!({}))

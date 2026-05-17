@@ -1,7 +1,6 @@
 use crate::models::queue::QueueStatus;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
@@ -57,28 +56,27 @@ fn write_to_disk(items: &HashMap<u64, RecoveryItem>) {
         tracing::warn!("[recovery] create_dir_all failed: {}", e);
         return;
     }
-    let file_data = RecoveryFile {
-        items: items.values().cloned().collect(),
-    };
-    let serialized = match serde_json::to_string_pretty(&file_data) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!("[recovery] serialize failed: {}", e);
-            return;
-        }
-    };
+
     let tmp = path.with_extension("json.tmp");
-    let write_result = (|| -> std::io::Result<()> {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(serialized.as_bytes())?;
-        f.sync_all()?;
+    let write_result = (|| -> anyhow::Result<()> {
+        let f = std::fs::File::create(&tmp)?;
+        let mut writer = std::io::BufWriter::new(f);
+        
+        let file_data = RecoveryFile {
+            items: items.values().cloned().collect(),
+        };
+        
+        serde_json::to_writer_pretty(&mut writer, &file_data)?;
+        writer.into_inner()?.sync_all()?;
         Ok(())
     })();
+
     if let Err(e) = write_result {
-        tracing::warn!("[recovery] write tmp failed: {}", e);
+        tracing::warn!("[recovery] write failed: {}", e);
         let _ = std::fs::remove_file(&tmp);
         return;
     }
+
     if let Err(e) = std::fs::rename(&tmp, &path) {
         tracing::warn!("[recovery] rename failed: {}", e);
         let _ = std::fs::remove_file(&tmp);

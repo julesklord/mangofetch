@@ -308,6 +308,13 @@ pub struct App {
     /// Selected sub-section in About tab
     pub about_index: usize,
 
+    /// System monitoring
+    pub sys_info: sysinfo::System,
+    pub pid: sysinfo::Pid,
+    pub last_sys_refresh: std::time::Instant,
+    pub cpu_usage: f32,
+    pub mem_usage: u64,
+
     /// Aggregate stats refreshed each tick
     pub total_speed: f64,
     pub active_count: usize,
@@ -327,6 +334,9 @@ impl App {
         let settings = AppSettings::load_from_disk();
         let theme = Self::make_theme(&settings.appearance.tui_theme);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut sys_info = sysinfo::System::new();
+        let pid = sysinfo::get_current_pid().unwrap_or(sysinfo::Pid::from(0));
+        sys_info.refresh_process(pid);
 
         Self {
             state: AppState::Splash,
@@ -364,6 +374,11 @@ impl App {
             download_category: DownloadsCategory::All,
             home_index: 0,
             about_index: 0,
+            sys_info,
+            pid,
+            last_sys_refresh: std::time::Instant::now(),
+            cpu_usage: 0.0,
+            mem_usage: 0,
             total_speed: 0.0,
             active_count: 0,
             queued_count: 0,
@@ -383,6 +398,7 @@ impl App {
             "starfruit" => Theme::starfruit(),
             "mangosteen" => Theme::mangosteen(),
             "kiwi" => Theme::kiwi(),
+            "tropical" => Theme::tropical(),
             _ => Theme::mango(),
         }
     }
@@ -418,18 +434,6 @@ impl App {
         }
         // Auto-scroll to bottom
         self.log_scroll = self.log_lines.len().saturating_sub(1);
-    }
-
-    pub fn log_scroll_up(&mut self) {
-        if self.log_scroll > 0 {
-            self.log_scroll -= 1;
-        }
-    }
-
-    pub fn log_scroll_down(&mut self) {
-        if self.log_scroll < self.log_lines.len().saturating_sub(1) {
-            self.log_scroll += 1;
-        }
     }
 
     /// Drain any pending lines from the TuiReporter into output_lines.
@@ -666,6 +670,16 @@ impl App {
     pub fn refresh_data(&mut self) {
         self.process_messages();
 
+        // Refresh system info (Process specific, every 2 seconds)
+        if self.last_sys_refresh.elapsed().as_secs() >= 2 {
+            self.sys_info.refresh_process(self.pid);
+            if let Some(process) = self.sys_info.process(self.pid) {
+                self.cpu_usage = process.cpu_usage();
+                self.mem_usage = process.memory();
+            }
+            self.last_sys_refresh = std::time::Instant::now();
+        }
+
         // Update clock only once per second to avoid UI churn
         let now = Local::now();
         let time_str = now.format("%H:%M").to_string();
@@ -806,6 +820,52 @@ impl App {
             .unwrap_or(0);
         self.download_category = all[(current_idx + 1) % all.len()];
         self.refresh_data();
+    }
+
+    pub fn prev_category(&mut self) {
+        let all = DownloadsCategory::ALL;
+        let current_idx = all
+            .iter()
+            .position(|&c| c == self.download_category)
+            .unwrap_or(0);
+        if current_idx == 0 {
+            self.download_category = all[all.len() - 1];
+        } else {
+            self.download_category = all[current_idx - 1];
+        }
+        self.refresh_data();
+    }
+
+    pub fn next_home_item(&mut self) {
+        if self.home_index < 3 {
+            self.home_index += 1;
+        } else {
+            self.home_index = 0;
+        }
+    }
+
+    pub fn prev_home_item(&mut self) {
+        if self.home_index > 0 {
+            self.home_index -= 1;
+        } else {
+            self.home_index = 3;
+        }
+    }
+
+    pub fn next_about_item(&mut self) {
+        if self.about_index < 4 {
+            self.about_index += 1;
+        } else {
+            self.about_index = 0;
+        }
+    }
+
+    pub fn prev_about_item(&mut self) {
+        if self.about_index > 0 {
+            self.about_index -= 1;
+        } else {
+            self.about_index = 4;
+        }
     }
 
     pub async fn execute_home_action(&mut self) {

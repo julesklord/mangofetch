@@ -208,4 +208,22 @@ impl Theme {
             progress: Color::Rgb(154, 205, 50),
         }
     }
+
+    /// 🌴 Tropical — high-density industrial terminal colors
+    pub fn tropical() -> Self {
+        Self {
+            accent: Color::Rgb(0, 180, 255),     // Tropical Blue
+            secondary: Color::Rgb(255, 160, 0),  // Tropical Orange
+            highlight: Color::Rgb(20, 35, 45),   // Deep oceanic surface
+            background: Color::Rgb(5, 10, 15),   // Near black night
+            surface: Color::Rgb(15, 25, 35),     // Industrial surface
+            surface_dim: Color::Rgb(10, 15, 20),
+            text: Color::Rgb(220, 235, 245),     // Bright crisp text
+            text_dim: Color::Rgb(100, 120, 140), // Muted industrial
+            success: Color::Rgb(0, 255, 150),    // Bio-green
+            warning: Color::Rgb(255, 220, 0),    // Warning yellow
+            error: Color::Rgb(255, 60, 100),     // Emergency red
+            progress: Color::Rgb(0, 180, 255),
+        }
+    }
 }

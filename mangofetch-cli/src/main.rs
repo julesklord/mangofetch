@@ -580,7 +580,7 @@ async fn main() -> Result<()> {
                         "{}",
                         format_about_info(
                             env!("CARGO_PKG_VERSION"),
-                            "Jules Martins",
+                            "TropicalDev",
                             "https://github.com/julesklord/mangofetch-cli",
                             &theme
                         )

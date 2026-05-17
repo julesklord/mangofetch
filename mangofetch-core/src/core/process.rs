@@ -1,4 +1,4 @@
-fn enhanced_path() -> Option<String> {
+fn enhanced_path() -> Option<&'static str> {
     use std::sync::OnceLock;
     static CACHED: OnceLock<Option<String>> = OnceLock::new();
     CACHED
@@ -26,7 +26,7 @@ fn enhanced_path() -> Option<String> {
 
             Some(format!("{}{}{}", extra_dirs.join(sep), sep, current))
         })
-        .clone()
+        .as_deref()
 }
 
 pub fn command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command {

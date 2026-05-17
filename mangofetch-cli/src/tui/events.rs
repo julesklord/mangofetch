@@ -47,17 +47,39 @@ async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) 
     use crossterm::event::MouseEventKind;
     match mouse.kind {
         MouseEventKind::ScrollDown => {
-            if app.active_tab == Tab::Logs {
-                app.log_scroll_down();
+            if mouse.column < 24 {
+                // Sidebar area -> Change Tabs
+                app.next_tab();
+            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History) && mouse.row < 5 {
+                // Categories area -> Change Category (Submenu)
+                app.next_category();
             } else {
-                app.next_item();
+                // Main content navigation
+                match app.active_tab {
+                    Tab::Settings => app.next_setting(),
+                    Tab::Logs => app.scroll_logs_down(),
+                    Tab::Home => app.next_home_item(),
+                    Tab::About => app.next_about_item(),
+                    _ => app.next_item(),
+                }
             }
         }
         MouseEventKind::ScrollUp => {
-            if app.active_tab == Tab::Logs {
-                app.log_scroll_up();
+            if mouse.column < 24 {
+                // Sidebar area -> Change Tabs
+                app.prev_tab();
+            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History) && mouse.row < 5 {
+                // Categories area -> Change Category (Submenu)
+                app.prev_category();
             } else {
-                app.prev_item();
+                // Main content navigation
+                match app.active_tab {
+                    Tab::Settings => app.prev_setting(),
+                    Tab::Logs => app.scroll_logs_up(),
+                    Tab::Home => app.prev_home_item(),
+                    Tab::About => app.prev_about_item(),
+                    _ => app.prev_item(),
+                }
             }
         }
         MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
@@ -319,27 +341,15 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
         KeyCode::Up | KeyCode::Char('k') => match app.active_tab {
             Tab::Settings => app.prev_setting(),
             Tab::Logs => app.scroll_logs_up(),
-            Tab::Home => {
-                app.home_index = app.home_index.saturating_sub(1);
-            }
-            Tab::About => {
-                app.about_index = app.about_index.saturating_sub(1);
-            }
+            Tab::Home => app.prev_home_item(),
+            Tab::About => app.prev_about_item(),
             _ => app.prev_item(),
         },
         KeyCode::Down | KeyCode::Char('j') => match app.active_tab {
             Tab::Settings => app.next_setting(),
             Tab::Logs => app.scroll_logs_down(),
-            Tab::Home => {
-                if app.home_index < 3 {
-                    app.home_index += 1;
-                }
-            }
-            Tab::About => {
-                if app.about_index < 4 {
-                    app.about_index += 1;
-                }
-            }
+            Tab::Home => app.next_home_item(),
+            Tab::About => app.next_about_item(),
             _ => app.next_item(),
         },
         KeyCode::Char('G') => {

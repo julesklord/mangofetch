@@ -1,3 +1,49 @@
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum MangoError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Network error: {0}")]
+    Network(#[from] reqwest::Error),
+
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
+
+    #[error("Dependency missing: {0}")]
+    DependencyMissing(String),
+
+    #[error("Process error: {0}")]
+    Process(String),
+
+    #[error("Download error: {0}")]
+    Download(String),
+
+    #[error("Authentication required: {0}")]
+    AuthRequired(String),
+
+    #[error("Rate limited: {0}")]
+    RateLimited(String),
+
+    #[error("Content restricted: {0}")]
+    Restricted(String),
+
+    #[error("Content not found: {0}")]
+    NotFound(String),
+
+    #[error("FFmpeg error: {0}")]
+    FFmpeg(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
+
+    #[error("{0}")]
+    Custom(String),
+}
+
+pub type MangoResult<T> = Result<T, MangoError>;
+
 pub fn classify_download_error(error: &str) -> (&str, &str) {
     let lower = error.to_lowercase();
 
