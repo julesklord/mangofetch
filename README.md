@@ -30,7 +30,6 @@ ___
   - [Overview](#overview)
   - [Using as a Rust SDK (mangofetch-core)](#using-as-a-rust-sdk-mangofetch-core)
   - [CLI/TUI Installation](#clitui-installation)
-  - [Key Features (v0.5.5)](#key-features-v055)
   - [Technical Architecture](#technical-architecture)
   - [The Core Engine Lifecycle](#the-core-engine-lifecycle)
   - [Command Reference](#command-reference)
@@ -106,22 +105,6 @@ mangofetch tui (run the tui interactive dashboard)
 
 ---
 
-
-## Key Features (v0.5.5)
-
-*   **Supports 1000+ Sites**: Smooth integration with `yt-dlp` to work with almost any video site out there.
-*   **Headless Core**: A clean design that lets you use the download engine as a standalone Rust library.
-*   **Interactive TUI**: A responsive dashboard with **11 Tropical Fruit Themes** (Mango, Pitaya, Guayaba, Passionfruit, and more).
-*   **Easy Mouse Support**: Use your mouse to scroll through your queue and click on tabs.
-*   **Vim-Style Commands**: For the power users, you can use quick `:` commands to get things done fast.
-*   **P2P & Torrents**: Works with magnet links and decentralized file sharing.
-*   **Smart Downloading**: Uses multi-segment downloads and clever connection handling to keep things fast and avoid rate limits.
-*   **Animations Toggle**: Enable/disable TUI animations for a static interface.
-*   **Double-q Quit**: Press `q` twice quickly for fast exit.
-*   **Keybindings Display**: Dedicated row showing available shortcuts directly in the TUI.
-*   **Simplified Status Bar**: Single-line status bar with dynamic indicators.
-
----
 
 ## Technical Architecture
 
