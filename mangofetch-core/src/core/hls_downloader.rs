@@ -455,9 +455,11 @@ async fn write_segments_ordered(
     media_sequence: u64,
     total_segments: usize,
 ) -> anyhow::Result<()> {
-    use std::io::Write;
-    let mut file =
-        std::io::BufWriter::with_capacity(256 * 1024, std::fs::File::create(output_path)?);
+    use tokio::io::AsyncWriteExt;
+    let mut file = tokio::io::BufWriter::with_capacity(
+        256 * 1024,
+        tokio::fs::File::create(output_path).await?,
+    );
     let mut next_expected: usize = 0;
     let mut pending: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
 
@@ -476,15 +478,15 @@ async fn write_segments_ordered(
                 let decrypted = decryptor
                     .decrypt_padded_mut::<Pkcs7>(&mut buf)
                     .map_err(|e| anyhow::anyhow!("AES decrypt: {:?}", e))?;
-                file.write_all(decrypted)?;
+                file.write_all(decrypted).await?;
             } else {
-                file.write_all(&segment_data)?;
+                file.write_all(&segment_data).await?;
             }
             next_expected += 1;
         }
     }
 
-    file.flush()?;
+    file.flush().await?;
 
     if next_expected < total_segments {
         anyhow::bail!(
