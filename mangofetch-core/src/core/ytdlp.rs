@@ -580,7 +580,7 @@ async fn download_ytdlp_binary(reporter: Option<&dyn DownloadReporter>) -> anyho
         managed_ytdlp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
 
     if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     let download_url = if cfg!(target_os = "windows") {
