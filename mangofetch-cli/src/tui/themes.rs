@@ -230,7 +230,10 @@ impl Theme {
 
     pub fn from_json(name: &str) -> Option<Self> {
         let config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-        let theme_path = config_dir.join("mangofetch").join("themes").join(format!("{}.json", name));
+        let theme_path = config_dir
+            .join("mangofetch")
+            .join("themes")
+            .join(format!("{}.json", name));
 
         if !theme_path.exists() {
             return None;
@@ -251,18 +254,55 @@ impl Theme {
             }
         }
 
-        let accent = json.get("accent").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let secondary = json.get("secondary").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let highlight = json.get("highlight").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let background = json.get("background").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let surface = json.get("surface").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let surface_dim = json.get("surface_dim").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let text = json.get("text").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let text_dim = json.get("text_dim").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let success = json.get("success").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let warning = json.get("warning").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let error = json.get("error").and_then(|v| v.as_str()).and_then(parse_hex)?;
-        let progress = json.get("progress").and_then(|v| v.as_str()).and_then(parse_hex).unwrap_or(accent);
+        let accent = json
+            .get("accent")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let secondary = json
+            .get("secondary")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let highlight = json
+            .get("highlight")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let background = json
+            .get("background")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let surface = json
+            .get("surface")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let surface_dim = json
+            .get("surface_dim")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let text = json
+            .get("text")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let text_dim = json
+            .get("text_dim")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let success = json
+            .get("success")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let warning = json
+            .get("warning")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let error = json
+            .get("error")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)?;
+        let progress = json
+            .get("progress")
+            .and_then(|v| v.as_str())
+            .and_then(parse_hex)
+            .unwrap_or(accent);
 
         Some(Self {
             accent,

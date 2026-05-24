@@ -162,11 +162,10 @@ async fn download_attempt(
 
     let probe = probe_url(client, url, headers.as_ref()).await;
 
-    let use_chunked =
-        probe.accept_ranges && probe.content_length.is_some_and(|s| s > CHUNK_THRESHOLD);
-
-    if use_chunked {
-        let total = probe.content_length.unwrap();
+    if let Some(total) = probe
+        .content_length
+        .filter(|&s| probe.accept_ranges && s > CHUNK_THRESHOLD)
+    {
         let _ = std::fs::remove_file(&part_path);
         if let Err(chunked_err) = download_chunked(
             client,
@@ -435,7 +434,6 @@ async fn download_chunk_attempt(
 }
 
 #[allow(clippy::too_many_arguments)]
-
 fn validate_single_stream_response(
     response: &reqwest::Response,
     existing_bytes: u64,

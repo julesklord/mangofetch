@@ -1345,11 +1345,18 @@ fn render_add_confirm_modal(f: &mut Frame, app: &App) {
         // Qualities
         let mut q_items = vec![];
         if info.available_qualities.is_empty() {
-            q_items.push(ListItem::new(Line::from(Span::styled("  No specific qualities found. Will use default/best.", Style::new().fg(t.text_dim)))));
+            q_items.push(ListItem::new(Line::from(Span::styled(
+                "  No specific qualities found. Will use default/best.",
+                Style::new().fg(t.text_dim),
+            ))));
         } else {
             for (i, q) in info.available_qualities.iter().enumerate() {
                 let prefix = if i == app.confirm_quality_idx {
-                    if app.confirm_focused_field == 0 { "  ▶ " } else { "  ▷ " }
+                    if app.confirm_focused_field == 0 {
+                        "  ▶ "
+                    } else {
+                        "  ▷ "
+                    }
                 } else {
                     "    "
                 };
@@ -1362,41 +1369,81 @@ fn render_add_confirm_modal(f: &mut Frame, app: &App) {
                 } else {
                     Style::new().fg(t.text)
                 };
-                
+
                 let size_str = if let Some(bytes) = q.filesize_bytes {
                     format!(" ({:.1} MB)", bytes as f64 / 1_048_576.0)
                 } else {
                     String::new()
                 };
 
-                let label = format!("{}{} ({}x{}){}", prefix, q.label, q.width, q.height, size_str);
+                let label = format!(
+                    "{}{} ({}x{}){}",
+                    prefix, q.label, q.width, q.height, size_str
+                );
                 q_items.push(ListItem::new(Line::from(Span::styled(label, style))));
             }
         }
-        
-        let q_list = ratatui::widgets::List::new(q_items)
-            .block(Block::default().borders(Borders::TOP).title(" Resoluciones Disponibles ").border_style(Style::new().fg(t.surface)));
+
+        let q_list = ratatui::widgets::List::new(q_items).block(
+            Block::default()
+                .borders(Borders::TOP)
+                .title(" Resoluciones Disponibles ")
+                .border_style(Style::new().fg(t.surface)),
+        );
         f.render_widget(q_list, content_chunks[1]);
 
         // Options
-        let opt_style_1 = if app.confirm_focused_field == 1 { Style::new().bg(t.secondary).fg(t.background).bold() } else { Style::new().fg(t.text) };
-        let opt_style_2 = if app.confirm_focused_field == 2 { Style::new().bg(t.secondary).fg(t.background).bold() } else { Style::new().fg(t.text) };
-        
+        let opt_style_1 = if app.confirm_focused_field == 1 {
+            Style::new().bg(t.secondary).fg(t.background).bold()
+        } else {
+            Style::new().fg(t.text)
+        };
+        let opt_style_2 = if app.confirm_focused_field == 2 {
+            Style::new().bg(t.secondary).fg(t.background).bold()
+        } else {
+            Style::new().fg(t.text)
+        };
+
         let format_lbl = format!(" Format: < {} > ", app.confirm_download_mode.to_uppercase());
-        let subs_lbl = format!(" Subtitles: < {} > ", if app.confirm_download_subtitles { "YES" } else { "NO" });
+        let subs_lbl = format!(
+            " Subtitles: < {} > ",
+            if app.confirm_download_subtitles {
+                "YES"
+            } else {
+                "NO"
+            }
+        );
 
         let opts_lines = vec![
             Line::from(vec![
-                Span::styled(if app.confirm_focused_field == 1 { " ▶" } else { "  " }, Style::new().fg(t.secondary)),
+                Span::styled(
+                    if app.confirm_focused_field == 1 {
+                        " ▶"
+                    } else {
+                        "  "
+                    },
+                    Style::new().fg(t.secondary),
+                ),
                 Span::styled(format_lbl, opt_style_1),
             ]),
             Line::from(vec![
-                Span::styled(if app.confirm_focused_field == 2 { " ▶" } else { "  " }, Style::new().fg(t.secondary)),
+                Span::styled(
+                    if app.confirm_focused_field == 2 {
+                        " ▶"
+                    } else {
+                        "  "
+                    },
+                    Style::new().fg(t.secondary),
+                ),
                 Span::styled(subs_lbl, opt_style_2),
             ]),
         ];
-        let opts_p = Paragraph::new(opts_lines)
-            .block(Block::default().borders(Borders::TOP).title(" Opciones Extras ").border_style(Style::new().fg(t.surface)));
+        let opts_p = Paragraph::new(opts_lines).block(
+            Block::default()
+                .borders(Borders::TOP)
+                .title(" Opciones Extras ")
+                .border_style(Style::new().fg(t.surface)),
+        );
         f.render_widget(opts_p, content_chunks[2]);
     }
 
@@ -1741,7 +1788,11 @@ fn render_dense_statusbar(f: &mut Frame, app: &App, area: Rect) {
                     Mode::ConfirmDelete => "CONFIRM",
                 };
                 let pulse_char = if !app.enable_animations {
-                    if nf { "⬢" } else { "o" }
+                    if nf {
+                        "⬢"
+                    } else {
+                        "o"
+                    }
                 } else if nf {
                     let pulse_idx = ((millisecond / 250) % 4) as usize;
                     ["⬡", "⬢", "⬡", "⬢"][pulse_idx]

@@ -379,7 +379,11 @@ async fn main() -> Result<()> {
             println!("{}", format_queue_list(display_items, &theme));
         }
 
-        Commands::Clean { finished, failed, logs } => {
+        Commands::Clean {
+            finished,
+            failed,
+            logs,
+        } => {
             if logs {
                 match mangofetch_core::core::logger::clean_logs() {
                     Ok(count) => {

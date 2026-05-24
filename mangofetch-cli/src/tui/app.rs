@@ -250,7 +250,9 @@ impl SettingKind {
         match self {
             SettingKind::TuiTheme => "Cycle through 11 tropical fruit themes",
             SettingKind::UseNerdFonts => "Enables icons (requires patched terminal)",
-            SettingKind::EnableAnimations => "Enables/disables subtle statusbar and splash animations",
+            SettingKind::EnableAnimations => {
+                "Enables/disables subtle statusbar and splash animations"
+            }
             SettingKind::NavigationLayout => "Switch between Sidebar and TopBar layout",
             SettingKind::MaxDownloads => "Max simultaneous downloads",
             SettingKind::VideoQuality => "best │ 1080p │ 720p │ 480p │ 360p",
