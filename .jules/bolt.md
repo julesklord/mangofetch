@@ -1,5 +1,3 @@
-## 2026-05-14 - Using `impl std::ops::Deref<Target = [u8]>` instead of explicit crate types for HTTP body chunk streams
-
-**Learning:** When refactoring async byte streams (like the output of `reqwest::Response::bytes_stream()`), it's often better to use a generic trait bound like `impl std::ops::Deref<Target = [u8]>` (or `impl AsRef<[u8]>`) for the stream items rather than hardcoding crate-specific types like `bytes::Bytes`. This avoids needing to add new dependencies or manage complex imports across different modules, keeping the workspace dependency tree clean.
-
-**Action:** When extracting generic byte/buffer stream logic, default to generic trait bounds for byte arrays/slices rather than specifying the exact underlying buffer type provided by the networking crate.
+## 2024-05-20 - [Avoid compiling regex in loop or hot path]
+**Learning:** In mangofetch-core instagram scraper, dynamic regexes were being instantiated using format strings and `Regex::new` during HTML parsing, creating a significant unnecessary overhead for identical static keys.
+**Action:** Replace `Regex::new` with pre-compiled `LazyLock<Regex>` statically. If the pattern must be dynamic, strongly consider pure string searching algorithms (`.find()`, `.split()`) or refactoring to use capture groups instead of fully dynamic patterns.

@@ -1,8 +1,24 @@
+use std::sync::LazyLock;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use rand::Rng;
 use regex::Regex;
 use tokio::sync::mpsc;
+
+static INIT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#""init",\[\],\[(.*?)\]\],"#).unwrap());
+static EXTRA_DATA_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"window\.__additionalDataLoaded\('extra',\s*(\{.*?\})\s*\)"#).unwrap());
+
+static IG_SECURITY_CONFIG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["InstagramSecurityConfig",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+static POLARIS_SITE_DATA_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["PolarisSiteData",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+static SITE_DATA_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["SiteData",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+static DGW_WEB_CONFIG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["DGWWebConfig",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+static LSD_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["LSD",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+static WEB_BLOKS_VERSIONING_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["WebBloksVersioningID",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+static INSTAGRAM_WEB_PUSH_INFO_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\["InstagramWebPushInfo",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+
+static COMET_REQ_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"__comet_req=(\d+)").unwrap());
+static JAZOEST_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"jazoest=(\d+)").unwrap());
 
 use crate::core::direct_downloader::download_direct_with_headers;
 use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality};
@@ -123,21 +139,16 @@ impl InstagramDownloader {
         Ok(final_url)
     }
 
-    fn regex_extract(pattern: &str, text: &str) -> Option<String> {
-        let re = Regex::new(pattern).ok()?;
+    fn regex_extract(re: &Regex, text: &str) -> Option<String> {
         re.captures(text)?.get(1).map(|m| m.as_str().to_string())
     }
 
-    fn extract_object_entry(name: &str, html: &str) -> Option<serde_json::Value> {
-        let pattern = format!(r#"\["{}",.*?,(\{{.*?\}}),\d+\]"#, regex::escape(name));
-        let re = Regex::new(&pattern).ok()?;
+    fn extract_object_entry(re: &Regex, html: &str) -> Option<serde_json::Value> {
         let json_str = re.captures(html)?.get(1)?.as_str();
         serde_json::from_str(json_str).ok()
     }
 
-    fn extract_number_from_query(name: &str, html: &str) -> Option<String> {
-        let pattern = format!(r"{}=(\d+)", regex::escape(name));
-        let re = Regex::new(&pattern).ok()?;
+    fn extract_number_from_query(re: &Regex, html: &str) -> Option<String> {
         re.captures(html)?.get(1).map(|m| m.as_str().to_string())
     }
 
@@ -189,7 +200,7 @@ impl InstagramDownloader {
             ));
         }
 
-        let csrf = Self::extract_object_entry("InstagramSecurityConfig", &html)
+        let csrf = Self::extract_object_entry(&IG_SECURITY_CONFIG_RE, &html)
             .and_then(|v| {
                 v.get("csrf_token")
                     .and_then(|t| t.as_str())
@@ -197,7 +208,7 @@ impl InstagramDownloader {
             })
             .unwrap_or_default();
 
-        let polaris = Self::extract_object_entry("PolarisSiteData", &html);
+        let polaris = Self::extract_object_entry(&POLARIS_SITE_DATA_RE, &html);
         let device_id = polaris
             .as_ref()
             .and_then(|v| {
@@ -215,7 +226,7 @@ impl InstagramDownloader {
             })
             .unwrap_or_default();
 
-        let site_data = Self::extract_object_entry("SiteData", &html);
+        let site_data = Self::extract_object_entry(&SITE_DATA_RE, &html);
         let haste_session = site_data
             .as_ref()
             .and_then(|v| {
@@ -270,7 +281,7 @@ impl InstagramDownloader {
                 now.to_string()
             });
 
-        let web_config = Self::extract_object_entry("DGWWebConfig", &html);
+        let web_config = Self::extract_object_entry(&DGW_WEB_CONFIG_RE, &html);
         let app_id = web_config
             .as_ref()
             .and_then(|v| {
@@ -282,7 +293,7 @@ impl InstagramDownloader {
             })
             .unwrap_or_else(|| IG_APP_ID.to_string());
 
-        let lsd = Self::extract_object_entry("LSD", &html)
+        let lsd = Self::extract_object_entry(&LSD_RE, &html)
             .and_then(|v| {
                 v.get("token")
                     .and_then(|t| t.as_str())
@@ -290,7 +301,7 @@ impl InstagramDownloader {
             })
             .unwrap_or_else(|| Self::random_base64url(8));
 
-        let bloks_version_id = Self::extract_object_entry("WebBloksVersioningID", &html)
+        let bloks_version_id = Self::extract_object_entry(&WEB_BLOKS_VERSIONING_ID_RE, &html)
             .and_then(|v| {
                 v.get("versioningID")
                     .and_then(|t| t.as_str())
@@ -298,7 +309,7 @@ impl InstagramDownloader {
             })
             .unwrap_or_default();
 
-        let push_info = Self::extract_object_entry("InstagramWebPushInfo", &html);
+        let push_info = Self::extract_object_entry(&INSTAGRAM_WEB_PUSH_INFO_RE, &html);
         let rollout_hash = push_info
             .as_ref()
             .and_then(|v| {
@@ -308,10 +319,10 @@ impl InstagramDownloader {
             })
             .unwrap_or_else(|| "1019933358".to_string());
 
-        let comet_req = Self::extract_number_from_query("__comet_req", &html)
+        let comet_req = Self::extract_number_from_query(&COMET_REQ_RE, &html)
             .unwrap_or_else(|| "7".to_string());
 
-        let jazoest = Self::extract_number_from_query("jazoest", &html).unwrap_or_else(|| {
+        let jazoest = Self::extract_number_from_query(&JAZOEST_RE, &html).unwrap_or_else(|| {
             let val: u32 = rand::thread_rng().gen_range(1000..10000);
             val.to_string()
         });
@@ -453,7 +464,7 @@ impl InstagramDownloader {
 
         let html = response.text().await?;
 
-        if let Some(json_str) = Self::regex_extract(r#""init",\[\],\[(.*?)\]\],"#, &html) {
+        if let Some(json_str) = Self::regex_extract(&INIT_RE, &html) {
             if let Ok(embed_data) = serde_json::from_str::<serde_json::Value>(&json_str) {
                 if let Some(context_json) = embed_data.get("contextJSON").and_then(|v| v.as_str()) {
                     let context: serde_json::Value = serde_json::from_str(context_json)?;
@@ -462,10 +473,7 @@ impl InstagramDownloader {
             }
         }
 
-        if let Some(json_str) = Self::regex_extract(
-            r#"window\.__additionalDataLoaded\('extra',\s*(\{.*?\})\s*\)"#,
-            &html,
-        ) {
+        if let Some(json_str) = Self::regex_extract(&EXTRA_DATA_RE, &html) {
             let data: serde_json::Value = serde_json::from_str(&json_str)?;
             return Ok(data);
         }
