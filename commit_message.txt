@@ -1,0 +1,5 @@
+🧪 [testing improvement] Add tests for classify_download_error
+
+🎯 **What:** The `classify_download_error` function in `mangofetch-core/src/core/errors.rs` had no unit tests. It is a pure text classification function which made it straightforward to test.
+📊 **Coverage:** Added a `mod tests` block covering all nine logic paths (auth_required, rate_limited, restricted, file_missing, not_found, ffmpeg_needed, ytdlp_needed, ytdlp_outdated, and unknown).
+✨ **Result:** Test coverage for `classify_download_error` is now complete, and the overall test suite passes.
