@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch-gui"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 description = "Graphical interface for MangoFetch download manager (egui + eframe)"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]
@@ -15,7 +15,7 @@ name = "mangofetch-gui"
 path = "src/main.rs"
 
 [dependencies]
-mangofetch-core = { path = "../mangofetch-core", version = "0.7.0", features = [
+mangofetch-core = { path = "../mangofetch-core", version = "0.7.1", features = [
     "platforms",
 ] }
 eframe = { version = "0.31", features = ["default_fonts", "persistence"] }
