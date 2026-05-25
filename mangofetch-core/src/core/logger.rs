@@ -30,7 +30,7 @@ pub fn init_logging_ext(verbose: bool, use_stdout: bool) {
             .with_filter(if verbose {
                 tracing_subscriber::filter::LevelFilter::DEBUG
             } else {
-                tracing_subscriber::filter::LevelFilter::INFO
+                tracing_subscriber::filter::LevelFilter::WARN
             });
 
         let subscriber = Registry::default().with(file_layer).with(stdout_layer);

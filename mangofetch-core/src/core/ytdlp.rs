@@ -1207,29 +1207,41 @@ fn build_format_selector(
     quality_height: Option<u32>,
     ffmpeg_available: bool,
 ) -> String {
+    // If user specified an explicit format id, use it verbatim.
     if let Some(fid) = format_id {
         return fid.to_string();
     }
+
     match mode {
-        "audio" => "ba/b".to_string(),
+        // Audio-only mode: prefer best audio but fall back to a combined 'best'.
+        "audio" => "bestaudio/best".to_string(),
+
+        // Mute mode: prefer a video-only stream at the requested height, else fall back to bestvideo or best.
         "mute" => match quality_height {
-            Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
-            _ => "bv*/b".to_string(),
+            Some(h) if h > 0 => format!("bestvideo[height<={}] / bestvideo / best", h),
+            _ => "bestvideo/best".to_string(),
         },
+
+        // Default (video) mode: prefer bestvideo+bestaudio when FFmpeg is available so streams can be merged.
         _ => {
             if ffmpeg_available {
                 match quality_height {
-                    Some(h) if h > 0 => format!(
-                        "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
-                        h, h, h
-                    ),
-                    _ => "bv*+ba[ext=m4a]/bv*+ba/b".to_string(),
+                    Some(h) if h > 0 => {
+                        // Try to get the best video at or below the requested height together with the best audio,
+                        // then fall back to a best-with-height or finally a generic best.
+                        format!(
+                            "bestvideo[height<={}] +bestaudio/best[height<={}] / best",
+                            h, h
+                        )
+                    }
+                    _ => "bestvideo+bestaudio/best".to_string(),
                 }
             } else {
-                tracing::warn!("[yt-dlp] ffmpeg not available, using fallback format selector");
+                // Without FFmpeg we must prefer combined formats (best) because separate streams cannot be merged.
+                tracing::warn!("[yt-dlp] ffmpeg not available, selecting combined formats only");
                 match quality_height {
-                    Some(h) if h > 0 => format!("b[height<={}]/bv*[height<={}]/b", h, h),
-                    _ => "b/bv*".to_string(),
+                    Some(h) if h > 0 => format!("best[height<={}] / best", h),
+                    _ => "best".to_string(),
                 }
             }
         }
@@ -1799,11 +1811,30 @@ pub async fn download_video(
 
     let mode = download_mode.unwrap_or("auto");
     let is_audio_only = mode == "audio";
-    let (ffmpeg_available, ffmpeg_location, aria2c_path) = tokio::join!(
+    let (mut ffmpeg_available, mut ffmpeg_location, aria2c_path) = tokio::join!(
         crate::core::ffmpeg::is_ffmpeg_available(),
         find_ffmpeg_location_cached(),
         crate::core::dependencies::ensure_aria2c(None),
     );
+
+    // If FFmpeg isn't available, try to auto-install it (best-effort). This makes
+    // downloads that require muxing more likely to succeed without user intervention.
+    if !ffmpeg_available {
+        match crate::core::dependencies::ensure_ffmpeg(None).await {
+            Ok(bin_path) => {
+                ffmpeg_available = true;
+                if let Some(parent) = bin_path.parent() {
+                    ffmpeg_location = parent.to_str().map(|s| s.to_string());
+                }
+                // Reset ffmpeg availability cache so other modules pick it up
+                crate::core::ffmpeg::reset_ffmpeg_available_cache();
+                tracing::info!("[ffmpeg] auto-installed to {:?}", bin_path);
+            }
+            Err(e) => {
+                tracing::warn!("[ffmpeg] auto-install failed: {}", e);
+            }
+        }
+    }
 
     let format_selector = build_format_selector(mode, format_id, quality_height, ffmpeg_available);
 

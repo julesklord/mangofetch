@@ -275,7 +275,7 @@ fn render_terminal_output(f: &mut Frame, app: &App, area: Rect) {
     // Use a high-density industrial block
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" 📡 TERMINAL_OUTPUT ")
+        .title(" 📡 Terminal output ")
         .title_style(Style::new().fg(t.accent).bold())
         .border_style(Style::new().fg(t.surface));
 
@@ -291,11 +291,12 @@ fn render_terminal_output(f: &mut Frame, app: &App, area: Rect) {
         .take(visible_height)
         .rev()
         .map(|line| {
-            let style = if line.contains("ERROR") || line.contains("✗") {
+            let lower = line.to_lowercase();
+            let style = if lower.contains("error") || line.contains("✗") {
                 Style::new().fg(t.error)
-            } else if line.contains("SUCCESS") || line.contains("✓") {
+            } else if lower.contains("complete") || line.contains("✓") {
                 Style::new().fg(t.success)
-            } else if line.contains("CMD") || line.contains("❯") {
+            } else if lower.contains("cmd") || line.contains("❯") {
                 Style::new().fg(t.accent).bold()
             } else {
                 Style::new().fg(t.text_dim)
@@ -1465,7 +1466,6 @@ fn render_add_confirm_modal(f: &mut Frame, app: &App) {
                 Span::styled(explicit_format_lbl, opt_style_3),
             ]),
         ];
-
         if app.confirm_download_mode == "audio" {
             opts_lines.push(Line::from(vec![
                 Span::styled(
@@ -1479,7 +1479,6 @@ fn render_add_confirm_modal(f: &mut Frame, app: &App) {
                 Span::styled(audio_quality_lbl, opt_style_4),
             ]));
         }
-
         let opts_p = Paragraph::new(opts_lines).block(
             Block::default()
                 .borders(Borders::TOP)
@@ -1854,7 +1853,7 @@ fn render_dense_statusbar(f: &mut Frame, app: &App, area: Rect) {
                 ]
             }
             "tab" => vec![Span::styled(
-                app.active_tab.label(false).trim().to_uppercase(),
+                app.active_tab.label(nf).trim().to_uppercase(),
                 Style::new().fg(t.background).bold(),
             )],
             "time" => vec![Span::styled(

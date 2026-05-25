@@ -9,7 +9,6 @@ use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType
 use crate::platforms::traits::PlatformDownloader;
 
 const GRAPHQL_URL: &str = "https://api.x.com/graphql/4Siu98E55GquhG52zHdY5w/TweetDetail";
-const TOKEN_URL: &str = "https://api.x.com/1.1/guest/activate.json";
 const BEARER: &str = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -46,6 +45,11 @@ impl Default for TwitterDownloader {
 }
 
 impl TwitterDownloader {
+    fn get_token_url() -> String {
+        std::env::var("TWITTER_TOKEN_URL")
+            .unwrap_or_else(|_| "https://api.x.com/1.1/guest/activate.json".to_string())
+    }
+
     fn manual_cookie_string() -> Option<String> {
         let settings = crate::models::settings::AppSettings::load_from_disk();
         let raw = settings.advanced.twitter_manual_cookie;
@@ -217,7 +221,7 @@ impl TwitterDownloader {
 
         let response = self
             .client
-            .post(TOKEN_URL)
+            .post(Self::get_token_url())
             .header("Authorization", BEARER)
             .header("x-twitter-client-language", "en")
             .header("x-twitter-active-user", "yes")

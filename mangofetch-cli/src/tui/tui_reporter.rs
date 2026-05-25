@@ -96,14 +96,14 @@ impl DownloadReporter for TuiReporter {
             .unwrap_or_else(|| "--".into());
         let path = file_path.as_deref().unwrap_or("--");
         self.push(format!(
-            "✓ DL#{:02} COMPLETE  [{}]  → {}",
+            "✓ DL#{:02} Complete  [{}]  → {}",
             download_id, size, path
         ));
     }
 
     fn on_error(&self, download_id: u64, error_message: String) {
         self.push(format!(
-            "✗ DL#{:02} ERROR  {}",
+            "✗ DL#{:02} Error  {}",
             download_id,
             truncate(&error_message, 80)
         ));
@@ -111,13 +111,14 @@ impl DownloadReporter for TuiReporter {
 
     fn on_retry(&self, download_id: u64, attempt: u32, delay_ms: u64) {
         self.push(format!(
-            "↻ DL#{:02} RETRY  attempt {} in {}ms",
+            "↻ DL#{:02} Retry  attempt {} in {}ms",
             download_id, attempt, delay_ms
         ));
     }
 
     fn on_phase_change(&self, download_id: u64, phase: String) {
-        self.push(format!("⟫ DL#{:02} → {}", download_id, phase));
+        let phase_label = crate::reporter::normalize_phase_label(&phase);
+        self.push(format!("⟫ DL#{:02} → {}", download_id, phase_label));
     }
 
     fn on_media_preview(
@@ -141,7 +142,7 @@ impl DownloadReporter for TuiReporter {
             })
             .unwrap_or_else(|| "--".into());
         self.push(format!(
-            "◈ FOUND  {}  by {}  [{}]",
+            "◈ Found  {}  by {}  [{}]",
             truncate(&title, 40),
             truncate(&author, 20),
             dur,

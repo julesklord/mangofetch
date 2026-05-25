@@ -7,8 +7,6 @@ use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType
 use crate::platforms::traits::PlatformDownloader;
 
 const GQL_URL: &str = "https://gql.twitch.tv/gql";
-const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
-const TOKEN_HASH: &str = "36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11";
 
 struct ClipMetadata {
     title: String,
@@ -119,9 +117,12 @@ impl TwitchClipsDownloader {
 
         None
     }
-
     async fn fetch_clip_metadata(&self, slug: &str) -> anyhow::Result<ClipMetadata> {
+        let client_id = std::env::var("TWITCH_CLIENT_ID")
+            .map_err(|_| anyhow!("TWITCH_CLIENT_ID environment variable not set"))?;
+
         let query = format!(
+
             r#"{{ clip(slug: "{}") {{ broadcaster {{ login }} curator {{ login }} durationSeconds id medium: thumbnailURL(width: 480, height: 272) title videoQualities {{ quality sourceURL }} }} }}"#,
             slug
         );
@@ -131,7 +132,7 @@ impl TwitchClipsDownloader {
         let response = self
             .client
             .post(GQL_URL)
-            .header("client-id", CLIENT_ID)
+            .header("client-id", &client_id)
             .json(&body)
             .send()
             .await?;
@@ -196,15 +197,20 @@ impl TwitchClipsDownloader {
             video_qualities,
         })
     }
-
     async fn fetch_access_token(&self, slug: &str) -> anyhow::Result<AccessToken> {
+        let client_id = std::env::var("TWITCH_CLIENT_ID")
+            .map_err(|_| anyhow!("TWITCH_CLIENT_ID environment variable not set"))?;
+        let token_hash = std::env::var("TWITCH_TOKEN_HASH")
+            .map_err(|_| anyhow!("TWITCH_TOKEN_HASH environment variable not set"))?;
+
         let body = serde_json::json!([{
+
             "operationName": "VideoAccessToken_Clip",
             "variables": { "slug": slug },
             "extensions": {
                 "persistedQuery": {
                     "version": 1,
-                    "sha256Hash": TOKEN_HASH
+                    "sha256Hash": token_hash
                 }
             }
         }]);
@@ -212,7 +218,7 @@ impl TwitchClipsDownloader {
         let response = self
             .client
             .post(GQL_URL)
-            .header("client-id", CLIENT_ID)
+            .header("client-id", &client_id)
             .json(&body)
             .send()
             .await?;
@@ -360,5 +366,24 @@ impl PlatformDownloader for TwitchClipsDownloader {
             duration_seconds: info.duration_seconds.unwrap_or(0.0),
             torrent_id: None,
         })
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_clip_slug() {
+        assert_eq!(
+            TwitchClipsDownloader::extract_clip_slug("https://clips.twitch.tv/BlatantAbstemiousAlbatrossTheThing-zR3e2u0XW6eG-R9V"),
+            Some("BlatantAbstemiousAlbatrossTheThing-zR3e2u0XW6eG-R9V".to_string())
+        );
+        assert_eq!(
+            TwitchClipsDownloader::extract_clip_slug("https://www.twitch.tv/clip/BlatantAbstemiousAlbatrossTheThing-zR3e2u0XW6eG-R9V"),
+            Some("BlatantAbstemiousAlbatrossTheThing-zR3e2u0XW6eG-R9V".to_string())
+        );
+        assert_eq!(TwitchClipsDownloader::extract_clip_slug("https://twitch.tv/notaclip"), None);
     }
 }

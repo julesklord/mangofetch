@@ -365,7 +365,7 @@ impl YouTubeDownloader {
 
         for (i, entry) in info.available_qualities.iter().enumerate() {
             if opts.cancel_token.is_cancelled() {
-                anyhow::bail!("Download cancelado");
+                anyhow::bail!("Download cancelled");
             }
 
             let (video_tx, mut video_rx) = mpsc::channel::<f64>(16);

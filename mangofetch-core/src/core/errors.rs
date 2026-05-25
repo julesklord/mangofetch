@@ -110,3 +110,93 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
 
     ("unknown", error)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_classify_download_error_auth_required() {
+        let (code, msg) = classify_download_error("Sign in to confirm you're not a bot");
+        assert_eq!(code, "auth_required");
+        assert!(msg.contains("requires login"));
+
+        let (code, _) = classify_download_error("ERROR: 403 Forbidden");
+        assert_eq!(code, "auth_required");
+    }
+
+    #[test]
+    fn test_classify_download_error_rate_limited() {
+        let (code, msg) = classify_download_error("HTTP Error 429: Too Many Requests");
+        assert_eq!(code, "rate_limited");
+        assert!(msg.contains("Too many requests"));
+
+        let (code, _) = classify_download_error("captcha challenge failed");
+        assert_eq!(code, "rate_limited");
+    }
+
+    #[test]
+    fn test_classify_download_error_restricted() {
+        let (code, msg) = classify_download_error("Video is private");
+        assert_eq!(code, "restricted");
+        assert!(msg.contains("private or age-restricted"));
+
+        let (code, _) = classify_download_error("age-restricted content");
+        assert_eq!(code, "restricted");
+    }
+
+    #[test]
+    fn test_classify_download_error_file_missing() {
+        let (code, msg) = classify_download_error("Downloaded file not found");
+        assert_eq!(code, "file_missing");
+        assert!(msg.contains("could not be located"));
+    }
+
+    #[test]
+    fn test_classify_download_error_not_found() {
+        let (code, msg) = classify_download_error("Video not found");
+        assert_eq!(code, "not_found");
+        assert!(msg.contains("Content not found"));
+
+        let (code, _) = classify_download_error("ERROR: 404 Not Found");
+        assert_eq!(code, "not_found");
+
+        let (code, _) = classify_download_error("Video unavailable");
+        assert_eq!(code, "not_found");
+    }
+
+    #[test]
+    fn test_classify_download_error_ffmpeg_needed() {
+        let (code, msg) = classify_download_error("ffmpeg is not installed");
+        assert_eq!(code, "ffmpeg_needed");
+        assert!(msg.contains("FFmpeg is required"));
+
+        let (code, _) = classify_download_error("Failed to merge formats");
+        assert_eq!(code, "ffmpeg_needed");
+    }
+
+    #[test]
+    fn test_classify_download_error_ytdlp_needed() {
+        let (code, msg) = classify_download_error("yt-dlp missing");
+        assert_eq!(code, "ytdlp_needed");
+        assert!(msg.contains("yt-dlp is required"));
+    }
+
+    #[test]
+    fn test_classify_download_error_ytdlp_outdated() {
+        let (code, msg) = classify_download_error("Cannot extract nsig");
+        assert_eq!(code, "ytdlp_outdated");
+        assert!(msg.contains("needs updating"));
+
+        let (code, _) = classify_download_error("Unable to extract signature");
+        assert_eq!(code, "ytdlp_outdated");
+    }
+
+    #[test]
+    fn test_classify_download_error_unknown() {
+        let original_error = "Something completely different went wrong";
+        let (code, msg) = classify_download_error(original_error);
+        assert_eq!(code, "unknown");
+        assert_eq!(msg, original_error);
+    }
+}

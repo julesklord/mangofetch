@@ -973,7 +973,7 @@ impl MangoFetchApp {
                 ui.add_space(12.0);
 
                 ui.label(
-                    RichText::new("MangoFetch v0.6.0")
+                    RichText::new("MangoFetch v0.7.0")
                         .font(FontId::new(20.0, FontFamily::Proportional))
                         .strong()
                         .color(self.theme.primary()),

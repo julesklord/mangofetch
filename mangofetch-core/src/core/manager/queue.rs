@@ -1089,12 +1089,24 @@ async fn spawn_download_inner(queue: Arc<tokio::sync::Mutex<DownloadQueue>>, ite
         crate::core::ytdlp::register_ext_headers(ctx.url.clone(), hdrs);
     }
 
+    // Ensure FFmpeg is installed if needed and try to surface progress to reporter (TUI/CLI)
+    if !crate::core::ffmpeg::is_ffmpeg_available().await {
+        let rep_ref = reporter.as_ref().map(|r| r.as_ref());
+        match crate::core::dependencies::ensure_ffmpeg(rep_ref).await {
+            Ok(path) => {
+                tracing::info!("[ffmpeg] auto-installed to {:?}", path);
+                crate::core::ffmpeg::reset_ffmpeg_available_cache();
+            }
+            Err(e) => tracing::warn!("[ffmpeg] auto-install failed: {}", e),
+        }
+    }
+
     let dl_start = std::time::Instant::now();
     let dl_future = async {
         tokio::select! {
             r = ctx.downloader.download(&info, &opts, tx) => r,
             _ = ctx.cancel_token.cancelled() => {
-                Err(anyhow::anyhow!("Download cancelado"))
+                Err(anyhow::anyhow!("Download cancelled"))
             }
         }
     };

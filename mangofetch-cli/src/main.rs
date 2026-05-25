@@ -725,13 +725,13 @@ async fn perform_download(
         match &media_info {
             Ok(info) => {
                 println!(
-                    "\n{margin}{info}PREVIEW{reset}  {accent}READY TO DOWNLOAD{reset}\n{margin}{bar}",
-                    margin = "  ",
-                    info = theme.color_info(),
-                    accent = theme.color_accent(),
-                    reset = theme.color_reset(),
-                    bar = "—".repeat(50),
-                );
+                                    "\n{margin}{info}Preview{reset}  {accent}Ready to download{reset}\n{margin}{bar}",
+                                    margin = "  ",
+                                    info = theme.color_info(),
+                                    accent = theme.color_accent(),
+                                    reset = theme.color_reset(),
+                                    bar = "—".repeat(50),
+                                );
                 println!("  TITLE:    {}", info.title);
                 println!("  PLATFORM: {}", platform_name);
                 if !info.author.is_empty() && info.author != "unknown" {

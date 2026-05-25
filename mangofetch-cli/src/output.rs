@@ -24,13 +24,13 @@ pub fn format_info_card(
     let platform_colored = theme.format_platform(platform);
 
     format!(
-        "\n{margin}{info}INFO{reset}  {accent}MEDIA DETAIL{reset}\n\
-         {margin}{bar}\n\
-         {margin}TITLE:     {title}\n\
-         {margin}AUTHOR:    {author}\n\
-         {margin}PLATFORM:  {platform}\n\
-         {margin}TYPE:      {media_type}\n\
-         {margin}DURATION:  {duration}\n",
+        "\n{margin}{info}Info{reset}  {accent}Media detail{reset}\n\
+             {margin}{bar}\n\
+             {margin}Title:     {title}\n\
+             {margin}Author:    {author}\n\
+             {margin}Platform:  {platform}\n\
+             {margin}Type:      {media_type}\n\
+             {margin}Duration:  {duration}\n",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -51,7 +51,7 @@ pub fn format_queue_list(
 ) -> String {
     if items.is_empty() {
         return format!(
-            "\n{margin}{info}QUEUE{reset}  No downloads found in history.\n",
+            "\n{margin}{info}Queue{reset}  No downloads found in history.\n",
             margin = MARGIN,
             info = theme.color_info(),
             reset = theme.color_reset()
@@ -59,7 +59,7 @@ pub fn format_queue_list(
     }
 
     let mut output = format!(
-        "\n{margin}{info}QUEUE{reset}  {accent}STATUS (Total: {}){reset}\n{margin}{bar}\n",
+        "\n{margin}{info}Queue{reset}  {accent}Status (Total: {}){reset}\n{margin}{bar}\n",
         items.len(),
         margin = MARGIN,
         info = theme.color_info(),
@@ -79,35 +79,15 @@ pub fn format_queue_list(
 
         let status_colored = match status.as_str() {
             s if s.contains("Active") => {
-                format!(
-                    "{}{}{}",
-                    theme.color_info(),
-                    status.to_uppercase(),
-                    theme.color_reset()
-                )
+                format!("{}{}{}", theme.color_info(), status, theme.color_reset())
             }
             s if s.contains("Complete") => {
-                format!(
-                    "{}{}{}",
-                    theme.color_success(),
-                    status.to_uppercase(),
-                    theme.color_reset()
-                )
+                format!("{}{}{}", theme.color_success(), status, theme.color_reset())
             }
             s if s.contains("Error") => {
-                format!(
-                    "{}{}{}",
-                    theme.color_error(),
-                    status.to_uppercase(),
-                    theme.color_reset()
-                )
+                format!("{}{}{}", theme.color_error(), status, theme.color_reset())
             }
-            _ => format!(
-                "{}{}{}",
-                theme.color_warning(),
-                status.to_uppercase(),
-                theme.color_reset()
-            ),
+            _ => format!("{}{}{}", theme.color_warning(), status, theme.color_reset()),
         };
 
         let platform_colored = theme.format_platform(platform);
@@ -139,7 +119,7 @@ pub fn format_queue_list(
 /// Formats the `config list` output with better structure
 pub fn format_config_display(config_json: &str, theme: &Arc<dyn CliTheme>) -> String {
     let mut output = format!(
-        "\n{margin}{info}CONFIG{reset}  {accent}APPLICATION SETTINGS{reset}\n{margin}{bar}\n",
+        "\n{margin}{info}Config{reset}  {accent}Application settings{reset}\n{margin}{bar}\n",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -238,7 +218,7 @@ pub fn format_dependency_check(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     let mut output = format!(
-        "\n{margin}{info}CHECK{reset}  {accent}SYSTEM READINESS{reset}\n{margin}{bar}\n",
+        "\n{margin}{info}Check{reset}  {accent}System readiness{reset}\n{margin}{bar}\n",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -249,7 +229,7 @@ pub fn format_dependency_check(
     let check_yt_dlp = match yt_dlp {
         Some(path) => format!("{margin}OK  yt-dlp: {path}", margin = MARGIN, path = path),
         None => format!(
-            "{margin}{err}!!  yt-dlp: NOT FOUND{reset} (will auto-install)",
+            "{margin}{err}!!  yt-dlp: Not found{reset} (will auto-install)",
             margin = MARGIN,
             err = theme.color_error(),
             reset = theme.color_reset()
@@ -259,7 +239,7 @@ pub fn format_dependency_check(
     let check_ffmpeg = match ffmpeg {
         Some(path) => format!("{margin}OK  FFmpeg: {path}", margin = MARGIN, path = path),
         None => format!(
-            "{margin}{err}!!  FFmpeg: NOT FOUND{reset} (will auto-install)",
+            "{margin}{err}!!  FFmpeg: Not found{reset} (will auto-install)",
             margin = MARGIN,
             err = theme.color_error(),
             reset = theme.color_reset()
@@ -285,7 +265,7 @@ pub fn format_clean_summary(
         .unwrap_or_else(|| "0 B".to_string());
 
     format!(
-        "\n{margin}{ok}CLEAN{reset}  {count} item{s} removed. Freed {size} of space.\n",
+        "\n{margin}{ok}Clean{reset}  {count} item{s} removed. Freed {size} of space.\n",
         margin = MARGIN,
         ok = theme.color_success(),
         reset = theme.color_reset(),
@@ -303,7 +283,7 @@ pub fn format_batch_summary(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     let mut output = format!(
-        "\n{margin}{info}BATCH{reset}  {accent}DOWNLOAD SUMMARY{reset}\n{margin}{bar}\n",
+        "\n{margin}{info}Batch{reset}  {accent}Download summary{reset}\n{margin}{bar}\n",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -312,8 +292,8 @@ pub fn format_batch_summary(
     );
 
     output.push_str(&format!(
-        "{margin}TOTAL:   {total}\n\
-         {margin}QUEUED:  {queued}\n",
+        "{margin}Total:   {total}\n\
+         {margin}Queued:  {queued}\n",
         margin = MARGIN,
         total = total,
         queued = queued,
@@ -321,14 +301,14 @@ pub fn format_batch_summary(
 
     if failed > 0 {
         output.push_str(&format!(
-            "{margin}{err}FAILED:  {failed}{reset}\n",
+            "{margin}{err}Failed:  {failed}{reset}\n",
             margin = MARGIN,
             err = theme.color_error(),
             failed = failed,
             reset = theme.color_reset()
         ));
     } else {
-        output.push_str(&format!("{margin}FAILURES: None\n", margin = MARGIN));
+        output.push_str(&format!("{margin}Failures: None\n", margin = MARGIN));
     }
 
     output.push('\n');
@@ -342,12 +322,12 @@ pub fn format_about_info(
     theme: &Arc<dyn CliTheme>,
 ) -> String {
     format!(
-        "\n{margin}{info}ABOUT{reset}  {accent}APPLICATION INFO{reset}\n{margin}{bar}\n\
-         {margin}VERSION:    {version}\n\
-         {margin}AUTHOR:     {author}\n\
-         {margin}REPOSITORY: {repo}\n\
-         {margin}LICENSE:    GPL-3.0\n\
-         {margin}EDITION:    2021\n",
+        "\n{margin}{info}About{reset}  {accent}Application info{reset}\n{margin}{bar}\n\
+         {margin}Version:    {version}\n\
+         {margin}Author:     {author}\n\
+         {margin}Repository: {repo}\n\
+         {margin}License:    GPL-3.0\n\
+         {margin}Edition:    2021\n",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -361,7 +341,7 @@ pub fn format_about_info(
 
 pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
     format!(
-        "\n{margin}{info}ROADMAP{reset}  {accent}FUTURE PLANS{reset}\n{margin}{bar}\n\
+        "\n{margin}{info}Roadmap{reset}  {accent}Future plans{reset}\n{margin}{bar}\n\
          {margin}v0.6.0 - Plugin ecosystem & Community sites\n\
          {margin}v0.7.0 - Native GUI Umbrella (Tauri v2)\n\
          {margin}v1.0.0 - Distributed swarm downloads\n",
@@ -375,7 +355,7 @@ pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
 
 pub fn format_about_changelog(theme: &Arc<dyn CliTheme>) -> String {
     format!(
-        "\n{margin}{info}CHANGES{reset}  {accent}PROJECT HISTORY{reset}\n{margin}{bar}\n\
+        "\n{margin}{info}Changes{reset}  {accent}Project history{reset}\n{margin}{bar}\n\
          {margin}v0.5.3 - TUI Fix: Resolved ANSI artifacts in About tab\n\
          {margin}v0.5.2 - Maintenance: Relaxed tone & security cleanup\n\
          {margin}v0.5.1 - UX & Polish: Tropical themes & mouse support\n\
@@ -396,10 +376,9 @@ pub fn format_about_changelog(theme: &Arc<dyn CliTheme>) -> String {
 
 pub fn format_about_terms(theme: &Arc<dyn CliTheme>) -> String {
     format!(
-        "\n{margin}{info}TERMS{reset}  {accent}LEGAL & USAGE{reset}\n{margin}{bar}\n\
-         {margin}LICENSE:    GPL-3.0\n\
-         {margin}NOTICE:     Respect content creator rights.\n\
-         {margin}            Use responsibly.\n",
+        "\n{margin}{info}Terms{reset}  {accent}Legal & usage{reset}\n{margin}{bar}\n\
+         {margin}License:    GPL-3.0\n\
+         ",
         margin = MARGIN,
         info = theme.color_info(),
         accent = theme.color_accent(),
@@ -431,13 +410,13 @@ mod tests {
             &theme,
         );
 
-        assert!(output.contains("INFO"));
-        assert!(output.contains("MEDIA DETAIL"));
-        assert!(output.contains("TITLE:     Test Title"));
-        assert!(output.contains("AUTHOR:    Test Author"));
-        assert!(output.contains("PLATFORM:"));
+        assert!(output.contains("Info"));
+        assert!(output.contains("Media detail"));
+        assert!(output.contains("Title:     Test Title"));
+        assert!(output.contains("Author:    Test Author"));
+        assert!(output.contains("Platform:"));
         assert!(output.contains("YouTube"));
-        assert!(output.contains("DURATION:  2m 5s"));
+        assert!(output.contains("Duration:  2m 5s"));
         assert!(output.contains(MARGIN));
     }
 
@@ -446,7 +425,7 @@ mod tests {
         let theme = get_theme();
         let output = format_queue_list(vec![], &theme);
 
-        assert!(output.contains("QUEUE"));
+        assert!(output.contains("Queue"));
         assert!(output.contains("No downloads found"));
         assert!(output.contains(MARGIN));
     }
@@ -472,14 +451,14 @@ mod tests {
         ];
         let output = format_queue_list(items, &theme);
 
-        assert!(output.contains("QUEUE"));
-        assert!(output.contains("STATUS (Total: 2)"));
+        assert!(output.contains("Queue"));
+        assert!(output.contains("Status (Total: 2)"));
         assert!(output.contains("#1"));
         assert!(output.contains("Title 1"));
-        assert!(output.contains("ACTIVE"));
+        assert!(output.contains("Active"));
         assert!(output.contains("==> 50%"));
         assert!(output.contains("#2"));
-        assert!(output.contains("QUEUED"));
+        assert!(output.contains("Queued"));
         assert!(output.contains(MARGIN));
     }
 
@@ -489,14 +468,14 @@ mod tests {
 
         // Success case
         let output_ok = format_dependency_check(Some("/path/ytdlp"), Some("/path/ffmpeg"), &theme);
-        assert!(output_ok.contains("CHECK"));
-        assert!(output_ok.contains("SYSTEM READINESS"));
+        assert!(output_ok.contains("Check"));
+        assert!(output_ok.contains("System readiness"));
         assert!(output_ok.contains("OK  yt-dlp"));
         assert!(output_ok.contains("OK  FFmpeg"));
 
         // Missing case
         let output_missing = format_dependency_check(None, None, &theme);
-        assert!(output_missing.contains("NOT FOUND"));
+        assert!(output_missing.contains("Not found"));
         assert!(output_missing.contains("will auto-install"));
     }
 
@@ -505,7 +484,7 @@ mod tests {
         let theme = get_theme();
 
         let output_single = format_clean_summary(1, Some(1024), &theme);
-        assert!(output_single.contains("CLEAN"));
+        assert!(output_single.contains("Clean"));
         assert!(output_single.contains("1 item removed"));
         assert!(output_single.contains("1.0 KB"));
 
@@ -520,14 +499,14 @@ mod tests {
 
         // Success only
         let output_ok = format_batch_summary(10, 10, 0, &theme);
-        assert!(output_ok.contains("BATCH"));
-        assert!(output_ok.contains("DOWNLOAD SUMMARY"));
-        assert!(output_ok.contains("TOTAL:   10"));
-        assert!(output_ok.contains("QUEUED:  10"));
-        assert!(output_ok.contains("FAILURES: None"));
+        assert!(output_ok.contains("Batch"));
+        assert!(output_ok.contains("Download summary"));
+        assert!(output_ok.contains("Total:   10"));
+        assert!(output_ok.contains("Queued:  10"));
+        assert!(output_ok.contains("Failures: None"));
 
         // With failures
         let output_fail = format_batch_summary(10, 7, 3, &theme);
-        assert!(output_fail.contains("FAILED:  3"));
+        assert!(output_fail.contains("Failed:  3"));
     }
 }

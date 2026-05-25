@@ -415,7 +415,7 @@ impl DownloadReporter for CLIReporter {
 
         let icon = "[]";
         let message = format!(
-            "{margin}{info}{icon} FOUND{reset} {title} by {author} [{platform}] [{duration}]",
+            "{margin}{info}{icon} Found{reset} {title} by {author} [{platform}] [{duration}]",
             margin = ACTIVE_BLOCK_MARGIN,
             info = self.theme.color_info(),
             icon = icon,
@@ -448,7 +448,7 @@ impl DownloadReporter for CLIReporter {
 
         if percent >= 100.0 {
             entry.bar.finish_with_message(format!(
-                "{margin}{ok} SYSTEM READY{reset} {title}",
+                "{margin}{ok} System ready{reset} {title}",
                 margin = ACTIVE_BLOCK_MARGIN,
                 ok = self.theme.color_success(),
                 reset = self.theme.color_reset(),
@@ -459,34 +459,34 @@ impl DownloadReporter for CLIReporter {
     }
 }
 
-fn normalize_phase_label(raw: &str) -> &'static str {
+pub fn normalize_phase_label(raw: &str) -> &'static str {
     let lower = raw.trim().to_lowercase();
 
     if lower.is_empty() {
-        "PREPARING"
+        "Preparing"
     } else if lower.contains("error") || lower.contains("fail") {
-        "ERROR"
+        "Error"
     } else if lower.contains("complete") || lower.contains("done") {
-        "COMPLETE"
+        "Complete"
     } else if lower.contains("final") || lower.contains("rename") || lower.contains("move") {
-        "FINALIZING"
+        "Finalizing"
     } else if lower.contains("merge")
         || lower.contains("merg")
         || lower.contains("mux")
         || lower.contains("convert")
         || lower.contains("process")
     {
-        "PROCESSING"
+        "Processing"
     } else if lower.contains("download") {
-        "DOWNLOADING"
+        "Downloading"
     } else if lower.contains("fetch")
         || lower.contains("info")
         || lower.contains("resolve")
         || lower.contains("metadata")
     {
-        "FETCHING"
+        "Fetching"
     } else {
-        "PREPARING"
+        "Preparing"
     }
 }
 
@@ -524,7 +524,7 @@ fn format_transfer(downloaded: u64, total: Option<u64>) -> String {
 fn phase_detail(raw: &str) -> String {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
-        return default_phase_detail("PREPARING").to_string();
+        return default_phase_detail("Preparing").to_string();
     }
 
     let normalized = normalize_phase_label(trimmed);
@@ -537,12 +537,12 @@ fn phase_detail(raw: &str) -> String {
 
 fn default_phase_detail(normalized: &str) -> &'static str {
     match normalized {
-        "FETCHING" => "Resolving media metadata",
-        "DOWNLOADING" => "Streaming bytes from source",
-        "PROCESSING" => "Combining and polishing media",
-        "FINALIZING" => "Writing final output to disk",
-        "COMPLETE" => "Finished successfully",
-        "ERROR" => "Stopped by an unrecoverable error",
+        "Fetching" => "Resolving media metadata",
+        "Downloading" => "Streaming bytes from source",
+        "Processing" => "Combining and polishing media",
+        "Finalizing" => "Writing final output to disk",
+        "Complete" => "Finished successfully",
+        "Error" => "Stopped by an unrecoverable error",
         _ => "Preparing work queue",
     }
 }
@@ -595,10 +595,10 @@ fn render_bar(percent: f64, width: usize, unicode: bool) -> String {
 
 fn phase_color(theme: &dyn CliTheme, phase: &str) -> String {
     match phase {
-        "COMPLETE" => theme.color_success(),
-        "ERROR" => theme.color_error(),
-        "FETCHING" | "DOWNLOADING" => theme.color_info(),
-        "PROCESSING" | "FINALIZING" => theme.color_warning(),
+        "Complete" => theme.color_success(),
+        "Error" => theme.color_error(),
+        "Fetching" | "Downloading" => theme.color_info(),
+        "Processing" | "Finalizing" => theme.color_warning(),
         _ => theme.color_accent(),
     }
 }
@@ -778,10 +778,10 @@ mod tests {
 
     #[test]
     fn normalizes_common_phase_labels() {
-        assert_eq!(normalize_phase_label("Fetching info"), "FETCHING");
-        assert_eq!(normalize_phase_label("Downloading media"), "DOWNLOADING");
-        assert_eq!(normalize_phase_label("Merging streams"), "PROCESSING");
-        assert_eq!(normalize_phase_label("Final rename"), "FINALIZING");
+        assert_eq!(normalize_phase_label("Fetching info"), "Fetching");
+        assert_eq!(normalize_phase_label("Downloading media"), "Downloading");
+        assert_eq!(normalize_phase_label("Merging streams"), "Processing");
+        assert_eq!(normalize_phase_label("Final rename"), "Finalizing");
     }
 
     #[test]
@@ -801,7 +801,7 @@ mod tests {
         let rendered = format_progress_block(&theme, 7, &info);
 
         assert!(rendered.contains("  DL#07"));
-        assert!(rendered.contains("DOWNLOADING"));
+        assert!(rendered.contains("Downloading"));
         assert!(rendered.contains("ETA"));
         assert!(rendered.contains("148.0 MB / 238.0 MB"));
     }
@@ -823,7 +823,7 @@ mod tests {
         let rendered = format_progress_block(&theme, 5, &info);
 
         assert!(rendered.contains("  DL#05"));
-        assert!(rendered.contains("PREPARING"));
+        assert!(rendered.contains("Preparing"));
         assert!(rendered.contains("ETA --"));
         assert!(rendered.contains("12 B / --"));
     }

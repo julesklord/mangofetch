@@ -402,11 +402,11 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
                     app.quit();
                 } else {
                     app.last_q_press = Some(std::time::Instant::now());
-                    app.set_status("Presiona 'q' nuevamente rápido para salir".to_string());
+                    app.set_status("Press 'q' again quickly to exit".to_string());
                 }
             } else {
                 app.last_q_press = Some(std::time::Instant::now());
-                app.set_status("Presiona 'q' nuevamente rápido para salir".to_string());
+                app.set_status("Press 'q' again quickly to exit".to_string());
             }
         }
         KeyCode::Char(':') | KeyCode::Char('/') => {
