@@ -36,6 +36,9 @@ pub struct MangoFetchApp {
     output_dir: String,
     audio_only: bool,
     selected_quality: String,
+    selected_video_format: String,
+    selected_audio_format: String,
+    selected_audio_quality: String,
 
     // Media Pre-fetch
     media_info_loading: bool,
@@ -76,6 +79,9 @@ impl MangoFetchApp {
             output_dir: default_output_dir,
             audio_only: false,
             selected_quality: "Best".to_string(),
+            selected_video_format: "mp4".to_string(),
+            selected_audio_format: "mp3".to_string(),
+            selected_audio_quality: "320K".to_string(),
             media_info_loading: false,
             media_info: None,
             media_info_error: None,
@@ -355,21 +361,59 @@ impl MangoFetchApp {
                         ui.label(RichText::new("Download Options").strong().color(Color32::from_rgb(0xd1, 0xd5, 0xdb)));
                         ui.add_space(10.0);
 
-                        ui.checkbox(&mut self.audio_only, "Extract Audio Only (MP3/M4A)");
+                        ui.checkbox(&mut self.audio_only, "Extract Audio Only (MP3/M4A/FLAC)");
                         ui.add_space(10.0);
 
-                        ui.horizontal(|ui| {
-                            ui.label("Video Quality:");
-                            egui::ComboBox::from_id_salt("quality_combo")
-                                .selected_text(&self.selected_quality)
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut self.selected_quality, "Best".to_string(), "Best (Default)");
-                                    ui.selectable_value(&mut self.selected_quality, "1080p".to_string(), "1080p HD");
-                                    ui.selectable_value(&mut self.selected_quality, "720p".to_string(), "720p");
-                                    ui.selectable_value(&mut self.selected_quality, "480p".to_string(), "480p");
-                                    ui.selectable_value(&mut self.selected_quality, "Audio-Only".to_string(), "Pure Audio");
-                                });
-                        });
+                        if !self.audio_only {
+                            ui.horizontal(|ui| {
+                                ui.label("Video Quality:");
+                                egui::ComboBox::from_id_salt("quality_combo")
+                                    .selected_text(&self.selected_quality)
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(&mut self.selected_quality, "Best".to_string(), "Best (Default)");
+                                        ui.selectable_value(&mut self.selected_quality, "1080p".to_string(), "1080p HD");
+                                        ui.selectable_value(&mut self.selected_quality, "720p".to_string(), "720p");
+                                        ui.selectable_value(&mut self.selected_quality, "480p".to_string(), "480p");
+                                    });
+                            });
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                ui.label("Video Format:");
+                                egui::ComboBox::from_id_salt("video_format_combo")
+                                    .selected_text(&self.selected_video_format)
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(&mut self.selected_video_format, "mp4".to_string(), "MP4");
+                                        ui.selectable_value(&mut self.selected_video_format, "mkv".to_string(), "MKV");
+                                        ui.selectable_value(&mut self.selected_video_format, "webm".to_string(), "WEBM");
+                                    });
+                            });
+                        } else {
+                            ui.horizontal(|ui| {
+                                ui.label("Audio Format:");
+                                egui::ComboBox::from_id_salt("audio_format_combo")
+                                    .selected_text(&self.selected_audio_format)
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(&mut self.selected_audio_format, "mp3".to_string(), "MP3");
+                                        ui.selectable_value(&mut self.selected_audio_format, "m4a".to_string(), "M4A");
+                                        ui.selectable_value(&mut self.selected_audio_format, "flac".to_string(), "FLAC");
+                                        ui.selectable_value(&mut self.selected_audio_format, "wav".to_string(), "WAV");
+                                        ui.selectable_value(&mut self.selected_audio_format, "opus".to_string(), "OPUS");
+                                    });
+                            });
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                ui.label("Audio Quality:");
+                                egui::ComboBox::from_id_salt("audio_quality_combo")
+                                    .selected_text(&self.selected_audio_quality)
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(&mut self.selected_audio_quality, "320K".to_string(), "320K (High)");
+                                        ui.selectable_value(&mut self.selected_audio_quality, "256K".to_string(), "256K");
+                                        ui.selectable_value(&mut self.selected_audio_quality, "192K".to_string(), "192K (Medium)");
+                                        ui.selectable_value(&mut self.selected_audio_quality, "128K".to_string(), "128K (Low)");
+                                        ui.selectable_value(&mut self.selected_audio_quality, "0".to_string(), "0 (Best possible)");
+                                    });
+                            });
+                        }
 
                         ui.add_space(12.0);
                         ui.label("Output Directory:");
@@ -406,6 +450,9 @@ impl MangoFetchApp {
                                     url: self.input_url.clone(),
                                     output_dir: self.output_dir.clone(),
                                     quality: Some(self.selected_quality.clone()),
+                                    video_format: Some(self.selected_video_format.clone()),
+                                    audio_format: Some(self.selected_audio_format.clone()),
+                                    audio_quality: Some(self.selected_audio_quality.clone()),
                                     audio_only: self.audio_only,
                                 };
                                 let _ = self.runtime.send_command(cmd);

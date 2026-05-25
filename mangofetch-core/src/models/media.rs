@@ -75,6 +75,9 @@ pub struct VideoQuality {
 #[derive(Clone)]
 pub struct DownloadOptions {
     pub quality: Option<String>,
+    pub video_format: Option<String>,
+    pub audio_format: Option<String>,
+    pub audio_quality: Option<String>,
     pub output_dir: PathBuf,
     pub filename_template: Option<String>,
     pub download_subtitles: bool,

@@ -10,14 +10,25 @@ pub enum GuiCommand {
         url: String,
         output_dir: String,
         quality: Option<String>,
+        video_format: Option<String>,
+        audio_format: Option<String>,
+        audio_quality: Option<String>,
         audio_only: bool,
     },
-    PauseDownload { id: u64 },
-    ResumeDownload { id: u64 },
-    RemoveDownload { id: u64 },
+    PauseDownload {
+        id: u64,
+    },
+    ResumeDownload {
+        id: u64,
+    },
+    RemoveDownload {
+        id: u64,
+    },
     RefreshQueue,
     CheckDependencies,
-    FetchMediaInfo { url: String },
+    FetchMediaInfo {
+        url: String,
+    },
     Shutdown,
 }
 

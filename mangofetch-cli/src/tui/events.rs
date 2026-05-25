@@ -152,7 +152,7 @@ fn execute_colon_command(app: &mut App, raw: &str) {
                 app.set_status(format!("Queueing: {}", &url));
                 tokio::spawn(async move {
                     let _ = crate::engine::enqueue_download_with_quality(
-                        &url, None, quality, registry, queue,
+                        &url, None, quality, None, None, None, registry, queue,
                     )
                     .await;
                 });
@@ -241,7 +241,9 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
                 if app.confirm_quality_idx > 0 {
                     app.confirm_quality_idx -= 1;
                 }
-            } else {
+            } else if app.confirm_focused_field == 4 {
+                app.confirm_focused_field = 3;
+            } else if app.confirm_focused_field > 0 {
                 app.confirm_focused_field -= 1;
             }
         }
@@ -254,8 +256,10 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
                         app.confirm_focused_field = 1;
                     }
                 }
-            } else if app.confirm_focused_field == 1 {
-                app.confirm_focused_field = 2;
+            } else if app.confirm_focused_field < 3 {
+                app.confirm_focused_field += 1;
+            } else if app.confirm_focused_field == 3 && app.confirm_download_mode == "audio" {
+                app.confirm_focused_field = 4;
             }
         }
         KeyCode::Left | KeyCode::Right => {
@@ -264,9 +268,62 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
                     app.confirm_download_mode = "audio".to_string();
                 } else {
                     app.confirm_download_mode = "video".to_string();
+                    if app.confirm_focused_field > 3 {
+                        app.confirm_focused_field = 3;
+                    }
                 }
             } else if app.confirm_focused_field == 2 {
                 app.confirm_download_subtitles = !app.confirm_download_subtitles;
+            } else if app.confirm_focused_field == 3 {
+                if app.confirm_download_mode == "video" {
+                    let formats = ["mp4", "mkv", "webm"];
+                    let idx = formats
+                        .iter()
+                        .position(|&x| x == app.confirm_video_format)
+                        .unwrap_or(0);
+                    let next = if code == KeyCode::Left {
+                        if idx == 0 {
+                            formats.len() - 1
+                        } else {
+                            idx - 1
+                        }
+                    } else {
+                        (idx + 1) % formats.len()
+                    };
+                    app.confirm_video_format = formats[next].to_string();
+                } else {
+                    let formats = ["mp3", "m4a", "flac", "wav"];
+                    let idx = formats
+                        .iter()
+                        .position(|&x| x == app.confirm_audio_format)
+                        .unwrap_or(0);
+                    let next = if code == KeyCode::Left {
+                        if idx == 0 {
+                            formats.len() - 1
+                        } else {
+                            idx - 1
+                        }
+                    } else {
+                        (idx + 1) % formats.len()
+                    };
+                    app.confirm_audio_format = formats[next].to_string();
+                }
+            } else if app.confirm_focused_field == 4 {
+                let qualities = ["320K", "256K", "192K", "128K", "64K", "best"];
+                let idx = qualities
+                    .iter()
+                    .position(|&x| x == app.confirm_audio_quality)
+                    .unwrap_or(0);
+                let next = if code == KeyCode::Left {
+                    if idx == 0 {
+                        qualities.len() - 1
+                    } else {
+                        idx - 1
+                    }
+                } else {
+                    (idx + 1) % qualities.len()
+                };
+                app.confirm_audio_quality = qualities[next].to_string();
             }
         }
         KeyCode::Enter if app.preview_info.is_some() => {
@@ -283,6 +340,9 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
                 };
                 let download_mode = Some(app.confirm_download_mode.clone());
                 let download_subtitles = Some(app.confirm_download_subtitles);
+                let video_format = Some(app.confirm_video_format.clone());
+                let audio_format = Some(app.confirm_audio_format.clone());
+                let audio_quality = Some(app.confirm_audio_quality.clone());
 
                 let queue = app.queue.clone();
                 let registry = app.registry.clone();
@@ -301,6 +361,9 @@ async fn handle_add_confirm_mode(app: &mut App, code: KeyCode) {
                         None,
                         quality,
                         download_mode,
+                        video_format,
+                        audio_format,
+                        audio_quality,
                         download_subtitles,
                         registry,
                         queue,

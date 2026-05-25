@@ -60,6 +60,18 @@ enum Commands {
         #[arg(short, long)]
         quality: Option<String>,
 
+        /// Video format (e.g. mp4, mkv, webm)
+        #[arg(long)]
+        video_format: Option<String>,
+
+        /// Audio format (e.g. mp3, m4a, flac, wav)
+        #[arg(long)]
+        audio_format: Option<String>,
+
+        /// Audio quality (e.g. 320K, 192K, 0)
+        #[arg(long)]
+        audio_quality: Option<String>,
+
         /// Download audio only
         #[arg(short, long)]
         audio_only: bool,
@@ -77,6 +89,18 @@ enum Commands {
         /// Output directory
         #[arg(short, long)]
         output: Option<String>,
+
+        /// Video format (e.g. mp4, mkv, webm)
+        #[arg(long)]
+        video_format: Option<String>,
+
+        /// Audio format (e.g. mp3, m4a, flac, wav)
+        #[arg(long)]
+        audio_format: Option<String>,
+
+        /// Audio quality (e.g. 320K, 192K, 0)
+        #[arg(long)]
+        audio_quality: Option<String>,
 
         /// Skip confirmation
         #[arg(short, long)]
@@ -225,6 +249,9 @@ async fn main() -> Result<()> {
             url,
             output,
             quality,
+            video_format,
+            audio_format,
+            audio_quality,
             audio_only,
             yes,
         } => {
@@ -232,6 +259,9 @@ async fn main() -> Result<()> {
                 &url,
                 output,
                 quality,
+                video_format,
+                audio_format,
+                audio_quality,
                 audio_only,
                 yes,
                 &registry,
@@ -243,7 +273,14 @@ async fn main() -> Result<()> {
             wait_for_queue(&queue).await;
         }
 
-        Commands::DownloadMultiple { file, output, yes } => {
+        Commands::DownloadMultiple {
+            file,
+            output,
+            video_format,
+            audio_format,
+            audio_quality,
+            yes,
+        } => {
             let content = std::fs::read_to_string(&file)?;
             let urls: Vec<String> = content
                 .lines()
@@ -267,6 +304,9 @@ async fn main() -> Result<()> {
                     url,
                     output.clone(),
                     None,
+                    video_format.clone(),
+                    audio_format.clone(),
+                    audio_quality.clone(),
                     false,
                     yes,
                     &registry,
@@ -379,7 +419,11 @@ async fn main() -> Result<()> {
             println!("{}", format_queue_list(display_items, &theme));
         }
 
-        Commands::Clean { finished, failed, logs } => {
+        Commands::Clean {
+            finished,
+            failed,
+            logs,
+        } => {
             if logs {
                 match mangofetch_core::core::logger::clean_logs() {
                     Ok(count) => {
@@ -648,6 +692,9 @@ async fn perform_download(
     url: &str,
     output: Option<String>,
     quality: Option<String>,
+    video_format: Option<String>,
+    audio_format: Option<String>,
+    audio_quality: Option<String>,
     audio_only: bool,
     yes: bool,
     registry: &PlatformRegistry,
@@ -751,6 +798,9 @@ async fn perform_download(
                     output_dir.clone(),
                     None,
                     quality.clone(),
+                    video_format.clone(),
+                    audio_format.clone(),
+                    audio_quality.clone(),
                     None,
                     None,
                     None,
@@ -803,6 +853,9 @@ async fn perform_download(
         output_dir,
         None,
         quality,
+        video_format,
+        audio_format,
+        audio_quality,
         None,
         None,
         None,

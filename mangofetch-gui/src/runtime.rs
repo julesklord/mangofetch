@@ -1,19 +1,19 @@
 //! Tokio runtime en thread separado
 //! Maneja la comunicación entre UI (egui) y core (tokio async)
 
-use crate::bridge::{CoreEvent, GuiCommand, QueueItemInfo, MediaInfo};
-use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
+use crate::bridge::{CoreEvent, GuiCommand, MediaInfo, QueueItemInfo};
+use mangofetch_core::core::dependencies::ensure_dependencies;
+use mangofetch_core::core::manager::queue::{fetch_and_cache_info, try_start_next, DownloadQueue};
+use mangofetch_core::core::manager::recovery;
+use mangofetch_core::core::registry::PlatformRegistry;
+use mangofetch_core::core::traits::DownloadReporter;
+use mangofetch_core::models::queue::QueueStatus;
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
-use mangofetch_core::core::registry::PlatformRegistry;
-use mangofetch_core::core::manager::queue::{DownloadQueue, try_start_next, fetch_and_cache_info};
-use mangofetch_core::core::manager::recovery;
-use mangofetch_core::core::dependencies::ensure_dependencies;
-use mangofetch_core::core::traits::DownloadReporter;
-use mangofetch_core::models::queue::QueueStatus;
 
 pub struct AppRuntime {
     pub cmd_tx: Sender<GuiCommand>,
@@ -53,7 +53,11 @@ impl GuiReporter {
 }
 
 impl DownloadReporter for GuiReporter {
-    fn on_progress(&self, download_id: u64, info: mangofetch_core::core::events::QueueItemProgress) {
+    fn on_progress(
+        &self,
+        download_id: u64,
+        info: mangofetch_core::core::events::QueueItemProgress,
+    ) {
         self.send(CoreEvent::DownloadProgress {
             id: download_id,
             progress: info.percent as f32,
@@ -62,7 +66,10 @@ impl DownloadReporter for GuiReporter {
         });
 
         let speed_str = if info.speed_bytes_per_sec > 0.0 {
-            format!("{}/s", Self::format_bytes_compact(info.speed_bytes_per_sec as u64))
+            format!(
+                "{}/s",
+                Self::format_bytes_compact(info.speed_bytes_per_sec as u64)
+            )
         } else {
             "--".to_string()
         };
@@ -73,7 +80,12 @@ impl DownloadReporter for GuiReporter {
         )));
     }
 
-    fn on_complete(&self, download_id: u64, file_path: Option<String>, file_size_bytes: Option<u64>) {
+    fn on_complete(
+        &self,
+        download_id: u64,
+        file_path: Option<String>,
+        file_size_bytes: Option<u64>,
+    ) {
         let size = file_size_bytes
             .map(Self::format_bytes_compact)
             .unwrap_or_else(|| "--".to_string());
@@ -220,7 +232,15 @@ impl AppRuntime {
                         tracing::info!("AppRuntime received command: {:?}", cmd);
 
                         match cmd {
-                            GuiCommand::StartDownload { url, output_dir, quality, audio_only } => {
+                            GuiCommand::StartDownload {
+                                url,
+                                output_dir,
+                                quality,
+                                video_format,
+                                audio_format,
+                                audio_quality,
+                                audio_only,
+                            } => {
                                 let queue = queue.clone();
                                 let registry = registry.clone();
                                 let reporter = reporter.clone();
@@ -229,32 +249,54 @@ impl AppRuntime {
                                     let downloader = match registry.find_platform(&url) {
                                         Some(d) => d,
                                         None => {
-                                            reporter.send(CoreEvent::LogLine("Error: Plataforma no soportada".to_string()));
+                                            reporter.send(CoreEvent::LogLine(
+                                                "Error: Plataforma no soportada".to_string(),
+                                            ));
                                             return;
                                         }
                                     };
                                     let platform_name = downloader.name().to_string();
 
-                                    let deps = match ensure_dependencies(false, Some(reporter.clone())).await {
-                                        Ok(d) => d,
-                                        Err(e) => {
-                                            reporter.send(CoreEvent::LogLine(format!("Error de dependencias: {}", e)));
-                                            return;
-                                        }
-                                    };
+                                    let deps =
+                                        match ensure_dependencies(false, Some(reporter.clone()))
+                                            .await
+                                        {
+                                            Ok(d) => d,
+                                            Err(e) => {
+                                                reporter.send(CoreEvent::LogLine(format!(
+                                                    "Error de dependencias: {}",
+                                                    e
+                                                )));
+                                                return;
+                                            }
+                                        };
 
-                                    let media_info = fetch_and_cache_info(&url, &*downloader, &platform_name).await.ok();
+                                    let media_info =
+                                        fetch_and_cache_info(&url, &*downloader, &platform_name)
+                                            .await
+                                            .ok();
                                     let id = recovery::get_next_id();
+                                    let download_mode = if audio_only {
+                                        Some("audio".to_string())
+                                    } else {
+                                        None
+                                    };
 
                                     let mut q = queue.lock().await;
                                     q.enqueue(
                                         id,
                                         url,
                                         platform_name,
-                                        media_info.as_ref().map(|i| i.title.clone()).unwrap_or_else(|| "Download".to_string()),
+                                        media_info
+                                            .as_ref()
+                                            .map(|i| i.title.clone())
+                                            .unwrap_or_else(|| "Download".to_string()),
                                         output_dir,
-                                        None,
+                                        download_mode,
                                         quality,
+                                        video_format,
+                                        audio_format,
+                                        audio_quality,
                                         None,
                                         None,
                                         None,
@@ -299,7 +341,7 @@ impl AppRuntime {
                                 rt.spawn(async move {
                                     let q = queue.lock().await;
                                     let state = q.get_state();
-                                    
+
                                     let gui_items = state
                                         .into_iter()
                                         .map(|i| {
@@ -308,8 +350,12 @@ impl AppRuntime {
                                                 QueueStatus::Queued => "Queued".to_string(),
                                                 QueueStatus::Paused => "Paused".to_string(),
                                                 QueueStatus::Seeding => "Seeding".to_string(),
-                                                QueueStatus::Complete { .. } => "Complete".to_string(),
-                                                QueueStatus::Error { message } => format!("Error: {}", message),
+                                                QueueStatus::Complete { .. } => {
+                                                    "Complete".to_string()
+                                                }
+                                                QueueStatus::Error { message } => {
+                                                    format!("Error: {}", message)
+                                                }
                                             };
                                             QueueItemInfo {
                                                 id: i.id,
@@ -322,7 +368,8 @@ impl AppRuntime {
                                             }
                                         })
                                         .collect();
-                                    let _ = event_tx_reporter.send(CoreEvent::QueueUpdated(gui_items));
+                                    let _ =
+                                        event_tx_reporter.send(CoreEvent::QueueUpdated(gui_items));
                                 });
                             }
                             GuiCommand::CheckDependencies => {
@@ -330,16 +377,20 @@ impl AppRuntime {
                                 rt.spawn(async move {
                                     match ensure_dependencies(false, Some(reporter.clone())).await {
                                         Ok(deps) => {
-                                            let _ = reporter.event_tx.lock().unwrap().send(CoreEvent::DependencyStatus {
-                                                ytdlp: deps.ytdlp.is_some(),
-                                                ffmpeg: deps.ffmpeg.is_some(),
-                                            });
+                                            let _ = reporter.event_tx.lock().unwrap().send(
+                                                CoreEvent::DependencyStatus {
+                                                    ytdlp: deps.ytdlp.is_some(),
+                                                    ffmpeg: deps.ffmpeg.is_some(),
+                                                },
+                                            );
                                         }
                                         Err(_) => {
-                                            let _ = reporter.event_tx.lock().unwrap().send(CoreEvent::DependencyStatus {
-                                                ytdlp: false,
-                                                ffmpeg: false,
-                                            });
+                                            let _ = reporter.event_tx.lock().unwrap().send(
+                                                CoreEvent::DependencyStatus {
+                                                    ytdlp: false,
+                                                    ffmpeg: false,
+                                                },
+                                            );
                                         }
                                     }
                                 });
@@ -351,24 +402,40 @@ impl AppRuntime {
                                     let downloader = match registry.find_platform(&url) {
                                         Some(d) => d,
                                         None => {
-                                            let _ = reporter.event_tx.lock().unwrap().send(CoreEvent::MediaInfoFetched(Err("Platform not supported".to_string())));
+                                            let _ = reporter.event_tx.lock().unwrap().send(
+                                                CoreEvent::MediaInfoFetched(Err(
+                                                    "Platform not supported".to_string(),
+                                                )),
+                                            );
                                             return;
                                         }
                                     };
                                     let platform_name = downloader.name().to_string();
 
-                                    match fetch_and_cache_info(&url, &*downloader, &platform_name).await {
+                                    match fetch_and_cache_info(&url, &*downloader, &platform_name)
+                                        .await
+                                    {
                                         Ok(info) => {
-                                            let formats = info.available_qualities.iter().map(|q| q.label.clone()).collect();
-                                            let _ = reporter.event_tx.lock().unwrap().send(CoreEvent::MediaInfoFetched(Ok(MediaInfo {
-                                                title: info.title,
-                                                duration: info.duration_seconds.map(|d| d as u64),
-                                                platform: platform_name,
-                                                available_formats: formats,
-                                            })));
+                                            let formats = info
+                                                .available_qualities
+                                                .iter()
+                                                .map(|q| q.label.clone())
+                                                .collect();
+                                            let _ = reporter.event_tx.lock().unwrap().send(
+                                                CoreEvent::MediaInfoFetched(Ok(MediaInfo {
+                                                    title: info.title,
+                                                    duration: info
+                                                        .duration_seconds
+                                                        .map(|d| d as u64),
+                                                    platform: platform_name,
+                                                    available_formats: formats,
+                                                })),
+                                            );
                                         }
                                         Err(e) => {
-                                            let _ = reporter.event_tx.lock().unwrap().send(CoreEvent::MediaInfoFetched(Err(e.to_string())));
+                                            let _ = reporter.event_tx.lock().unwrap().send(
+                                                CoreEvent::MediaInfoFetched(Err(e.to_string())),
+                                            );
                                         }
                                     }
                                 });
@@ -385,7 +452,7 @@ impl AppRuntime {
                         rt.spawn(async move {
                             let q = queue.lock().await;
                             let state = q.get_state();
-                            
+
                             let gui_items = state
                                 .into_iter()
                                 .map(|i| {
@@ -395,7 +462,9 @@ impl AppRuntime {
                                         QueueStatus::Paused => "Paused".to_string(),
                                         QueueStatus::Seeding => "Seeding".to_string(),
                                         QueueStatus::Complete { .. } => "Complete".to_string(),
-                                        QueueStatus::Error { message } => format!("Error: {}", message),
+                                        QueueStatus::Error { message } => {
+                                            format!("Error: {}", message)
+                                        }
                                     };
                                     QueueItemInfo {
                                         id: i.id,
@@ -412,7 +481,9 @@ impl AppRuntime {
                         });
                     }
                     Err(RecvTimeoutError::Disconnected) => {
-                        tracing::info!("Command channel disconnected, shutting down runtime thread");
+                        tracing::info!(
+                            "Command channel disconnected, shutting down runtime thread"
+                        );
                         break;
                     }
                 }
@@ -454,4 +525,3 @@ impl Drop for AppRuntime {
         let _ = self.cmd_tx.send(GuiCommand::Shutdown);
     }
 }
-

@@ -335,6 +335,9 @@ pub struct App {
     pub confirm_download_subtitles: bool,
     /// Download format mode override in confirmation modal ("video" or "audio")
     pub confirm_download_mode: String,
+    pub confirm_video_format: String,
+    pub confirm_audio_format: String,
+    pub confirm_audio_quality: String,
 
     pub msg_tx: tokio::sync::mpsc::UnboundedSender<AppMsg>,
     pub msg_rx: tokio::sync::mpsc::UnboundedReceiver<AppMsg>,
@@ -431,6 +434,9 @@ impl App {
             confirm_focused_field: 0,
             confirm_download_subtitles: false,
             confirm_download_mode: "video".to_string(),
+            confirm_video_format: "mp4".to_string(),
+            confirm_audio_format: "mp3".to_string(),
+            confirm_audio_quality: "320K".to_string(),
             msg_tx: tx,
             msg_rx: rx,
             status_message: None,

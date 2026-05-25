@@ -595,6 +595,9 @@ impl InstagramDownloader {
             None,
             progress,
             opts.download_mode.as_deref(),
+            opts.video_format.as_deref(),
+            opts.audio_format.as_deref(),
+            opts.audio_quality.as_deref(),
             opts.format_id.as_deref(),
             opts.filename_template.as_deref(),
             opts.referer

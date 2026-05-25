@@ -104,6 +104,12 @@ pub struct DownloadSettings {
     pub default_output_dir: PathBuf,
     pub always_ask_path: bool,
     pub video_quality: String,
+    #[serde(default = "default_video_format")]
+    pub video_format: String,
+    #[serde(default = "default_audio_format")]
+    pub audio_format: String,
+    #[serde(default = "default_audio_quality")]
+    pub audio_quality: String,
     pub skip_existing: bool,
     pub download_attachments: bool,
     pub download_descriptions: bool,
@@ -148,6 +154,9 @@ impl Default for DownloadSettings {
             always_ask_path: true,
             always_ask_confirm: true,
             video_quality: DEFAULT_VIDEO_QUALITY.into(),
+            video_format: default_video_format(),
+            audio_format: default_audio_format(),
+            audio_quality: default_audio_quality(),
             skip_existing: true,
             download_attachments: true,
             download_descriptions: true,
@@ -225,6 +234,18 @@ fn default_true() -> bool {
 
 pub fn default_filename_template() -> String {
     DEFAULT_FILENAME_TEMPLATE.into()
+}
+
+pub fn default_video_format() -> String {
+    "mp4".into()
+}
+
+pub fn default_audio_format() -> String {
+    "mp3".into()
+}
+
+pub fn default_audio_quality() -> String {
+    "320K".into()
 }
 
 fn default_hotkey_binding() -> String {

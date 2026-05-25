@@ -1299,19 +1299,37 @@ fn build_base_args(
     concurrent_fragments: u32,
     output_template: String,
     max_name: usize,
+    video_format: Option<&str>,
+    audio_format: Option<&str>,
+    audio_quality: Option<&str>,
     extra_flags: &[String],
 ) -> Vec<String> {
     let mut base_args = vec!["-f".to_string(), format_selector];
     base_args.extend(js_runtime_args());
 
     if format_id.is_none() && mode == "audio" {
-        base_args.push("-S".to_string());
-        base_args.push("+codec:aac:m4a".to_string());
+        base_args.push("-x".to_string());
+
+        if let Some(af) = audio_format {
+            base_args.push("--audio-format".to_string());
+            base_args.push(af.to_string());
+        } else {
+            base_args.push("--audio-format".to_string());
+            base_args.push("mp3".to_string());
+        }
+
+        if let Some(aq) = audio_quality {
+            base_args.push("--audio-quality".to_string());
+            base_args.push(aq.to_string());
+        } else {
+            base_args.push("--audio-quality".to_string());
+            base_args.push("320K".to_string());
+        }
     }
 
     if format_id.is_none() && mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
-        base_args.push("mp4".to_string());
+        base_args.push(video_format.unwrap_or("mp4").to_string());
     }
 
     if let Some(ref_url) = referer {
@@ -1725,7 +1743,9 @@ async fn handle_ytdlp_error(
 
             base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
             extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-            base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
+            base_args.retain(|a| {
+                a != "--merge-output-format" && a != "mp4" && a != "mkv" && a != "webm"
+            });
 
             if let Some(pos) = base_args.iter().position(|a| a == "-f") {
                 base_args.remove(pos + 1);
@@ -1757,6 +1777,9 @@ pub async fn download_video(
     quality_height: Option<u32>,
     progress: mpsc::Sender<f64>,
     download_mode: Option<&str>,
+    video_format: Option<&str>,
+    audio_format: Option<&str>,
+    audio_quality: Option<&str>,
     format_id: Option<&str>,
     filename_template: Option<&str>,
     referer: Option<&str>,
@@ -1811,6 +1834,9 @@ pub async fn download_video(
         concurrent_fragments,
         output_template,
         max_name,
+        video_format,
+        audio_format,
+        audio_quality,
         extra_flags,
     );
 

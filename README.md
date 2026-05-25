@@ -7,7 +7,7 @@
     <td valign="top">
       <h1>mangofetch</h1>
       <p><strong>Fast, Tropical, Pure Rust.</strong><br/>
-      <em>A headless, UI-agnostic download engine SDK & TUI/CLI frontend</em></p>
+      <em>A headless, UI-agnostic download engine SDK & GUI/TUI/CLI frontend suite</em></p>
       <p>
         <a href="https://crates.io/crates/mangofetch-cli"><img src="https://img.shields.io/crates/v/mangofetch-cli?style=plastic&color=orange" alt="Crates.io"></a>
         <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=plastic" alt="License GPL-3.0"></a>
@@ -29,8 +29,9 @@ ___
 
 <!--toc:start-->
 - [Overview](#overview)
+- [Cross-Platform Compatibility](#cross-platform-compatibility)
 - [Using as a Rust Library (mangofetch-core)](#using-as-a-rust-library-mangofetch-core)
-- [CLI/TUI Installation](#clitui-installation)
+- [Installation](#installation)
   - [Via Cargo (Recommended)](#via-cargo-recommended)
   - [From Source](#from-source)
   - [Run](#run)
@@ -46,10 +47,22 @@ ___
 
 ## Overview
 
-**MangoFetch** is a fast and simple media downloader built in Rust. It's designed to be powerful but easy to use, keeping the heavy lifting of downloading away from the interface you're using.
-At its heart is **`mangofetch-core`**, a lightweight and **headless engine**. Built on **Tokio** and **Reqwest**, it uses a simple API with Rust Traits to handle YouTube, Torrents (Magnet), SoundCloud, Instagram, and over 1000+ other platforms thanks to `yt-dlp` and `ffmpeg`.
+**MangoFetch** is a fast, versatile, and comprehensive media downloader suite built in Rust. It's designed to be a complete tool out-of-the-box, providing maximum control and granular options (like specific video/audio formats and resolutions) without sacrificing speed or simplicity. 
 
-For everyone else, MangoFetch comes with **`mangofetch`**. It's a handy **TUI (Terminal User Interface)** that looks great and works even better, featuring easy settings, mouse support, and 11 fun Tropical Fruit color palettes to choose from.
+At its heart is **`mangofetch-core`**, a lightweight and **headless engine**. Built on **Tokio** and **Reqwest**, it uses a simple API with Rust Traits to handle YouTube, Torrents (Magnet), SoundCloud, Instagram, and over 1000+ other platforms thanks to its intelligent wrapping of `yt-dlp` and `ffmpeg`.
+
+For everyday use, MangoFetch ships with a complete frontend suite:
+1. **`mangofetch-gui`**: A beautifully designed, highly-responsive, hardware-accelerated desktop application powered by `egui`. It features a dark-industrial MonolithUI design system, persistent engine logs, telemetry, and drag-and-drop ease.
+2. **`mangofetch tui`**: A terminal dashboard built with `ratatui` featuring mouse support, modal dialogs, queue management, and 11 fun Tropical Fruit color palettes.
+3. **`mangofetch cli`**: A rapid, scriptable command-line interface for batch downloads and single-shot commands.
+
+## Cross-Platform Compatibility
+
+MangoFetch is built in Pure Rust, guaranteeing native performance and ubiquitous compatibility. The entire suite (Core, GUI, TUI, and CLI) compiles and runs natively across a wide range of architectures and operating systems:
+
+- **Operating Systems:** Windows (10/11), macOS (Intel & Apple Silicon), GNU/Linux (Ubuntu, Arch, Fedora, Arch, Alpine, etc.), and *BSD variants.
+- **Architectures:** AMD64 (x86_64), ARM64 (aarch64), ARMv7, making it perfect for powerful desktops, MacBooks, and even Raspberry Pi or low-power home servers.
+- **Self-Healing:** If your system is missing `yt-dlp`, `ffmpeg`, or `aria2c`, the MangoFetch engine can detect your OS and architecture and securely download the correct standalone binaries automatically. You don't need to manually configure PATH dependencies.
 
 ___
 

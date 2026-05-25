@@ -62,6 +62,9 @@ pub struct QueueItem {
     pub output_dir: String,
     pub download_mode: Option<String>,
     pub quality: Option<String>,
+    pub video_format: Option<String>,
+    pub audio_format: Option<String>,
+    pub audio_quality: Option<String>,
     pub format_id: Option<String>,
     pub referer: Option<String>,
     pub extra_headers: Option<std::collections::HashMap<String, String>>,
@@ -152,6 +155,9 @@ impl DownloadQueue {
                     output_dir: item.output_dir,
                     download_mode: item.download_mode,
                     quality: item.quality,
+                    video_format: None,
+                    audio_format: None,
+                    audio_quality: None,
                     format_id: item.format_id,
                     referer: item.referer,
                     extra_headers: None,
@@ -204,6 +210,9 @@ impl DownloadQueue {
         output_dir: String,
         download_mode: Option<String>,
         quality: Option<String>,
+        video_format: Option<String>,
+        audio_format: Option<String>,
+        audio_quality: Option<String>,
         download_subtitles: Option<bool>,
         format_id: Option<String>,
         referer: Option<String>,
@@ -227,6 +236,9 @@ impl DownloadQueue {
             output_dir,
             download_mode,
             quality,
+            video_format,
+            audio_format,
+            audio_quality,
             format_id,
             referer,
             extra_headers,
@@ -640,6 +652,9 @@ struct DownloadContext {
     output_dir: String,
     download_mode: Option<String>,
     quality: Option<String>,
+    video_format: Option<String>,
+    audio_format: Option<String>,
+    audio_quality: Option<String>,
     download_subtitles: Option<bool>,
     format_id: Option<String>,
     referer: Option<String>,
@@ -665,6 +680,9 @@ async fn extract_download_context(
         output_dir: item.output_dir.clone(),
         download_mode: item.download_mode.clone(),
         quality: item.quality.clone(),
+        video_format: item.video_format.clone(),
+        audio_format: item.audio_format.clone(),
+        audio_quality: item.audio_quality.clone(),
         download_subtitles: item.download_subtitles,
         format_id: item.format_id.clone(),
         referer: item.referer.clone(),
@@ -817,6 +835,18 @@ fn build_download_options(
             .quality
             .clone()
             .or_else(|| Some(settings.download.video_quality.clone())),
+        video_format: ctx
+            .video_format
+            .clone()
+            .or_else(|| Some(settings.download.video_format.clone())),
+        audio_format: ctx
+            .audio_format
+            .clone()
+            .or_else(|| Some(settings.download.audio_format.clone())),
+        audio_quality: ctx
+            .audio_quality
+            .clone()
+            .or_else(|| Some(settings.download.audio_quality.clone())),
         output_dir: final_output_dir,
         filename_template: Some(tmpl),
         download_subtitles: ctx
