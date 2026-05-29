@@ -435,7 +435,6 @@ async fn download_chunk_attempt(
 }
 
 #[allow(clippy::too_many_arguments)]
-
 fn validate_single_stream_response(
     response: &reqwest::Response,
     existing_bytes: u64,

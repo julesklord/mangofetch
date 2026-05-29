@@ -206,7 +206,7 @@ fn render_splash(f: &mut Frame, app: &App) {
 
     // Tagline
     let splash_icon = if nf { " 󰄖 " } else { " v " };
-    let separator = if nf { " │ " } else { " │ " };
+    let separator = " │ ";
     let tagline = Paragraph::new(Line::from(vec![
         Span::styled(splash_icon, Style::new().fg(accent)),
         Span::styled(

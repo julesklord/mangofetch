@@ -13,19 +13,19 @@ static EXTRA_DATA_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static IG_SECURITY_CONFIG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["InstagramSecurityConfig",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["InstagramSecurityConfig",.*?,(\{.*?\}),\d+\]"#).unwrap());
 static POLARIS_SITE_DATA_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["PolarisSiteData",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["PolarisSiteData",.*?,(\{.*?\}),\d+\]"#).unwrap());
 static SITE_DATA_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["SiteData",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["SiteData",.*?,(\{.*?\}),\d+\]"#).unwrap());
 static DGW_WEB_CONFIG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["DGWWebConfig",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["DGWWebConfig",.*?,(\{.*?\}),\d+\]"#).unwrap());
 static LSD_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["LSD",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["LSD",.*?,(\{.*?\}),\d+\]"#).unwrap());
 static WEB_BLOKS_VERSIONING_ID_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["WebBloksVersioningID",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["WebBloksVersioningID",.*?,(\{.*?\}),\d+\]"#).unwrap());
 static INSTAGRAM_WEB_PUSH_INFO_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\["InstagramWebPushInfo",.*?,(\{{.*?\}}),\d+\]"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"\["InstagramWebPushInfo",.*?,(\{.*?\}),\d+\]"#).unwrap());
 
 static COMET_REQ_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"__comet_req=(\d+)").unwrap());
 static JAZOEST_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"jazoest=(\d+)").unwrap());

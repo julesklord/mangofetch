@@ -20,7 +20,7 @@ MangoFetch is engineered for users who demand speed, flexibility, and a beautifu
 ### 🏗️ Technical Architecture
 *   **[The Core Engine](Architecture.md)**: Understanding how MangoFetch processes downloads.
 *   **[Platform Registry](Platforms.md)**: How we support 1000+ sites.
-*   **[Security & Privacy](Security.md)**: Our commitment to your data.
+*   **[Security & Privacy](Security.md)**: Our commitment to your data. 
 
 ### 🔌 Extensibility
 *   **[Plugin SDK](Plugin-Development.md)**: Build your own platform extractors in Rust.

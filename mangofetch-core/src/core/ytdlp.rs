@@ -1303,6 +1303,7 @@ async fn resolve_cookie_config(cookie_file: Option<&Path>, extra_flags: &[String
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_base_args(
     url: &str,
     mode: &str,
@@ -1320,6 +1321,7 @@ fn build_base_args(
     audio_quality: Option<&str>,
     extra_flags: &[String],
 ) -> Vec<String> {
+    #[allow(clippy::too_many_arguments)]
     let mut base_args = vec!["-f".to_string(), format_selector];
     base_args.extend(js_runtime_args());
 

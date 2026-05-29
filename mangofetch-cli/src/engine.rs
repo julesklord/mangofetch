@@ -23,6 +23,7 @@ pub fn register_platforms(registry: &mut PlatformRegistry) {
     registry.register(Arc::new(generic_ytdlp::GenericYtdlpDownloader::new()));
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn enqueue_download_with_quality(
     url: &str,
     output_dir: Option<String>,
@@ -126,6 +127,7 @@ pub async fn enqueue_download_with_quality(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn enqueue_download_with_overrides(
     url: &str,
     output_dir: Option<String>,

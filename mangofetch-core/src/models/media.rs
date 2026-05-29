@@ -36,10 +36,10 @@ impl MediaInfo {
         };
 
         let mut closest = &self.available_qualities[0];
-        let mut min_diff = (closest.height as i32 - target_height as i32).abs() as u32;
+        let mut min_diff = (closest.height as i32 - target_height as i32).unsigned_abs();
 
         for q in &self.available_qualities {
-            let diff = (q.height as i32 - target_height as i32).abs() as u32;
+            let diff = (q.height as i32 - target_height as i32).unsigned_abs();
             if diff < min_diff {
                 min_diff = diff;
                 closest = q;

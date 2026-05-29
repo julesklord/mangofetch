@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::if_same_then_else)]
 use super::app::{App, AppState, Mode, Tab};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use std::time::Duration;
