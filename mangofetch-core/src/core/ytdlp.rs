@@ -628,6 +628,19 @@ async fn download_ytdlp_binary(reporter: Option<&dyn DownloadReporter>) -> anyho
         .await;
     }
 
+    // If an expected hash is present in app data, verify the downloaded binary.
+    if let Some(expected) = crate::core::dependencies::read_expected_hash("yt-dlp") {
+        let target_clone = target.clone();
+        let expected_clone = expected.clone();
+        let ok = tokio::task::spawn_blocking(move || crate::core::dependencies::verify_sha256(&target_clone, &expected_clone))
+            .await
+            .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
+        if !ok {
+            let _ = std::fs::remove_file(&target);
+            return Err(anyhow!("yt-dlp download failed SHA256 verification"));
+        }
+    }
+
     Ok(target)
 }
 

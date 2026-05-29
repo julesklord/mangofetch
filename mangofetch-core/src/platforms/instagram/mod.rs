@@ -901,6 +901,9 @@ mod tests {
     fn make_opts(page_url: Option<&str>) -> DownloadOptions {
         DownloadOptions {
             quality: None,
+            video_format: None,
+            audio_format: None,
+            audio_quality: None,
             output_dir: PathBuf::from("."),
             filename_template: None,
             download_subtitles: false,

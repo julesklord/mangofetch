@@ -65,6 +65,8 @@ aws-lc-rs = { version = "1.17.0", features = ["prebuilt-nasm"] }
 libloading = "0.8"
 mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.7.2" }
 thiserror = "2.0.18"
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 httpmock = "0.8.3"

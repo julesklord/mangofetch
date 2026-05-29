@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Stdio;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedDependencies {
@@ -58,6 +59,35 @@ pub fn is_offline_mode() -> bool {
             s == "1" || s == "true"
         })
         .unwrap_or(false)
+}
+
+/// Verify file at `path` matches expected sha256 hex string.
+pub fn verify_sha256(path: &PathBuf, expected_hex: &str) -> anyhow::Result<bool> {
+    use std::fs::File;
+    use std::io::Read;
+
+    let mut file = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let hash = hasher.finalize();
+    let hex = hex::encode(hash);
+    Ok(hex.eq_ignore_ascii_case(expected_hex))
+}
+
+/// Read expected hash for a tool from app_data_dir/tool_hashes.json
+pub fn read_expected_hash(tool: &str) -> Option<String> {
+    let data_dir = crate::core::paths::app_data_dir()?;
+    let file = data_dir.join("tool_hashes.json");
+    let s = std::fs::read_to_string(&file).ok()?;
+    let map: serde_json::Value = serde_json::from_str(&s).ok()?;
+    map.get(tool).and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
 use anyhow::anyhow;
@@ -389,6 +419,19 @@ async fn download_ffmpeg(
 
     if !ffmpeg_target.exists() {
         return Err(anyhow!("FFmpeg binary not found after extraction"));
+    }
+
+    // If an expected hash is present in app data, verify the assembled ffmpeg binary.
+    if let Some(expected) = read_expected_hash("ffmpeg") {
+        let target_clone = ffmpeg_target.clone();
+        let expected_clone = expected.clone();
+        let ok = tokio::task::spawn_blocking(move || verify_sha256(&target_clone, &expected_clone))
+            .await
+            .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
+        if !ok {
+            let _ = std::fs::remove_file(&ffmpeg_target);
+            return Err(anyhow!("FFmpeg download failed SHA256 verification"));
+        }
     }
 
     let verify = {
@@ -917,5 +960,55 @@ mod tests {
 
         // Restore global proxy setting
         crate::core::http_client::init_proxy(ProxySettings::default());
+    }
+
+    #[test]
+    fn test_verify_sha256_and_read_expected_hash() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        // Create a temporary app data dir
+        let tmp = std::env::temp_dir().join(format!("mangofetch_test_{}", uuid::Uuid::new_v4()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        // Ensure we restore env var after test
+        let original = std::env::var("MANGOFETCH_DATA_DIR");
+        std::env::set_var("MANGOFETCH_DATA_DIR", &tmp);
+
+        // Create a test file and compute its sha256
+        let file_path = tmp.join("test.bin");
+        let data = b"hello-mangofetch";
+        std::fs::write(&file_path, &data[..]).expect("write temp file");
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        let expected = hex::encode(hasher.finalize());
+
+        // verify_sha256 should succeed with the correct hash
+        assert!(verify_sha256(&file_path, &expected).unwrap());
+
+        // and fail for an incorrect hash
+        assert!(!verify_sha256(&file_path, "deadbeef").unwrap());
+
+        // Create a tool_hashes.json manifest and read_expected_hash
+        let manifest = serde_json::json!({"yt-dlp": expected});
+        let manifest_path = tmp.join("tool_hashes.json");
+        std::fs::write(&manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
+
+        // read_expected_hash should pick up the value
+        let found = read_expected_hash("yt-dlp");
+        assert_eq!(found.as_deref(), Some(expected.as_str()));
+
+        // Non-existent entry returns None
+        assert!(read_expected_hash("ffmpeg").is_none());
+
+        // restore original env
+        match original {
+            Ok(v) => std::env::set_var("MANGOFETCH_DATA_DIR", v),
+            Err(_) => std::env::remove_var("MANGOFETCH_DATA_DIR"),
+        }
+
+        // cleanup
+        let _ = std::fs::remove_file(&file_path);
+        let _ = std::fs::remove_file(&manifest_path);
+        let _ = std::fs::remove_dir(&tmp);
     }
 }
