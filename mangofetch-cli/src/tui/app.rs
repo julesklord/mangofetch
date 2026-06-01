@@ -13,8 +13,7 @@ use tokio::sync::Mutex;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Tab {
     Home,
-    Queue,
-    History,
+    Downloads,
     Settings,
     About,
     Logs,
@@ -30,18 +29,11 @@ impl Tab {
                     " 🏠 Home "
                 }
             }
-            Tab::Queue => {
+            Tab::Downloads => {
                 if nf {
-                    " 󰄖 Queue "
+                    " 󰄖 Downloads "
                 } else {
-                    " ⬇ Queue "
-                }
-            }
-            Tab::History => {
-                if nf {
-                    " 󰄗 History "
-                } else {
-                    " 📜 History "
+                    " ⬇ Downloads "
                 }
             }
             Tab::Settings => {
@@ -71,18 +63,16 @@ impl Tab {
     pub fn index(self) -> usize {
         match self {
             Tab::Home => 0,
-            Tab::Queue => 1,
-            Tab::History => 2,
-            Tab::Settings => 3,
-            Tab::About => 4,
-            Tab::Logs => 5,
+            Tab::Downloads => 1,
+            Tab::Settings => 2,
+            Tab::About => 3,
+            Tab::Logs => 4,
         }
     }
 
     pub const ALL: &'static [Tab] = &[
         Tab::Home,
-        Tab::Queue,
-        Tab::History,
+        Tab::Downloads,
         Tab::Settings,
         Tab::About,
         Tab::Logs,
@@ -406,7 +396,7 @@ impl App {
         Self {
             state: AppState::Splash,
             mode: Mode::Normal,
-            active_tab: Tab::Queue,
+            active_tab: Tab::Downloads,
             running: true,
             items: Vec::new(),
             table_state: ratatui::widgets::TableState::default(),
@@ -929,7 +919,7 @@ impl App {
 
             // Filter per tab and category
             self.items = match self.active_tab {
-                Tab::Queue | Tab::History => {
+                Tab::Downloads => {
                     all.into_iter()
                         .filter(|i| match self.download_category {
                             DownloadsCategory::All => true,
@@ -940,21 +930,6 @@ impl App {
                             }
                             DownloadsCategory::Failed => {
                                 matches!(i.status, QueueStatus::Error { .. })
-                            }
-                        })
-                        .filter(|i| {
-                            // Secondary filter to keep Queue/History separation if desired,
-                            // but usually categories are enough.
-                            match self.active_tab {
-                                Tab::Queue => !matches!(
-                                    i.status,
-                                    QueueStatus::Complete { .. } | QueueStatus::Error { .. }
-                                ),
-                                Tab::History => matches!(
-                                    i.status,
-                                    QueueStatus::Complete { .. } | QueueStatus::Error { .. }
-                                ),
-                                _ => true,
                             }
                         })
                         .collect()

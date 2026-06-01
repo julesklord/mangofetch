@@ -52,9 +52,7 @@ async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) 
             if mouse.column < 24 {
                 // Sidebar area -> Change Tabs
                 app.next_tab();
-            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History)
-                && mouse.row < 5
-            {
+            } else if app.active_tab == Tab::Downloads && mouse.row < 5 {
                 // Categories area -> Change Category (Submenu)
                 app.next_category();
             } else {
@@ -72,9 +70,7 @@ async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) 
             if mouse.column < 24 {
                 // Sidebar area -> Change Tabs
                 app.prev_tab();
-            } else if (app.active_tab == Tab::Queue || app.active_tab == Tab::History)
-                && mouse.row < 5
-            {
+            } else if app.active_tab == Tab::Downloads && mouse.row < 5 {
                 // Categories area -> Change Category (Submenu)
                 app.prev_category();
             } else {
@@ -94,15 +90,13 @@ async fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEvent) 
             if mouse.row < 3 {
                 let col = mouse.column;
                 // Rough estimate of tab positions
-                if col < 10 {
+                if col < 12 {
                     app.active_tab = Tab::Home;
-                } else if col < 20 {
-                    app.active_tab = Tab::Queue;
-                } else if col < 30 {
-                    app.active_tab = Tab::History;
-                } else if col < 40 {
+                } else if col < 24 {
+                    app.active_tab = Tab::Downloads;
+                } else if col < 36 {
                     app.active_tab = Tab::Settings;
-                } else if col < 50 {
+                } else if col < 48 {
                     app.active_tab = Tab::About;
                 } else if col < 60 {
                     app.active_tab = Tab::Logs;
@@ -421,7 +415,7 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
 
         // Tab navigation
         KeyCode::Tab => {
-            if app.active_tab == Tab::Queue || app.active_tab == Tab::History {
+            if app.active_tab == Tab::Downloads {
                 app.next_category();
             } else {
                 app.next_tab();
@@ -432,20 +426,16 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
             app.active_tab = Tab::Home;
         }
         KeyCode::Char('2') => {
-            app.active_tab = Tab::Queue;
+            app.active_tab = Tab::Downloads;
             app.refresh_data();
         }
         KeyCode::Char('3') => {
-            app.active_tab = Tab::History;
-            app.refresh_data();
-        }
-        KeyCode::Char('4') => {
             app.active_tab = Tab::Settings;
         }
-        KeyCode::Char('5') => {
+        KeyCode::Char('4') => {
             app.active_tab = Tab::About;
         }
-        KeyCode::Char('6') => {
+        KeyCode::Char('5') => {
             app.active_tab = Tab::Logs;
         }
 

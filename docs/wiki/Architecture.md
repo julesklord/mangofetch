@@ -1,48 +1,47 @@
-# 🏗️ Technical Architecture
+# Technical Architecture
 
-MangoFetch is built with a modular, crate-based architecture designed for performance, memory safety, and minimal dependency overhead. It is written entirely in **Rust**.
+MangoFetch uses a modular, crate-based architecture implemented in **Rust** to manage performance and memory safety.
 
-## 📦 Project Structure
+## Project Structure
 
-The repository is organized as a workspace with three primary crates:
+The repository uses a workspace with three primary crates:
 
-1.  **`mangofetch-core`**: The engine. UI-agnostic library containing:
-    *   **Download Manager**: Queue handling, task scheduling, and state persistence.
-    *   **Platform Registry**: A modular system where different "Extractors" are registered.
-    *   **Dependency Engine**: Logic to ensure FFmpeg and yt-dlp are available.
-2.  **`mangofetch-cli`**: The binary. A thin wrapper over the core that provides:
+1.  **`mangofetch-core`**: The engine. A UI-agnostic library containing:
+    *   **Download Manager**: Handles queueing, task scheduling, and state persistence.
+    *   **Platform Registry**: Manages registered "Extractors" for different platforms.
+    *   **Dependency Engine**: Verifies availability of FFmpeg and yt-dlp.
+2.  **`mangofetch-cli`**: The binary. Interfaces with the core to provide:
     *   The `clap`-based command line interface.
     *   The `ratatui`-based Terminal User Interface.
-3.  **`mangofetch-plugin-sdk`**: Tools and traits to build 3rd-party platform extractors.
+3.  **`mangofetch-plugin-sdk`**: Provides traits and tools for building 3rd-party platform extractors.
 
 ---
 
-## 🚦 The Download Lifecycle
+## Download Lifecycle
 
-Understanding how a URL becomes a file on your disk:
+The process for converting a URL into a local file includes the following phases:
 
-1.  **Extraction Phase**: The `PlatformRegistry` identifies the correct downloader (e.g., YouTubeDownloader). It fetches metadata (Title, Author, Qualities) without downloading the media.
-2.  **Queueing Phase**: The item is added to the `DownloadQueue`. If the slot is available, it transitions to `Active`.
-3.  **Execution Phase**:
-    *   For standard videos, we invoke **yt-dlp** with specific performance flags.
-    *   For direct links, we use a custom **Rust-native HTTP downloader** with multi-segment support.
-    *   For P2P/Torrents, we utilize specialized crates for swarm connectivity.
-4.  **Post-Processing Phase**: **FFmpeg** is invoked to merge streams (e.g., VP9 video + Opus audio) or to embed metadata and thumbnails.
-5.  **Finalization**: The file is moved to the target directory, and the session is saved to `recovery.json`.
-
----
-
-## 🔒 Security Architecture
-
-MangoFetch takes security seriously:
-*   **Sandboxed Subprocesses**: We sanitize all inputs before passing them to external tools like FFmpeg.
-*   **Cookie Protection**: User cookies used for authentication (e.g., for age-restricted content) are handled securely and never logged.
-*   **No Telemetry**: MangoFetch does not "phone home". All download data remains local to your machine.
+1.  **Extraction**: The `PlatformRegistry` identifies the required downloader (e.g., `YouTubeDownloader`) and fetches metadata without downloading media.
+2.  **Queueing**: The item enters the `DownloadQueue` and transitions to an `Active` state when a slot is available.
+3.  **Execution**:
+    *   **Videos**: The system invokes **yt-dlp** with performance-optimized flags.
+    *   **Direct Links**: The system uses a Rust-native HTTP downloader with multi-segment support.
+    *   **P2P**: Specialized crates manage swarm connectivity for torrents.
+4.  **Post-Processing**: **FFmpeg** merges streams (e.g., VP9 video and Opus audio) or embeds metadata and thumbnails.
+5.  **Finalization**: The system moves the file to the target directory and saves the session to `recovery.json`.
 
 ---
 
-## 🚀 Performance Optimizations
+## Security
 
-*   **Async/Await**: The entire engine is powered by `tokio`, allowing it to handle thousands of concurrent network events with negligible CPU usage.
-*   **Zero-Copy Buffering**: When downloading direct files, we minimize memory copies to maximize disk I/O throughput.
-*   **Staggered Starts**: We implement a staggering algorithm to avoid triggering rate-limiting when starting massive batch downloads.
+*   **Subprocesses**: Input sanitization precedes data transfer to external tools like FFmpeg.
+*   **Cookie Management**: The engine handles authentication cookies securely without logging.
+*   **Local Processing**: The application does not include telemetry; all data remains local.
+
+---
+
+## Performance
+
+*   **Concurrency**: `tokio` manages network events to maintain low CPU usage.
+*   **I/O Efficiency**: Zero-copy buffering minimizes memory allocation during direct file downloads.
+*   **Rate Limiting**: A staggering algorithm prevents rate-limit triggers during batch downloads.

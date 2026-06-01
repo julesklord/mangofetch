@@ -259,10 +259,10 @@ fn render_main(f: &mut Frame, app: &mut App, area: Rect) {
 
     match app.active_tab {
         Tab::Home => render_home(f, app, chunks[0]),
-        Tab::Queue | Tab::History => render_queue_table(f, app, chunks[0]),
+        Tab::Downloads => render_queue_table(f, app, chunks[0]),
         Tab::Settings => render_settings(f, app, chunks[0]),
         Tab::About => render_about(f, app, chunks[0]),
-        _ => {}
+        Tab::Logs => render_logs(f, app, chunks[0]),
     }
 
     // Render the persistent terminal output
@@ -317,7 +317,6 @@ fn render_terminal_output(f: &mut Frame, app: &App, area: Rect) {
 fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
     let t = &app.theme;
     let nf = app.use_nerd_fonts;
-    let is_queue = app.active_tab == Tab::Queue;
 
     let (margin, cat_height) = if app.layout == "topbar" {
         (0, 2)
@@ -411,24 +410,12 @@ fn render_queue_table(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let empty_msg = if is_queue {
-        "  No active downloads.  Press 'a' to add a URL."
-    } else {
-        "  No download history yet."
-    };
+    let empty_msg = "  No downloads found.  Press 'a' to add a URL.";
 
-    let title = if is_queue {
-        if nf {
-            " 󰄖 Active Downloads "
-        } else {
-            " Active Downloads "
-        }
+    let title = if nf {
+        " 󰄖 Downloads "
     } else {
-        if nf {
-            " 󰄗 History "
-        } else {
-            " History "
-        }
+        " Downloads "
     };
 
     if app.items.is_empty() {
@@ -724,9 +711,9 @@ fn render_help(f: &mut Frame, app: &App) {
         kb(": or /", "Open command mode prompt"),
         kb("Tab", "Switch to the next tab"),
         kb("Shift+Tab", "Switch to the previous tab"),
-        kb("1-6", "Directly jump to tab number"),
+        kb("1-5", "Directly jump to tab number"),
         ListItem::new(""),
-        section("Queue & History"),
+        section("Downloads"),
         kb("a / n", "Add new media URL"),
         kb("↑↓ / j k", "Navigate item list"),
         kb("g / G", "Jump to top / bottom of list"),
@@ -736,7 +723,7 @@ fn render_help(f: &mut Frame, app: &App) {
         ListItem::new(""),
         section("Add URL Modal"),
         kb("Ctrl+V", "Paste URL from clipboard"),
-        kb("Tab", "Switch input field (URL ⇄ Quality)"),
+        kb("Tab", "switch input field (URL ⇄ Quality)"),
         kb("Enter", "Confirm and start download"),
         kb("Esc", "Close overlay dialog"),
         ListItem::new(""),
@@ -1571,8 +1558,7 @@ fn render_topbar(f: &mut Frame, app: &App, area: Rect) {
         let is_active = i == app.active_tab.index();
         let label = match tab {
             Tab::Home => "OVERVIEW",
-            Tab::Queue => "ACTIVE",
-            Tab::History => "HISTORY",
+            Tab::Downloads => "DOWNLOADS",
             Tab::Settings => "SETTINGS",
             Tab::About => "ABOUT",
             Tab::Logs => "OUTPUT",
@@ -1692,8 +1678,7 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
         let is_active = i == app.active_tab.index();
         let label = match tab {
             Tab::Home => "Overview",
-            Tab::Queue => "Active",
-            Tab::History => "History",
+            Tab::Downloads => "Downloads",
             Tab::Settings => "Settings",
             Tab::About => "About",
             Tab::Logs => "Output",
