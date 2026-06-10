@@ -145,12 +145,17 @@ impl DownloadQueue {
                     0.0
                 };
 
+                let status = match item.status {
+                    QueueStatus::Active | QueueStatus::Seeding => QueueStatus::Paused,
+                    other => other,
+                };
+
                 let q_item = QueueItem {
                     id: item.id,
                     url: item.url,
                     platform: item.platform,
                     title: item.title,
-                    status: item.status,
+                    status,
                     cancel_token: CancellationToken::new(),
                     output_dir: item.output_dir,
                     download_mode: item.download_mode,
