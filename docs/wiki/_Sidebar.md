@@ -1,4 +1,4 @@
-# 🥭 MangoFetch
+# 🥭 MangoFetch TUI / Core
 
 ---
 
@@ -11,8 +11,8 @@
 - [⏱️ Quick Start](Quick-Start)
 
 ### 📖 User Guides
-- [💻 CLI Reference](CLI-Guide)
 - [🖥️ TUI Experience](TUI-Experience)
+- [💻 CLI Commands](CLI-Guide)
 - [⚙️ Configuration](Configuration)
 - [📡 P2P Sharing](P2P-Sharing)
 
