@@ -1,5 +1,5 @@
 use super::app::{App, AppState, DownloadsCategory, Mode, SettingKind, Tab};
-use super::assets::{BLOCK_TITLE, MANGO_BODY, MANGO_STEM};
+use super::assets::STYLIZED_MANGO;
 use crate::formatting::{format_bytes, format_duration};
 use chrono::Local;
 use mangofetch_core::models::queue::QueueStatus;
@@ -95,16 +95,14 @@ fn render_splash(f: &mut Frame, app: &App) {
     let nf = app.use_nerd_fonts;
 
     // Colors
-    let orange = Color::Rgb(255, 160, 30);
-    let gold = Color::Rgb(255, 220, 60);
-    let green_stem = Color::Rgb(60, 200, 80);
-    let green_leaf = Color::Rgb(30, 160, 50);
+    let orange = Color::Rgb(255, 150, 20);
+    let gold = Color::Rgb(255, 215, 0);
+    let green_stem = Color::Rgb(76, 175, 80);
     let accent = t.accent;
-    let secondary = t.secondary;
 
-    // Define a beautiful mechanical container centered on screen
-    let splash_w = 72;
-    let splash_h = 23;
+    // Define a clean minimal container centered on screen
+    let splash_w = 60;
+    let splash_h = 16;
     let margin_x = area.width.saturating_sub(splash_w) / 2;
     let margin_y = area.height.saturating_sub(splash_h) / 2;
 
@@ -115,130 +113,67 @@ fn render_splash(f: &mut Frame, app: &App) {
         height: splash_h.min(area.height),
     };
 
-    // Render container block with mechanical corners and cybernetic style
-    let container = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(t.surface))
-        .title(Span::styled(
-            " MANGOFETCH CORE TERMINAL v0.5.x ",
-            Style::new().fg(t.accent).bold(),
-        ));
+    // Render subtle background container (no border)
+    let block = Block::default()
+        .borders(Borders::NONE)
+        .bg(t.background);
+    let inner = block.inner(centered_splash);
+    f.render_widget(block, centered_splash);
 
-    f.render_widget(container.clone(), centered_splash);
-    let inner = container.inner(centered_splash);
-
-    // Split inner area of container
-    let stem_h = MANGO_STEM.len() as u16;
-    let body_h = MANGO_BODY.len() as u16;
-    let title_h = BLOCK_TITLE.len() as u16; // 5
-
-    // Split vertical chunks within the inner block (height 21)
+    // Split inner area (height 16)
     let chunks = Layout::vertical([
-        Constraint::Length(stem_h),
-        Constraint::Length(body_h),
+        Constraint::Length(7), // STYLIZED_MANGO
         Constraint::Length(1), // gap
-        Constraint::Length(title_h),
+        Constraint::Length(1), // Title
         Constraint::Length(1), // gap
-        Constraint::Length(1), // tagline
-        Constraint::Length(1), // gap
-        Constraint::Length(1), // hint
+        Constraint::Length(1), // Tagline
+        Constraint::Length(2), // gap
+        Constraint::Length(1), // Hint
         Constraint::Min(0),
     ])
     .split(inner);
 
-    // Stem
-    let stem_text: Text = Text::from(
-        MANGO_STEM
-            .iter()
-            .enumerate()
-            .map(|(i, &line)| {
-                let col = if i == 0 { green_stem } else { green_leaf };
-                Line::from(Span::styled(line, Style::new().fg(col).bold()))
-                    .alignment(Alignment::Center)
-            })
-            .collect::<Vec<_>>(),
-    );
-    f.render_widget(Paragraph::new(stem_text), chunks[0]);
+    // Render STYLIZED_MANGO
+    let mango_lines = STYLIZED_MANGO
+        .iter()
+        .enumerate()
+        .map(|(i, &line)| {
+            let col = if i < 2 { green_stem } else if i % 2 == 0 { orange } else { gold };
+            Line::from(Span::styled(line, Style::new().fg(col).bold()))
+                .alignment(Alignment::Center)
+        })
+        .collect::<Vec<_>>();
+    f.render_widget(Paragraph::new(Text::from(mango_lines)), chunks[0]);
 
-    // Body
-    let body_text: Text = Text::from(
-        MANGO_BODY
-            .iter()
-            .map(|&line| {
-                let mut spans: Vec<Span> = Vec::new();
-                let mut seg = String::new();
-                let mut in_highlight = false;
-                for ch in line.chars() {
-                    let is_hl = ch == '░';
-                    if is_hl != in_highlight {
-                        if !seg.is_empty() {
-                            let col = if in_highlight { gold } else { orange };
-                            spans.push(Span::styled(seg.clone(), Style::new().fg(col).bold()));
-                            seg.clear();
-                        }
-                        in_highlight = is_hl;
-                    }
-                    seg.push(if is_hl { '▒' } else { ch });
-                }
-                if !seg.is_empty() {
-                    let col = if in_highlight { gold } else { orange };
-                    spans.push(Span::styled(seg, Style::new().fg(col).bold()));
-                }
-                Line::from(spans).alignment(Alignment::Center)
-            })
-            .collect::<Vec<_>>(),
-    );
-    f.render_widget(Paragraph::new(body_text), chunks[1]);
+    // Render Title
+    let title_line = Line::from(vec![
+        Span::styled("M  A  N  G  O  F  E  T  C  H", Style::new().fg(accent).bold()),
+    ]).alignment(Alignment::Center);
+    f.render_widget(Paragraph::new(title_line), chunks[2]);
 
-    // Title
-    let title_text: Text = Text::from(
-        BLOCK_TITLE
-            .iter()
-            .enumerate()
-            .map(|(i, &row)| {
-                let col = if i % 2 == 0 { accent } else { secondary };
-                Line::from(Span::styled(row, Style::new().fg(col).bold()))
-                    .alignment(Alignment::Center)
-            })
-            .collect::<Vec<_>>(),
-    );
-    f.render_widget(Paragraph::new(title_text), chunks[3]);
+    // Render Tagline
+    let dot = "  •  ";
+    let tagline_line = Line::from(vec![
+        Span::styled("download anything", Style::new().fg(t.text_dim)),
+        Span::styled(dot, Style::new().fg(t.surface_dim)),
+        Span::styled("1000+ platforms", Style::new().fg(t.text_dim)),
+        Span::styled(dot, Style::new().fg(t.surface_dim)),
+        Span::styled(format!("v{}", app.version), Style::new().fg(t.text_dim)),
+    ]).alignment(Alignment::Center);
+    f.render_widget(Paragraph::new(tagline_line), chunks[4]);
 
-    // Tagline
-    let splash_icon = if nf { " 󰄖 " } else { " v " };
-    let separator = " │ ";
-    let tagline = Paragraph::new(Line::from(vec![
-        Span::styled(splash_icon, Style::new().fg(accent)),
-        Span::styled(
-            format!(
-                "download anything{}1000+ platforms{}v{}",
-                separator, separator, app.version
-            ),
-            Style::new().fg(t.text_dim),
-        ),
-    ]))
-    .alignment(Alignment::Center);
-    f.render_widget(tagline, chunks[5]);
-
-    // Hint / Mechanical Initializer block
-    let enter_prompt = if nf { " 󰌑 ANY KEY " } else { " ANY KEY " };
-    let quit_prompt = if nf { " 󱊷 Q " } else { " Q " };
-
-    let hint = Paragraph::new(Line::from(vec![
-        Span::styled(
-            enter_prompt,
-            Style::new().fg(t.background).bg(t.accent).bold(),
-        ),
-        Span::styled(" INITIALIZE SYSTEMS", Style::new().fg(t.accent).bold()),
-        Span::styled("     ", Style::new()),
-        Span::styled(
-            quit_prompt,
-            Style::new().fg(t.background).bg(t.error).bold(),
-        ),
-        Span::styled(" ABORT", Style::new().fg(t.error).bold()),
-    ]))
-    .alignment(Alignment::Center);
-    f.render_widget(hint, chunks[7]);
+    // Render Hint
+    let enter_key = if nf { " 󰌑 ENTER " } else { " ENTER " };
+    let quit_key = if nf { " 󱊷 Q " } else { " Q " };
+    
+    let hint_line = Line::from(vec![
+        Span::styled(enter_key, Style::new().fg(t.background).bg(t.accent).bold()),
+        Span::styled(" Initialize", Style::new().fg(t.accent).bold()),
+        Span::styled("       ", Style::new()),
+        Span::styled(quit_key, Style::new().fg(t.background).bg(t.error).bold()),
+        Span::styled(" Abort", Style::new().fg(t.error).bold()),
+    ]).alignment(Alignment::Center);
+    f.render_widget(Paragraph::new(hint_line), chunks[6]);
 }
 
 // ── Main content router ───────────────────────────────────────────────────────
@@ -911,42 +846,18 @@ fn render_home(f: &mut Frame, app: &App, area: Rect) {
     let orange = Color::Rgb(255, 160, 30);
     let gold = Color::Rgb(255, 220, 60);
     let green_stem = Color::Rgb(60, 200, 80);
-    let green_leaf = Color::Rgb(30, 160, 50);
 
     let mut logo_lines = Vec::new();
-    for _ in 0..2 {
+    for _ in 0..4 {
         logo_lines.push(Line::from(""));
     }
 
-    for (i, &line) in super::assets::MANGO_STEM.iter().enumerate() {
-        let col = if i == 0 { green_stem } else { green_leaf };
+    for (i, &line) in STYLIZED_MANGO.iter().enumerate() {
+        let col = if i < 2 { green_stem } else if i % 2 == 0 { orange } else { gold };
         logo_lines.push(
             Line::from(Span::styled(line, Style::new().fg(col).bold()))
                 .alignment(Alignment::Center),
         );
-    }
-
-    for &line in super::assets::MANGO_BODY.iter() {
-        let mut spans: Vec<Span> = Vec::new();
-        let mut seg = String::new();
-        let mut in_highlight = false;
-        for ch in line.chars() {
-            let is_hl = ch == '░';
-            if is_hl != in_highlight {
-                if !seg.is_empty() {
-                    let col = if in_highlight { gold } else { orange };
-                    spans.push(Span::styled(seg.clone(), Style::new().fg(col).bold()));
-                    seg.clear();
-                }
-                in_highlight = is_hl;
-            }
-            seg.push(if is_hl { '▒' } else { ch });
-        }
-        if !seg.is_empty() {
-            let col = if in_highlight { gold } else { orange };
-            spans.push(Span::styled(seg, Style::new().fg(col).bold()));
-        }
-        logo_lines.push(Line::from(spans).alignment(Alignment::Center));
     }
 
     f.render_widget(Paragraph::new(logo_lines), main_chunks[0]);
