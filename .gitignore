@@ -266,3 +266,6 @@ GEMINI.md
 *.xml
 
 target/
+
+.jules/
+.trunk/

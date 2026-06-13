@@ -84,7 +84,7 @@ Integrate `mangofetch-core` directly into Discord bots, web servers, or custom a
 Add it to `Cargo.toml`:
 ```toml
 [dependencies]
-mangofetch-core = { git = "https://github.com/julesklord/mangofetch" }
+mangofetch-core = "0.7.4"
 ```
 
 **Engine Capabilities:**
