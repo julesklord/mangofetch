@@ -60,7 +60,7 @@ librqbit = { version = "8.1.1", optional = true, default-features = false, featu
     "rust-tls",
 ] }
 which = { version = "6", optional = true }
-rand = "0.8"
+rand = "0.9"
 aws-lc-rs = { version = "1.17.0", features = ["prebuilt-nasm"] }
 libloading = "0.8"
 mangofetch-plugin-sdk = { path = "../mangofetch-plugin-sdk", version = "0.7.4" }
