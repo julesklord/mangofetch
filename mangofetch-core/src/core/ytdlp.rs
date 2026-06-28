@@ -2178,7 +2178,8 @@ async fn cleanup_part_files(dir: &Path) {
                 }
             }
         }
-    }).await;
+    })
+    .await;
 }
 
 fn sanitize_log_line(line: &str) -> String {
