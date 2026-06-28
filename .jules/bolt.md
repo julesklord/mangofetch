@@ -4,3 +4,6 @@
 ## 2024-05-30 - Replace unsafe unwrap in direct_downloader
 **Learning:** Replacing `.unwrap()` with proper error handling (e.g., `anyhow::Result`) is easy to do in a `spawn` block that returns a Result. Replacing it prevents potential panics.
 **Action:** Always prefer `.map_err(...)?` over `.unwrap()` in fallible code blocks that return a `Result`.
+## 2026-06-28 - Avoid creating directories in search functions
+**Learning:** Checking for or creating directories recursively (e.g. `std::fs::create_dir_all`) when searching for already created files incurs unnecessary disk I/O overhead.
+**Action:** When finding or checking for files, assume the directory must exist, or let `std::fs::read_dir` bubble up the `NotFound` error, avoiding proactive directory creation.
