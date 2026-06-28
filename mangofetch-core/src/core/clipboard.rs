@@ -161,7 +161,12 @@ async fn copy_file_windows(path: &str) -> anyhow::Result<()> {
     let output = tokio::task::spawn_blocking(move || {
         crate::core::process::std_command("powershell")
             .env("MANGOFETCH_CLIPBOARD_PATH", &path)
-            .args(["-NoProfile", "-NonInteractive", "-Command", "Set-Clipboard -LiteralPath $env:MANGOFETCH_CLIPBOARD_PATH"])
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Set-Clipboard -LiteralPath $env:MANGOFETCH_CLIPBOARD_PATH",
+            ])
             .output()
     })
     .await
