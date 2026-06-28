@@ -2356,20 +2356,28 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
         let mut candidates: Vec<(PathBuf, std::time::SystemTime, bool)> = Vec::new();
 
         for entry in read_dir.flatten() {
-            let path = entry.path();
-            if !path.is_file() {
+            if let Ok(ft) = entry.file_type() {
+                if !ft.is_file() {
+                    continue;
+                }
+            } else {
                 continue;
             }
 
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let file_name = entry.file_name();
+            let name = file_name.to_string_lossy();
             if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
                 continue;
             }
 
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            let is_media = media_extensions
-                .iter()
-                .any(|&e| ext.eq_ignore_ascii_case(e));
+            let is_media = if let Some(dot_idx) = name.rfind('.') {
+                let ext = &name[dot_idx + 1..];
+                let ext_lower = ext.to_ascii_lowercase();
+                media_extensions.contains(&ext_lower.as_str())
+            } else {
+                false
+            };
+
             if !is_media {
                 continue;
             }
@@ -2384,7 +2392,7 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
                     let matches_id = !video_id.is_empty() && name.contains(&video_id);
 
                     if matches_id || is_recent {
-                        candidates.push((path, modified, matches_id));
+                        candidates.push((entry.path(), modified, matches_id));
                     }
                 }
             }
@@ -2400,11 +2408,15 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
         let mut newest: Option<(PathBuf, std::time::SystemTime)> = None;
         if let Ok(entries) = std::fs::read_dir(&output_dir_owned) {
             for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_file() {
+                if let Ok(ft) = entry.file_type() {
+                    if !ft.is_file() {
+                        continue;
+                    }
+                } else {
                     continue;
                 }
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                let file_name = entry.file_name();
+                let name = file_name.to_string_lossy();
                 if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
                     continue;
                 }
@@ -2416,7 +2428,7 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
                         if now.duration_since(modified).unwrap_or_default() < fallback_limit
                             && newest.as_ref().is_none_or(|(_, t)| modified > *t)
                         {
-                            newest = Some((path, modified));
+                            newest = Some((entry.path(), modified));
                         }
                     }
                 }
