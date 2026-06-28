@@ -1149,3 +1149,180 @@ fn strip_ansi_and_clean(s: &str) -> String {
     }
     result.trim().to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mangofetch_core::core::manager::queue::DownloadQueue;
+    use mangofetch_core::core::registry::PlatformRegistry;
+    use std::sync::Arc;
+    use std::sync::Mutex as StdMutex;
+    use tokio::sync::Mutex;
+
+    // Helper to create a minimal App state without hitting App::new() to avoid IO
+    fn create_mock_app() -> App {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        App {
+            state: AppState::Splash,
+            mode: Mode::Normal,
+            active_tab: Tab::Home,
+            running: true,
+            items: vec![],
+            table_state: ratatui::widgets::TableState::default(),
+
+            queue: Arc::new(Mutex::new(DownloadQueue::new(1, None))),
+            registry: Arc::new(PlatformRegistry::new()),
+            theme: Theme::mango(),
+            theme_name: "default".to_string(),
+            statusbar_modules: vec![
+                "mode".to_string(),
+                "tab".to_string(),
+                "cpu".to_string(),
+                "ram".to_string(),
+            ],
+
+            version: "1.0.0".to_string(),
+            current_time: "12:00".to_string(),
+            use_nerd_fonts: true,
+            enable_animations: false,
+            layout: "horizontal".to_string(),
+
+            command_buffer: "".to_string(),
+            url_input: "".to_string(),
+            quality_input: "".to_string(),
+            add_modal_field: 0,
+
+            preview_info: None,
+            is_fetching_preview: false,
+            preview_error: None,
+            confirm_quality_idx: 0,
+            confirm_focused_field: 0,
+            confirm_download_subtitles: false,
+            confirm_download_mode: "video".to_string(),
+            confirm_video_format: "mp4".to_string(),
+            confirm_audio_format: "mp3".to_string(),
+            confirm_audio_quality: "320K".to_string(),
+
+            msg_tx: tx,
+            msg_rx: rx,
+
+            settings_index: 0,
+            settings_count: SettingKind::ALL.len(),
+
+            show_help: false,
+
+            status_message: None,
+            status_is_error: false,
+            message_time: None,
+            last_q_press: None,
+
+            log_lines: vec![],
+            log_scroll: 0,
+
+            output_lines: vec![],
+            output_scroll: 0,
+
+            log_sink: Arc::new(StdMutex::new(vec![])),
+
+            download_category: DownloadsCategory::All,
+            home_index: 0,
+            about_index: 0,
+
+            sys_info: sysinfo::System::new(),
+            pid: sysinfo::Pid::from(0),
+            last_sys_refresh: std::time::Instant::now(),
+            cpu_usage: 0.0,
+            mem_usage: 0,
+
+            total_speed: 0.0,
+            active_count: 0,
+            queued_count: 0,
+            completed_count: 0,
+            failed_count: 0,
+        }
+    }
+
+    #[test]
+    fn test_reorder_statusbar_module_move_up() {
+        let mut app = create_mock_app();
+
+        // Find index of StatusbarMode, which maps to "mode"
+        let mode_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::StatusbarMode))
+            .unwrap();
+        app.settings_index = mode_idx;
+
+        // Modules: ["mode", "tab", "cpu", "ram"]
+        // Move "mode" up (left), since it's at index 0, it wraps around to the end
+        app.reorder_statusbar_module(true);
+        assert_eq!(app.statusbar_modules, vec!["tab", "cpu", "ram", "mode"]);
+
+        // Move "mode" up again, should move from index 3 to 2
+        app.reorder_statusbar_module(true);
+        assert_eq!(app.statusbar_modules, vec!["tab", "cpu", "mode", "ram"]);
+    }
+
+    #[test]
+    fn test_reorder_statusbar_module_move_down() {
+        let mut app = create_mock_app();
+
+        // Find index of StatusbarCpu, which maps to "cpu"
+        let cpu_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::StatusbarCpu))
+            .unwrap();
+        app.settings_index = cpu_idx;
+
+        // Modules: ["mode", "tab", "cpu", "ram"]
+        // Move "cpu" down (right), should move from index 2 to 3
+        app.reorder_statusbar_module(false);
+        assert_eq!(app.statusbar_modules, vec!["mode", "tab", "ram", "cpu"]);
+
+        // Move "cpu" down again, should wrap around to index 0
+        app.reorder_statusbar_module(false);
+        assert_eq!(app.statusbar_modules, vec!["cpu", "mode", "tab", "ram"]);
+    }
+
+    #[test]
+    fn test_reorder_statusbar_module_invalid() {
+        let mut app = create_mock_app();
+
+        // Find a setting that is NOT a statusbar module (e.g., TuiTheme)
+        let theme_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::TuiTheme))
+            .unwrap();
+        app.settings_index = theme_idx;
+
+        let original_modules = app.statusbar_modules.clone();
+
+        // Try to reorder, should return early without changes
+        app.reorder_statusbar_module(true);
+        assert_eq!(app.statusbar_modules, original_modules);
+    }
+
+    #[test]
+    fn test_reorder_statusbar_module_deactivated() {
+        let mut app = create_mock_app();
+
+        // Find index of StatusbarSpeed, which maps to "speed" and is NOT in our initial modules
+        let speed_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::StatusbarSpeed))
+            .unwrap();
+        app.settings_index = speed_idx;
+
+        let original_modules = app.statusbar_modules.clone();
+
+        // Try to reorder, should set an error message and return
+        app.reorder_statusbar_module(true);
+        assert_eq!(app.statusbar_modules, original_modules);
+        assert!(app.status_is_error);
+        assert!(app
+            .status_message
+            .as_ref()
+            .unwrap()
+            .contains("Cannot reorder deactivated module"));
+    }
+}
