@@ -2167,15 +2167,19 @@ pub async fn download_video(
 }
 
 async fn cleanup_part_files(dir: &Path) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if name.ends_with(".part") || name.ends_with(".ytdl") {
-                let _ = std::fs::remove_file(entry.path());
+    let dir = dir.to_path_buf();
+    let _ = tokio::task::spawn_blocking(move || {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if name.ends_with(".part") || name.ends_with(".ytdl") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
             }
         }
-    }
+    })
+    .await;
 }
 
 fn sanitize_log_line(line: &str) -> String {
