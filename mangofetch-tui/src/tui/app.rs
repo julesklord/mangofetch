@@ -393,7 +393,7 @@ impl App {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let mut sys_info = sysinfo::System::new();
         let pid = sysinfo::get_current_pid().unwrap_or(sysinfo::Pid::from(0));
-        sys_info.refresh_process(pid);
+        sys_info.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
 
         Self {
             state: AppState::Splash,
@@ -873,7 +873,7 @@ impl App {
 
         // Refresh system info (Process specific, every 2 seconds)
         if self.last_sys_refresh.elapsed().as_secs() >= 2 {
-            self.sys_info.refresh_process(self.pid);
+            self.sys_info.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[self.pid]), true);
             if let Some(process) = self.sys_info.process(self.pid) {
                 self.cpu_usage = process.cpu_usage();
                 self.mem_usage = process.memory();
