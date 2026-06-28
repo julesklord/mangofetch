@@ -253,7 +253,9 @@ impl HlsDownloader {
                 let seg_tx = seg_tx.clone();
                 let referer = referer.to_string();
                 async move {
-                    let _permit = sem_ref.acquire().await.unwrap();
+                    let Ok(_permit) = sem_ref.acquire().await else {
+                        return;
+                    };
                     if fail_ref.is_cancelled() {
                         return;
                     }
