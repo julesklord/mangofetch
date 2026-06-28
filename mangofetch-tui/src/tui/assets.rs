@@ -20,7 +20,6 @@ pub const MANGO_BODY: &[&str] = &[
     "        ▀▀▀████▀▀▀        ",
 ];
 
-
 pub const STYLIZED_MANGO: &[&str] = &[
     "      ╭──╮     ",
     "    ╭╯    │    ",
