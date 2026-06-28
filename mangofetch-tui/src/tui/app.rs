@@ -1156,8 +1156,8 @@ mod tests {
     use mangofetch_core::core::manager::queue::DownloadQueue;
     use mangofetch_core::core::registry::PlatformRegistry;
     use std::sync::Arc;
-    use tokio::sync::Mutex;
     use std::sync::Mutex as StdMutex;
+    use tokio::sync::Mutex;
 
     // Helper to create a minimal App state without hitting App::new() to avoid IO
     fn create_mock_app() -> App {
@@ -1174,7 +1174,12 @@ mod tests {
             registry: Arc::new(PlatformRegistry::new()),
             theme: Theme::mango(),
             theme_name: "default".to_string(),
-            statusbar_modules: vec!["mode".to_string(), "tab".to_string(), "cpu".to_string(), "ram".to_string()],
+            statusbar_modules: vec![
+                "mode".to_string(),
+                "tab".to_string(),
+                "cpu".to_string(),
+                "ram".to_string(),
+            ],
 
             version: "1.0.0".to_string(),
             current_time: "12:00".to_string(),
@@ -1242,7 +1247,10 @@ mod tests {
         let mut app = create_mock_app();
 
         // Find index of StatusbarMode, which maps to "mode"
-        let mode_idx = SettingKind::ALL.iter().position(|&k| matches!(k, SettingKind::StatusbarMode)).unwrap();
+        let mode_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::StatusbarMode))
+            .unwrap();
         app.settings_index = mode_idx;
 
         // Modules: ["mode", "tab", "cpu", "ram"]
@@ -1260,7 +1268,10 @@ mod tests {
         let mut app = create_mock_app();
 
         // Find index of StatusbarCpu, which maps to "cpu"
-        let cpu_idx = SettingKind::ALL.iter().position(|&k| matches!(k, SettingKind::StatusbarCpu)).unwrap();
+        let cpu_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::StatusbarCpu))
+            .unwrap();
         app.settings_index = cpu_idx;
 
         // Modules: ["mode", "tab", "cpu", "ram"]
@@ -1278,7 +1289,10 @@ mod tests {
         let mut app = create_mock_app();
 
         // Find a setting that is NOT a statusbar module (e.g., TuiTheme)
-        let theme_idx = SettingKind::ALL.iter().position(|&k| matches!(k, SettingKind::TuiTheme)).unwrap();
+        let theme_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::TuiTheme))
+            .unwrap();
         app.settings_index = theme_idx;
 
         let original_modules = app.statusbar_modules.clone();
@@ -1293,7 +1307,10 @@ mod tests {
         let mut app = create_mock_app();
 
         // Find index of StatusbarSpeed, which maps to "speed" and is NOT in our initial modules
-        let speed_idx = SettingKind::ALL.iter().position(|&k| matches!(k, SettingKind::StatusbarSpeed)).unwrap();
+        let speed_idx = SettingKind::ALL
+            .iter()
+            .position(|&k| matches!(k, SettingKind::StatusbarSpeed))
+            .unwrap();
         app.settings_index = speed_idx;
 
         let original_modules = app.statusbar_modules.clone();
@@ -1302,6 +1319,10 @@ mod tests {
         app.reorder_statusbar_module(true);
         assert_eq!(app.statusbar_modules, original_modules);
         assert!(app.status_is_error);
-        assert!(app.status_message.as_ref().unwrap().contains("Cannot reorder deactivated module"));
+        assert!(app
+            .status_message
+            .as_ref()
+            .unwrap()
+            .contains("Cannot reorder deactivated module"));
     }
 }
