@@ -2167,15 +2167,19 @@ pub async fn download_video(
 }
 
 async fn cleanup_part_files(dir: &Path) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if name.ends_with(".part") || name.ends_with(".ytdl") {
-                let _ = std::fs::remove_file(entry.path());
+    let dir = dir.to_path_buf();
+    let _ = tokio::task::spawn_blocking(move || {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if name.ends_with(".part") || name.ends_with(".ytdl") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
             }
         }
-    }
+    })
+    .await;
 }
 
 fn sanitize_log_line(line: &str) -> String {
@@ -2354,6 +2358,9 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
         let read_dir = std::fs::read_dir(&output_dir_owned)?;
         let mut candidates: Vec<(PathBuf, std::time::SystemTime, bool)> = Vec::new();
 
+        let fallback_limit = std::time::Duration::from_secs(120);
+        let mut newest: Option<(PathBuf, std::time::SystemTime)> = None;
+
         for entry in read_dir.flatten() {
             let path = entry.path();
             if !path.is_file() {
@@ -2365,25 +2372,30 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
                 continue;
             }
 
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            let is_media = media_extensions
-                .iter()
-                .any(|&e| ext.eq_ignore_ascii_case(e));
-            if !is_media {
-                continue;
-            }
-
             if let Ok(meta) = entry.metadata() {
                 if meta.len() == 0 {
                     continue;
                 }
                 if let Ok(modified) = meta.modified() {
-                    let is_recent =
-                        now.duration_since(modified).unwrap_or_default() < recency_limit;
-                    let matches_id = !video_id.is_empty() && name.contains(&video_id);
+                    if now.duration_since(modified).unwrap_or_default() < fallback_limit
+                        && newest.as_ref().is_none_or(|(_, t)| modified > *t)
+                    {
+                        newest = Some((path.clone(), modified));
+                    }
 
-                    if matches_id || is_recent {
-                        candidates.push((path, modified, matches_id));
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                    let is_media = media_extensions
+                        .iter()
+                        .any(|&e| ext.eq_ignore_ascii_case(e));
+
+                    if is_media {
+                        let is_recent =
+                            now.duration_since(modified).unwrap_or_default() < recency_limit;
+                        let matches_id = !video_id.is_empty() && name.contains(&video_id);
+
+                        if matches_id || is_recent {
+                            candidates.push((path, modified, matches_id));
+                        }
                     }
                 }
             }
@@ -2393,33 +2405,6 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
 
         if let Some((p, _, _)) = candidates.into_iter().next() {
             return Ok(p);
-        }
-
-        let fallback_limit = std::time::Duration::from_secs(120);
-        let mut newest: Option<(PathBuf, std::time::SystemTime)> = None;
-        if let Ok(entries) = std::fs::read_dir(&output_dir_owned) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_file() {
-                    continue;
-                }
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
-                    continue;
-                }
-                if let Ok(meta) = entry.metadata() {
-                    if meta.len() == 0 {
-                        continue;
-                    }
-                    if let Ok(modified) = meta.modified() {
-                        if now.duration_since(modified).unwrap_or_default() < fallback_limit
-                            && newest.as_ref().is_none_or(|(_, t)| modified > *t)
-                        {
-                            newest = Some((path, modified));
-                        }
-                    }
-                }
-            }
         }
 
         newest
