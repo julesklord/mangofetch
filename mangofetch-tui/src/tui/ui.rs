@@ -114,9 +114,7 @@ fn render_splash(f: &mut Frame, app: &App) {
     };
 
     // Render subtle background container (no border)
-    let block = Block::default()
-        .borders(Borders::NONE)
-        .bg(t.background);
+    let block = Block::default().borders(Borders::NONE).bg(t.background);
     let inner = block.inner(centered_splash);
     f.render_widget(block, centered_splash);
 
@@ -138,17 +136,24 @@ fn render_splash(f: &mut Frame, app: &App) {
         .iter()
         .enumerate()
         .map(|(i, &line)| {
-            let col = if i < 2 { green_stem } else if i % 2 == 0 { orange } else { gold };
-            Line::from(Span::styled(line, Style::new().fg(col).bold()))
-                .alignment(Alignment::Center)
+            let col = if i < 2 {
+                green_stem
+            } else if i % 2 == 0 {
+                orange
+            } else {
+                gold
+            };
+            Line::from(Span::styled(line, Style::new().fg(col).bold())).alignment(Alignment::Center)
         })
         .collect::<Vec<_>>();
     f.render_widget(Paragraph::new(Text::from(mango_lines)), chunks[0]);
 
     // Render Title
-    let title_line = Line::from(vec![
-        Span::styled("M  A  N  G  O  F  E  T  C  H", Style::new().fg(accent).bold()),
-    ]).alignment(Alignment::Center);
+    let title_line = Line::from(vec![Span::styled(
+        "M  A  N  G  O  F  E  T  C  H",
+        Style::new().fg(accent).bold(),
+    )])
+    .alignment(Alignment::Center);
     f.render_widget(Paragraph::new(title_line), chunks[2]);
 
     // Render Tagline
@@ -159,20 +164,22 @@ fn render_splash(f: &mut Frame, app: &App) {
         Span::styled("1000+ platforms", Style::new().fg(t.text_dim)),
         Span::styled(dot, Style::new().fg(t.surface_dim)),
         Span::styled(format!("v{}", app.version), Style::new().fg(t.text_dim)),
-    ]).alignment(Alignment::Center);
+    ])
+    .alignment(Alignment::Center);
     f.render_widget(Paragraph::new(tagline_line), chunks[4]);
 
     // Render Hint
     let enter_key = if nf { " 󰌑 ENTER " } else { " ENTER " };
     let quit_key = if nf { " 󱊷 Q " } else { " Q " };
-    
+
     let hint_line = Line::from(vec![
         Span::styled(enter_key, Style::new().fg(t.background).bg(t.accent).bold()),
         Span::styled(" Initialize", Style::new().fg(t.accent).bold()),
         Span::styled("       ", Style::new()),
         Span::styled(quit_key, Style::new().fg(t.background).bg(t.error).bold()),
         Span::styled(" Abort", Style::new().fg(t.error).bold()),
-    ]).alignment(Alignment::Center);
+    ])
+    .alignment(Alignment::Center);
     f.render_widget(Paragraph::new(hint_line), chunks[6]);
 }
 
@@ -853,7 +860,13 @@ fn render_home(f: &mut Frame, app: &App, area: Rect) {
     }
 
     for (i, &line) in STYLIZED_MANGO.iter().enumerate() {
-        let col = if i < 2 { green_stem } else if i % 2 == 0 { orange } else { gold };
+        let col = if i < 2 {
+            green_stem
+        } else if i % 2 == 0 {
+            orange
+        } else {
+            gold
+        };
         logo_lines.push(
             Line::from(Span::styled(line, Style::new().fg(col).bold()))
                 .alignment(Alignment::Center),

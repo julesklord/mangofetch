@@ -177,7 +177,6 @@ enum Commands {
         #[command(subcommand)]
         topic: Option<AboutTopic>,
     },
-
 }
 
 #[derive(Subcommand)]
@@ -678,8 +677,6 @@ async fn main() -> Result<()> {
                 }
             }
         }
-
-
     }
 
     Ok(())

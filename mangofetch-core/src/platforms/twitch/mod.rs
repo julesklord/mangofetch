@@ -111,8 +111,8 @@ impl TwitchClipsDownloader {
             return segments.first().map(|s| s.to_string());
         }
 
-        if segments.len() >= 3 && segments.get(1) == Some(&"clip") {
-            return segments.get(2).map(|s| s.to_string());
+        if segments.len() >= 2 && segments.first() == Some(&"clip") {
+            return segments.get(1).map(|s| s.to_string());
         }
 
         None

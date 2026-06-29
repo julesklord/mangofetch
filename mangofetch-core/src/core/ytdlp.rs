@@ -942,6 +942,104 @@ async fn build_video_info_args(
     args
 }
 
+enum InfoFetchResult {
+    Success(serde_json::Value),
+    RetryableError(String),
+    FatalError(String),
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_yt_dlp_info_fetch(
+    ytdlp: &Path,
+    url: &str,
+    extra_flags: &[String],
+    client: Option<&str>,
+    is_yt: bool,
+    attempt: usize,
+    clients_len: usize,
+    timer_start: std::time::Instant,
+) -> anyhow::Result<InfoFetchResult> {
+    let args = build_video_info_args(url, extra_flags, client).await;
+
+    let child = crate::core::process::command(ytdlp)
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
+
+    tracing::debug!(
+        "[perf] get_video_info: yt-dlp process spawned at {:?} (attempt {})",
+        timer_start.elapsed(),
+        attempt + 1
+    );
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(60), child.wait_with_output())
+        .await
+        .map_err(|_| {
+            tracing::debug!("[perf] get_video_info took {:?}", timer_start.elapsed());
+            anyhow!("Timeout fetching video info (60s)")
+        })?
+        .map_err(|e| {
+            tracing::debug!("[perf] get_video_info took {:?}", timer_start.elapsed());
+            anyhow!("Failed to run yt-dlp: {}", e)
+        })?;
+
+    tracing::debug!(
+        "[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})",
+        timer_start.elapsed(),
+        attempt + 1
+    );
+
+    if result.status.success() {
+        let json: serde_json::Value = serde_json::from_slice(&result.stdout)
+            .map_err(|e| anyhow!("yt-dlp returned invalid JSON: {}", e))?;
+        tracing::debug!("[perf] get_video_info took {:?}", timer_start.elapsed());
+        return Ok(InfoFetchResult::Success(json));
+    }
+
+    let stderr = String::from_utf8_lossy(&result.stderr).to_string();
+    tracing::debug!(
+        "[yt-dlp info] stderr ({} bytes): {}",
+        stderr.len(),
+        stderr.trim()
+    );
+    let stderr_lower = stderr.to_lowercase();
+
+    if stderr_lower.contains("http error 429") {
+        rate_limit_429_increment();
+        let sanitized_url = sanitize_log_line(url);
+        tracing::warn!(
+            "[yt-429] rate limit in get_video_info: url={} attempt={}/{}",
+            sanitized_url,
+            attempt + 1,
+            clients_len
+        );
+    }
+
+    let is_retryable = is_yt
+        && attempt < clients_len - 1
+        && (stderr_lower.contains("requested format")
+            || stderr_lower.contains("not available")
+            || stderr_lower.contains("http error 403")
+            || stderr_lower.contains("nsig")
+            || stderr_lower.contains("http error 429"));
+
+    if is_retryable {
+        tracing::warn!(
+            "[yt-dlp] info fetch attempt {} failed, retrying with fallback player_client: {}",
+            attempt + 1,
+            stderr.trim().lines().last().unwrap_or("")
+        );
+        if stderr_lower.contains("http error 429") {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+        return Ok(InfoFetchResult::RetryableError(stderr));
+    }
+
+    Ok(InfoFetchResult::FatalError(stderr))
+}
+
 pub async fn get_video_info(
     ytdlp: &Path,
     url: &str,
@@ -969,86 +1067,28 @@ pub async fn get_video_info(
             clients.len()
         );
 
-        let args = build_video_info_args(url, extra_flags, *client).await;
-
-        let child = crate::core::process::command(ytdlp)
-            .args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
-        tracing::debug!(
-            "[perf] get_video_info: yt-dlp process spawned at {:?} (attempt {})",
-            _timer_start.elapsed(),
-            attempt + 1
-        );
-
-        let result =
-            tokio::time::timeout(std::time::Duration::from_secs(60), child.wait_with_output())
-                .await
-                .map_err(|_| {
-                    tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-                    anyhow!("Timeout fetching video info (60s)")
-                })?
-                .map_err(|e| {
-                    tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-                    anyhow!("Failed to run yt-dlp: {}", e)
-                })?;
-
-        tracing::debug!(
-            "[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})",
-            _timer_start.elapsed(),
-            attempt + 1
-        );
-
-        if result.status.success() {
-            let json: serde_json::Value = serde_json::from_slice(&result.stdout)
-                .map_err(|e| anyhow!("yt-dlp returned invalid JSON: {}", e))?;
-            tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-            return Ok(json);
-        }
-
-        let stderr = String::from_utf8_lossy(&result.stderr).to_string();
-        tracing::debug!(
-            "[yt-dlp info] stderr ({} bytes): {}",
-            stderr.len(),
-            stderr.trim()
-        );
-        let stderr_lower = stderr.to_lowercase();
-        if stderr_lower.contains("http error 429") {
-            rate_limit_429_increment();
-            let sanitized_url = sanitize_log_line(url);
-            tracing::warn!(
-                "[yt-429] rate limit in get_video_info: url={} attempt={}/{}",
-                sanitized_url,
-                attempt + 1,
-                clients.len()
-            );
-        }
-
-        let is_retryable = is_yt
-            && attempt < clients.len() - 1
-            && (stderr_lower.contains("requested format")
-                || stderr_lower.contains("not available")
-                || stderr_lower.contains("http error 403")
-                || stderr_lower.contains("nsig")
-                || stderr_lower.contains("http error 429"));
-
-        if is_retryable {
-            tracing::warn!(
-                "[yt-dlp] info fetch attempt {} failed, retrying with fallback player_client: {}",
-                attempt + 1,
-                stderr.trim().lines().last().unwrap_or("")
-            );
-            if stderr_lower.contains("http error 429") {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        match execute_yt_dlp_info_fetch(
+            ytdlp,
+            url,
+            extra_flags,
+            *client,
+            is_yt,
+            attempt,
+            clients.len(),
+            _timer_start,
+        )
+        .await?
+        {
+            InfoFetchResult::Success(json) => return Ok(json),
+            InfoFetchResult::RetryableError(err) => {
+                last_error = err;
+                continue;
             }
-            last_error = stderr;
-            continue;
+            InfoFetchResult::FatalError(err) => {
+                tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+                return Err(translate_ytdlp_error(&err));
+            }
         }
-
-        tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        return Err(translate_ytdlp_error(&stderr));
     }
 
     tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
