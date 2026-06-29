@@ -37,47 +37,39 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             suffix: .exe
-            build_gui: true
           - target: aarch64-pc-windows-msvc
             os: windows-latest
             suffix: .exe
-            build_gui: false # No GUI for Win ARM right now to avoid setup issues
 
           # macOS
           - target: x86_64-apple-darwin
             os: macos-13 # Intel Mac
             suffix: ""
-            build_gui: true
           - target: aarch64-apple-darwin
             os: macos-latest # Apple Silicon Mac
             suffix: ""
-            build_gui: true
 
           # Linux (Native)
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             suffix: ""
-            build_gui: true
 
           # Linux (ARM64 Native via Github Actions ARM runners)
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
             suffix: ""
-            build_gui: true
 
           # Linux (Raspberry Pi 32-bit via Cross)
           - target: armv7-unknown-linux-gnueabihf
             os: ubuntu-latest
             suffix: ""
             use_cross: true
-            build_gui: false
 
           # FreeBSD (via Cross)
           - target: x86_64-unknown-freebsd
             os: ubuntu-latest
             suffix: ""
             use_cross: true
-            build_gui: false
 
     steps:
       - uses: actions/checkout@v4
@@ -106,37 +98,25 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
 
-      - name: Build CLI (Native)
+      - name: Build TUI (Native)
         if: "!matrix.use_cross"
         shell: bash
-        run: cargo build --release -p mangofetch-cli --target ${{ matrix.target }}
+        run: cargo build --release -p mangofetch --target ${{ matrix.target }}
 
-      - name: Build CLI (Cross)
+      - name: Build TUI (Cross)
         if: matrix.use_cross
         shell: bash
-        run: cross build --release -p mangofetch-cli --target ${{ matrix.target }}
-
-      - name: Build GUI (Native)
-        if: matrix.build_gui && !matrix.use_cross
-        shell: bash
-        run: cargo build --release -p mangofetch-gui --target ${{ matrix.target }}
+        run: cross build --release -p mangofetch --target ${{ matrix.target }}
 
       - name: Prepare Artifacts
         shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
 
-          # CLI
+          # TUI
           CLI_BINARY="mangofetch-cli-${{ matrix.target }}${{ matrix.suffix }}"
           cp target/${{ matrix.target }}/release/mangofetch${{ matrix.suffix }} ./$CLI_BINARY
           echo "CLI_ASSET=$CLI_BINARY" >> $GITHUB_ENV
-
-          # GUI (if built)
-          if [ "${{ matrix.build_gui }}" = "true" ]; then
-            GUI_BINARY="mangofetch-gui-${{ matrix.target }}${{ matrix.suffix }}"
-            cp target/${{ matrix.target }}/release/mangofetch-gui${{ matrix.suffix }} ./$GUI_BINARY
-            echo "GUI_ASSET=$GUI_BINARY" >> $GITHUB_ENV
-          fi
 
       - name: Upload Release Assets
         env:
@@ -144,9 +124,6 @@ jobs:
         shell: bash
         run: |
           gh release upload ${{ github.ref_name }} ${{ env.CLI_ASSET }} --clobber
-          if [ "${{ matrix.build_gui }}" = "true" ]; then
-            gh release upload ${{ github.ref_name }} ${{ env.GUI_ASSET }} --clobber
-          fi
 
       - name: Calculate SHA256 (Windows)
         if: matrix.os == 'windows-latest' && matrix.target == 'x86_64-pc-windows-msvc'
@@ -203,11 +180,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish -p mangofetch-core || echo "Already published"
-      - name: Publish mangofetch-cli
+      - name: Publish mangofetch
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p mangofetch-cli || echo "Already published"
-      - name: Publish mangofetch-gui
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p mangofetch-gui || echo "Already published"
+        run: cargo publish -p mangofetch || echo "Already published"
