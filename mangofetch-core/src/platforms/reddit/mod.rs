@@ -188,11 +188,14 @@ impl RedditDownloader {
             "DASH_360.mp4",
             "DASH_240.mp4",
         ];
-        let mut variants = vec![video_url.to_string()];
-        for res in &resolutions {
-            if !video_url.contains(res) {
-                if let Some(base) = video_url.rfind("DASH_") {
-                    let mut variant = video_url[..base].to_string();
+        let mut variants = Vec::with_capacity(resolutions.len() + 1);
+        variants.push(video_url.to_string());
+        if let Some(base) = video_url.rfind("DASH_") {
+            let prefix = &video_url[..base];
+            for res in &resolutions {
+                if !video_url.contains(res) {
+                    let mut variant = String::with_capacity(prefix.len() + res.len());
+                    variant.push_str(prefix);
                     variant.push_str(res);
                     variants.push(variant);
                 }
