@@ -10,3 +10,6 @@
 ## 2024-05-18 - Avoid Blocking Tokio Executor with Synchronous Filesystem Traversals
 **Learning:** `std::fs::read_dir` and iterating over files synchronously blocks the Tokio executor thread. When performing complex or unbounded directory iterations inside an async function like `cleanup_part_files`, this blocking behavior can significantly impact overall async runtime performance.
 **Action:** Wrap the entire synchronous block inside `tokio::task::spawn_blocking` and await its result. This offloads the blocking operations to a separate blocking thread pool, allowing the async executor to continue scheduling other tasks without interruption.
+## 2024-06-25 - [Optimize multi-replace on String with single pass]
+**Learning:** Sequential `.replace()` calls on a `String` inside a loop can be a performance bottleneck because they generate intermediate `String` allocations for every single replacement mapping.
+**Action:** When translating multiple single characters or fixed small patterns to other patterns, replace the `.replace()` chain with a single pass over the string using `chars().map()` or a `for c in name.chars()` loop pushing into a pre-allocated string. This reduces allocations to 1 instead of N.
