@@ -12,21 +12,22 @@ pub fn sanitize_path_component(name: &str) -> String {
 
     let name = name.trim_end_matches([' ', '-', '.', ';']);
 
-    let forbidden: &[(char, char)] = &[
-        ('<', '＜'),
-        ('>', '＞'),
-        (':', '꞉'),
-        ('"', '＂'),
-        ('/', '⧸'),
-        ('\\', '＼'),
-        ('|', '｜'),
-        ('?', '？'),
-        ('*', ' '),
-    ];
-
-    let mut result = name.to_string();
-    for (from, to) in forbidden {
-        result = result.replace(*from, &to.to_string());
+    // Performance optimization: Single pass character mapping to avoid multiple String allocations
+    let mut result = String::with_capacity(name.len());
+    for c in name.chars() {
+        let mapped = match c {
+            '<' => '＜',
+            '>' => '＞',
+            ':' => '꞉',
+            '"' => '＂',
+            '/' => '⧸',
+            '\\' => '＼',
+            '|' => '｜',
+            '?' => '？',
+            '*' => ' ',
+            _ => c,
+        };
+        result.push(mapped);
     }
 
     result.trim().to_string()
