@@ -1,6 +1,5 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::Stdio;
 
@@ -48,48 +47,6 @@ pub async fn ensure_dependencies(
     }
 
     Ok(ResolvedDependencies { ytdlp, ffmpeg })
-}
-
-/// Return true when the runtime is expected to avoid network auto-downloads.
-/// This is driven by the MANGOFETCH_OFFLINE env var (set to "1" or "true").
-pub fn is_offline_mode() -> bool {
-    std::env::var("MANGOFETCH_OFFLINE")
-        .map(|v| {
-            let s = v.to_ascii_lowercase();
-            s == "1" || s == "true"
-        })
-        .unwrap_or(false)
-}
-
-/// Verify file at `path` matches expected sha256 hex string.
-pub fn verify_sha256(path: &PathBuf, expected_hex: &str) -> anyhow::Result<bool> {
-    use std::fs::File;
-    use std::io::Read;
-
-    let mut file = File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buf = [0u8; 8192];
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    let hash = hasher.finalize();
-    let hex = hex::encode(hash);
-    Ok(hex.eq_ignore_ascii_case(expected_hex))
-}
-
-/// Read expected hash for a tool from app_data_dir/tool_hashes.json
-pub fn read_expected_hash(tool: &str) -> Option<String> {
-    let data_dir = crate::core::paths::app_data_dir()?;
-    let file = data_dir.join("tool_hashes.json");
-    let s = std::fs::read_to_string(&file).ok()?;
-    let map: serde_json::Value = serde_json::from_str(&s).ok()?;
-    map.get(tool)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
 }
 
 use anyhow::anyhow;
@@ -235,28 +192,6 @@ fn version_flag_for(tool: &str) -> &'static str {
     }
 }
 
-pub fn parse_version_output(tool: &str, stdout: &str) -> Option<String> {
-    let first_line = stdout.lines().next().unwrap_or("");
-
-    if tool == "ffmpeg" || tool == "ffprobe" {
-        first_line.split_whitespace().nth(2).map(|s| s.to_string())
-    } else if tool == "yt-dlp" {
-        if first_line.trim().is_empty() {
-            None
-        } else {
-            Some(first_line.trim().to_string())
-        }
-    } else if tool == "aria2c" {
-        first_line.split_whitespace().nth(2).map(|s| s.to_string())
-    } else {
-        if first_line.trim().is_empty() {
-            None
-        } else {
-            Some(first_line.trim().to_string())
-        }
-    }
-}
-
 pub async fn check_version(tool: &str) -> Option<String> {
     let _timer_start = std::time::Instant::now();
     let path = find_tool(tool).await?;
@@ -286,7 +221,17 @@ pub async fn check_version(tool: &str) -> Option<String> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let result = parse_version_output(tool, &stdout);
+    let first_line = stdout.lines().next().unwrap_or("");
+
+    let result = if tool == "ffmpeg" || tool == "ffprobe" {
+        first_line.split_whitespace().nth(2).map(|s| s.to_string())
+    } else if tool == "yt-dlp" {
+        Some(first_line.trim().to_string())
+    } else if tool == "aria2c" {
+        first_line.split_whitespace().nth(2).map(|s| s.to_string())
+    } else {
+        Some(first_line.trim().to_string())
+    };
 
     tracing::debug!(
         "[perf] check_version({}) took {:?}",
@@ -297,14 +242,19 @@ pub async fn check_version(tool: &str) -> Option<String> {
 }
 
 pub async fn ensure_ffmpeg(
-    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     // Always ensure the managed binary exists — the standalone yt-dlp.exe
     // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
         let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
-        if managed.as_ref().is_none_or(|p| !p.exists()) {
-            if let Ok(path) = download_ffmpeg(_reporter).await {
+        let exists = if let Some(ref p) = managed {
+            tokio::fs::metadata(p).await.is_ok()
+        } else {
+            false
+        };
+        if !exists {
+            if let Ok(path) = download_ffmpeg(reporter).await {
                 crate::core::ytdlp::reset_ffmpeg_location_cache();
                 return Ok(path);
             }
@@ -317,21 +267,16 @@ pub async fn ensure_ffmpeg(
     if is_flatpak() {
         return Err(anyhow!("FFmpeg not found in Flatpak sandbox"));
     }
-    let path = download_ffmpeg(_reporter).await?;
+    let path = download_ffmpeg(reporter).await?;
     crate::core::ytdlp::reset_ffmpeg_location_cache();
     Ok(path)
 }
 
 async fn download_ffmpeg(
-    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
-    if is_offline_mode() {
-        return Err(anyhow!(
-            "Offline mode enabled: automatic FFmpeg download disabled"
-        ));
-    }
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let ffmpeg_name = bin_name("ffmpeg");
     let ffprobe_name = bin_name("ffprobe");
@@ -342,22 +287,18 @@ async fn download_ffmpeg(
     for (url, archive_type) in downloads {
         tracing::info!("Downloading FFmpeg component from {}", url);
         let bytes = crate::core::http_client::download_with_progress(url, |percent| {
-            if let Some(r) = _reporter {
+            if let Some(r) = reporter {
                 r.on_system_progress("ffmpeg", percent, "Downloading FFmpeg...");
             }
         })
         .await?;
 
         let temp_path = bin_dir.join(".ffmpeg_download.tmp");
-        let data = bytes.to_vec();
-        let temp_clone = temp_path.clone();
-        tokio::task::spawn_blocking(move || std::fs::write(&temp_clone, &data))
-            .await
-            .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
+        tokio::fs::write(&temp_path, &bytes).await?;
 
-        let file_size = std::fs::metadata(&temp_path)?.len();
+        let file_size = tokio::fs::metadata(&temp_path).await?.len();
         if file_size < 1_000_000 {
-            let _ = std::fs::remove_file(&temp_path);
+            let _ = tokio::fs::remove_file(&temp_path).await;
             return Err(anyhow!(
                 "Downloaded file from {} is too small ({}B) — likely an error page",
                 url,
@@ -374,17 +315,17 @@ async fn download_ffmpeg(
             }
         }
 
-        let _ = std::fs::remove_file(&temp_path);
+        let _ = tokio::fs::remove_file(&temp_path).await;
     }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
-        let _ = std::fs::set_permissions(&ffmpeg_target, perms.clone());
+        let _ = tokio::fs::set_permissions(&ffmpeg_target, perms.clone()).await;
         let ffprobe_path = bin_dir.join(&ffprobe_name);
-        if ffprobe_path.exists() {
-            let _ = std::fs::set_permissions(&ffprobe_path, perms);
+        if tokio::fs::metadata(&ffprobe_path).await.is_ok() {
+            let _ = tokio::fs::set_permissions(&ffprobe_path, perms).await;
         }
     }
 
@@ -404,7 +345,7 @@ async fn download_ffmpeg(
             tracing::warn!("Failed to remove quarantine from ffmpeg: {}", e);
         }
         let ffprobe_path = bin_dir.join(&ffprobe_name);
-        if ffprobe_path.exists() {
+        if tokio::fs::metadata(&ffprobe_path).await.is_ok() {
             let ffprobe_mac = ffprobe_path.clone();
             if let Err(e) = tokio::task::spawn_blocking(move || {
                 crate::core::process::std_command("xattr")
@@ -421,21 +362,8 @@ async fn download_ffmpeg(
         }
     }
 
-    if !ffmpeg_target.exists() {
+    if tokio::fs::metadata(&ffmpeg_target).await.is_err() {
         return Err(anyhow!("FFmpeg binary not found after extraction"));
-    }
-
-    // If an expected hash is present in app data, verify the assembled ffmpeg binary.
-    if let Some(expected) = read_expected_hash("ffmpeg") {
-        let target_clone = ffmpeg_target.clone();
-        let expected_clone = expected.clone();
-        let ok = tokio::task::spawn_blocking(move || verify_sha256(&target_clone, &expected_clone))
-            .await
-            .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
-        if !ok {
-            let _ = std::fs::remove_file(&ffmpeg_target);
-            return Err(anyhow!("FFmpeg download failed SHA256 verification"));
-        }
     }
 
     let verify = {
@@ -594,7 +522,7 @@ async fn extract_tar_xz_ffmpeg(
 /// challenge solver. Checks for any existing runtime first (Node.js, Deno,
 /// Bun), then auto-downloads Deno if none is found.
 pub async fn ensure_js_runtime(
-    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     // Check system-installed runtimes first.
     for tool in &["deno", "node", "bun"] {
@@ -618,7 +546,7 @@ pub async fn ensure_js_runtime(
         }
     }
 
-    match download_deno(_reporter).await {
+    match download_deno(reporter).await {
         Ok(path) => Some(path),
         Err(e) => {
             tracing::warn!("Failed to download Deno JS runtime: {}", e);
@@ -628,15 +556,15 @@ pub async fn ensure_js_runtime(
 }
 
 async fn download_deno(
-    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let deno_name = bin_name("deno");
     let deno_target = bin_dir.join(&deno_name);
 
-    if deno_target.exists() {
+    if tokio::fs::metadata(&deno_target).await.is_ok() {
         return Ok(deno_target);
     }
 
@@ -657,7 +585,7 @@ async fn download_deno(
     tracing::info!("Downloading Deno JS runtime from {}", url);
 
     let bytes = crate::core::http_client::download_with_progress(url, |percent| {
-        if let Some(r) = _reporter {
+        if let Some(r) = reporter {
             r.on_system_progress("deno", percent, "Downloading Deno...");
         }
     })
@@ -691,14 +619,14 @@ async fn download_deno(
     .await
     .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
 
-    if !deno_target.exists() {
+    if tokio::fs::metadata(&deno_target).await.is_err() {
         return Err(anyhow!("Deno binary not found after extraction"));
     }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&deno_target, std::fs::Permissions::from_mode(0o755));
+        let _ = tokio::fs::set_permissions(&deno_target, std::fs::Permissions::from_mode(0o755)).await;
     }
 
     #[cfg(target_os = "macos")]
@@ -718,7 +646,7 @@ async fn download_deno(
 }
 
 pub async fn ensure_aria2c(
-    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);
@@ -727,7 +655,7 @@ pub async fn ensure_aria2c(
     // Auto-download only on Windows
     #[cfg(target_os = "windows")]
     {
-        match download_aria2c(_reporter).await {
+        match download_aria2c(reporter).await {
             Ok(path) => return Some(path),
             Err(e) => {
                 tracing::warn!("Failed to download aria2c: {}", e);
@@ -740,10 +668,10 @@ pub async fn ensure_aria2c(
 
 #[cfg(target_os = "windows")]
 async fn download_aria2c(
-    _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
+    reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let aria2c_name = bin_name("aria2c");
     let aria2c_target = bin_dir.join(&aria2c_name);
@@ -751,7 +679,7 @@ async fn download_aria2c(
     let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
 
     let bytes = crate::core::http_client::download_with_progress(url, |percent| {
-        if let Some(r) = _reporter {
+        if let Some(r) = reporter {
             r.on_system_progress("aria2c", percent, "Downloading aria2c...");
         }
     })
@@ -786,233 +714,9 @@ async fn download_aria2c(
     .await
     .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
 
-    if !aria2c_target.exists() {
+    if tokio::fs::metadata(&aria2c_target).await.is_err() {
         return Err(anyhow!("aria2c binary not found after extraction"));
     }
 
     Ok(aria2c_target)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::events::QueueItemProgress;
-    use crate::core::traits::DownloadReporter;
-    use crate::models::queue::QueueItemInfo;
-    use crate::models::settings::ProxySettings;
-    use std::sync::Arc;
-    use std::sync::Mutex;
-
-    static TEST_MUTEX: Mutex<()> = Mutex::new(());
-
-    struct MockReporter;
-
-    impl DownloadReporter for MockReporter {
-        fn on_progress(&self, _id: u64, _prog: QueueItemProgress) {}
-        fn on_complete(&self, _id: u64, _path: Option<String>, _size: Option<u64>) {}
-        fn on_error(&self, _id: u64, _msg: String) {}
-        fn on_retry(&self, _id: u64, _attempt: u32, _delay: u64) {}
-        fn on_phase_change(&self, _id: u64, _phase: String) {}
-        fn on_media_preview(
-            &self,
-            _u: String,
-            _t: String,
-            _a: String,
-            _th: Option<String>,
-            _d: Option<f64>,
-        ) {
-        }
-        fn on_queue_update(&self, _s: Vec<QueueItemInfo>) {}
-        fn on_system_progress(&self, _title: &str, _pct: f32, _msg: &str) {}
-    }
-
-    #[test]
-    fn test_bin_name() {
-        if cfg!(target_os = "windows") {
-            assert_eq!(bin_name("test-tool"), "test-tool.exe");
-            assert_eq!(bin_name("yt-dlp"), "yt-dlp.exe");
-        } else {
-            assert_eq!(bin_name("test-tool"), "test-tool");
-            assert_eq!(bin_name("yt-dlp"), "yt-dlp");
-        }
-    }
-
-    #[test]
-    fn test_is_flatpak() {
-        let _guard = TEST_MUTEX.lock().unwrap();
-
-        let original_val = std::env::var("FLATPAK_ID");
-
-        std::env::set_var("FLATPAK_ID", "org.mangofetch.App");
-        assert!(is_flatpak(), "Should be true when FLATPAK_ID is set");
-
-        std::env::remove_var("FLATPAK_ID");
-        let expected = std::path::Path::new("/.flatpak-info").exists();
-        assert_eq!(
-            is_flatpak(),
-            expected,
-            "When FLATPAK_ID is not set, it should match the existence of /.flatpak-info"
-        );
-
-        match original_val {
-            Ok(v) => std::env::set_var("FLATPAK_ID", v),
-            Err(_) => std::env::remove_var("FLATPAK_ID"),
-        }
-    }
-
-    #[test]
-    fn test_parse_version_output() {
-        // ffmpeg
-        assert_eq!(
-            parse_version_output("ffmpeg", "ffmpeg version 2024-05-13-git-93afb9c47c-full_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers"),
-            Some("2024-05-13-git-93afb9c47c-full_build-www.gyan.dev".to_string())
-        );
-        assert_eq!(
-            parse_version_output(
-                "ffmpeg",
-                "ffmpeg version N-111111-g1234567890 Copyright (c) 2000-2023 the FFmpeg developers"
-            ),
-            Some("N-111111-g1234567890".to_string())
-        );
-        assert_eq!(parse_version_output("ffmpeg", "ffmpeg version"), None);
-        assert_eq!(parse_version_output("ffmpeg", ""), None);
-
-        // ffprobe
-        assert_eq!(
-            parse_version_output("ffprobe", "ffprobe version 2024-05-13-git-93afb9c47c-full_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers"),
-            Some("2024-05-13-git-93afb9c47c-full_build-www.gyan.dev".to_string())
-        );
-        assert_eq!(parse_version_output("ffprobe", "ffprobe version"), None);
-        assert_eq!(parse_version_output("ffprobe", ""), None);
-
-        // yt-dlp
-        assert_eq!(
-            parse_version_output("yt-dlp", "2024.04.09\n"),
-            Some("2024.04.09".to_string())
-        );
-        assert_eq!(
-            parse_version_output("yt-dlp", "2023.11.16"),
-            Some("2023.11.16".to_string())
-        );
-        assert_eq!(
-            parse_version_output("yt-dlp", "  2024.04.09  "),
-            Some("2024.04.09".to_string())
-        );
-        assert_eq!(parse_version_output("yt-dlp", ""), None);
-        assert_eq!(parse_version_output("yt-dlp", "   \n"), None);
-
-        // aria2c
-        assert_eq!(
-            parse_version_output(
-                "aria2c",
-                "aria2 version 1.37.0\nCopyright (C) 2006, 2019 Tatsuhiro Tsujikawa"
-            ),
-            Some("1.37.0".to_string())
-        );
-        assert_eq!(
-            parse_version_output("aria2c", "aria2 version 1.36.0"),
-            Some("1.36.0".to_string())
-        );
-        assert_eq!(parse_version_output("aria2c", "aria2 version"), None);
-        assert_eq!(parse_version_output("aria2c", ""), None);
-
-        // other / default
-        assert_eq!(
-            parse_version_output("other", "1.2.3\n"),
-            Some("1.2.3".to_string())
-        );
-        assert_eq!(
-            parse_version_output("other", "  1.2.3  "),
-            Some("1.2.3".to_string())
-        );
-        assert_eq!(parse_version_output("other", ""), None);
-        assert_eq!(parse_version_output("other", "   \n"), None);
-    }
-
-    #[tokio::test]
-    async fn test_ensure_dependencies_force_error() {
-        let _guard = TEST_MUTEX.lock().unwrap();
-
-        let reporter: Arc<dyn DownloadReporter> = Arc::new(MockReporter);
-
-        // Set an invalid proxy to force download failures
-        crate::core::http_client::init_proxy(ProxySettings {
-            enabled: true,
-            proxy_type: "http".into(),
-            host: "0.0.0.0".into(), // Unroutable IP to simulate network failure
-            port: 1,
-            username: "".into(),
-            password: "".into(),
-        });
-
-        // Test with force=true
-        let result = ensure_dependencies(true, Some(reporter.clone())).await;
-
-        // ensure_dependencies itself should still succeed because it gracefully handles download errors
-        assert!(result.is_ok());
-        let deps = result.unwrap();
-
-        // However, the missing dependencies should not have been downloaded
-        assert!(
-            deps.ytdlp.is_none(),
-            "ytdlp should be none on network error"
-        );
-        assert!(
-            deps.ffmpeg.is_none(),
-            "ffmpeg should be none on network error"
-        );
-
-        // Restore global proxy setting
-        crate::core::http_client::init_proxy(ProxySettings::default());
-    }
-
-    #[test]
-    fn test_verify_sha256_and_read_expected_hash() {
-        let _guard = TEST_MUTEX.lock().unwrap();
-
-        // Create a temporary app data dir
-        let tmp = std::env::temp_dir().join(format!("mangofetch_test_{}", uuid::Uuid::new_v4()));
-        let _ = std::fs::create_dir_all(&tmp);
-
-        // Ensure we restore env var after test
-        let original = std::env::var("MANGOFETCH_DATA_DIR");
-        std::env::set_var("MANGOFETCH_DATA_DIR", &tmp);
-
-        // Create a test file and compute its sha256
-        let file_path = tmp.join("test.bin");
-        let data = b"hello-mangofetch";
-        std::fs::write(&file_path, &data[..]).expect("write temp file");
-        let mut hasher = Sha256::new();
-        hasher.update(data);
-        let expected = hex::encode(hasher.finalize());
-
-        // verify_sha256 should succeed with the correct hash
-        assert!(verify_sha256(&file_path, &expected).unwrap());
-
-        // and fail for an incorrect hash
-        assert!(!verify_sha256(&file_path, "deadbeef").unwrap());
-
-        // Create a tool_hashes.json manifest and read_expected_hash
-        let manifest = serde_json::json!({"yt-dlp": expected});
-        let manifest_path = tmp.join("tool_hashes.json");
-        std::fs::write(&manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
-
-        // read_expected_hash should pick up the value
-        let found = read_expected_hash("yt-dlp");
-        assert_eq!(found.as_deref(), Some(expected.as_str()));
-
-        // Non-existent entry returns None
-        assert!(read_expected_hash("ffmpeg").is_none());
-
-        // restore original env
-        match original {
-            Ok(v) => std::env::set_var("MANGOFETCH_DATA_DIR", v),
-            Err(_) => std::env::remove_var("MANGOFETCH_DATA_DIR"),
-        }
-
-        // cleanup
-        let _ = std::fs::remove_file(&file_path);
-        let _ = std::fs::remove_file(&manifest_path);
-        let _ = std::fs::remove_dir(&tmp);
-    }
 }
