@@ -8,6 +8,7 @@ use crate::platforms::traits::PlatformDownloader;
 
 const GQL_URL: &str = "https://gql.twitch.tv/gql";
 
+#[derive(Debug)]
 struct ClipMetadata {
     title: String,
     duration_seconds: f64,
@@ -16,11 +17,13 @@ struct ClipMetadata {
     video_qualities: Vec<ClipQuality>,
 }
 
+#[derive(Debug)]
 struct ClipQuality {
     quality: String,
     source_url: String,
 }
 
+#[derive(Debug)]
 struct AccessToken {
     signature: String,
     value: String,
@@ -127,6 +130,7 @@ impl TwitchClipsDownloader {
             .map_err(|_| anyhow!("TWITCH_CLIENT_ID environment variable not set"))?;
 
         let query = format!(
+
             r#"{{ clip(slug: "{}") {{ broadcaster {{ login }} curator {{ login }} durationSeconds id medium: thumbnailURL(width: 480, height: 272) title videoQualities {{ quality sourceURL }} }} }}"#,
             slug
         );
@@ -218,6 +222,7 @@ impl TwitchClipsDownloader {
                 }
             }
         }]);
+
 
         let response = self
             .client
@@ -376,7 +381,6 @@ impl PlatformDownloader for TwitchClipsDownloader {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_extract_clip_slug() {
         assert_eq!(
@@ -395,5 +399,48 @@ mod tests {
             TwitchClipsDownloader::extract_clip_slug("https://twitch.tv/notaclip"),
             None
         );
+    }
+
+    use std::sync::Mutex;
+    use std::sync::LazyLock;
+
+    static TEST_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    #[tokio::test]
+    async fn test_fetch_clip_metadata_missing_env_vars() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        // Ensure env vars are unset
+        std::env::remove_var("TWITCH_CLIENT_ID");
+        std::env::remove_var("TWITCH_TOKEN_HASH");
+
+        let downloader = TwitchClipsDownloader::new();
+        let result = downloader.fetch_clip_metadata("some_slug").await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "TWITCH_CLIENT_ID environment variable not set");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_access_token_missing_env_vars() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        // Ensure env vars are unset
+        std::env::remove_var("TWITCH_CLIENT_ID");
+        std::env::remove_var("TWITCH_TOKEN_HASH");
+
+        let downloader = TwitchClipsDownloader::new();
+        let result = downloader.fetch_access_token("some_slug").await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "TWITCH_CLIENT_ID environment variable not set");
+
+        std::env::set_var("TWITCH_CLIENT_ID", "dummy");
+        let result = downloader.fetch_access_token("some_slug").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "TWITCH_TOKEN_HASH environment variable not set");
+
+        // Clean up
+        std::env::remove_var("TWITCH_CLIENT_ID");
     }
 }
