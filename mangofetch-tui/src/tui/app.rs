@@ -899,36 +899,34 @@ impl App {
         }
 
         if let Ok(q) = self.queue.try_lock() {
-            let all = q.get_state();
-
-            // Compute aggregates from full list
-            self.active_count = all
+            // Compute aggregates from full list without cloning
+            self.active_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .count();
-            self.queued_count = all
+            self.queued_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Queued))
                 .count();
-            self.completed_count = all
+            self.completed_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Complete { .. }))
                 .count();
-            self.failed_count = all
+            self.failed_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Error { .. }))
                 .count();
 
-            self.total_speed = all
+            self.total_speed = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .map(|i| i.speed_bytes_per_sec)
                 .sum();
 
-            // Filter per tab and category
+            // Filter per tab and category, then clone ONLY the needed items
             self.items = match self.active_tab {
-                Tab::Downloads => all
-                    .into_iter()
+                Tab::Downloads => q.items
+                    .iter()
                     .filter(|i| match self.download_category {
                         DownloadsCategory::All => true,
                         DownloadsCategory::Active => matches!(i.status, QueueStatus::Active),
@@ -940,6 +938,7 @@ impl App {
                             matches!(i.status, QueueStatus::Error { .. })
                         }
                     })
+                    .map(|i| i.to_info())
                     .collect(),
                 _ => Vec::new(),
             };
@@ -1215,7 +1214,7 @@ mod tests {
         assert!(app.message_time.is_none());
     }
 
-    use super::*;
+
 
     #[test]
     fn test_downloads_category_label() {
