@@ -873,7 +873,8 @@ impl App {
 
         // Refresh system info (Process specific, every 2 seconds)
         if self.last_sys_refresh.elapsed().as_secs() >= 2 {
-            self.sys_info.refresh_processes(sysinfo::ProcessesToUpdate::All);
+            self.sys_info
+                .refresh_processes(sysinfo::ProcessesToUpdate::All);
             if let Some(process) = self.sys_info.process(self.pid) {
                 self.cpu_usage = process.cpu_usage();
                 self.mem_usage = process.memory();
