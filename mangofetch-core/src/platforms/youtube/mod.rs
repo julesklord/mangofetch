@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -85,6 +83,8 @@ impl YouTubeDownloader {
                     height: 0,
                     url: entry.url,
                     format: "ytdlp_playlist".to_string(),
+
+                    filesize_bytes: None,
                 })
                 .collect();
 
@@ -105,14 +105,6 @@ impl YouTubeDownloader {
 
         let json = ytdlp::get_video_info(ytdlp_path, url, &[]).await?;
         Self::parse_video_info(&json)
-    }
-
-    fn extract_quality_height(quality_str: &str) -> Option<u32> {
-        let s = quality_str.trim().to_lowercase();
-        if s == "best" || s == "highest" {
-            return None;
-        }
-        s.trim_end_matches('p').parse::<u32>().ok()
     }
 
     pub fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
@@ -151,8 +143,8 @@ impl YouTubeDownloader {
             return Err(anyhow!("Livestreams not supported"));
         }
 
-        let mut qualities: Vec<MediaVideoQuality> = Vec::new();
-        let mut seen_heights: HashSet<u32> = HashSet::new();
+        let mut quality_map: std::collections::BTreeMap<u32, MediaVideoQuality> =
+            std::collections::BTreeMap::new();
 
         if let Some(formats) = json.get("formats").and_then(|v| v.as_array()) {
             for f in formats {
@@ -166,26 +158,40 @@ impl YouTubeDownloader {
                 }
 
                 let has_audio = acodec != "none";
+                let filesize_bytes = f
+                    .get("filesize")
+                    .and_then(|v| v.as_u64())
+                    .or_else(|| f.get("filesize_approx").and_then(|v| v.as_u64()));
 
-                if seen_heights.insert(height) {
-                    let label = if has_audio {
-                        format!("{}p", height)
-                    } else {
-                        format!("{}p (HD)", height)
-                    };
+                let label = if has_audio {
+                    format!("{}p", height)
+                } else {
+                    format!("{}p (HD)", height)
+                };
 
-                    qualities.push(MediaVideoQuality {
-                        label,
-                        width,
-                        height,
-                        url: format!("https://www.youtube.com/watch?v={}", video_id),
-                        format: "ytdlp".to_string(),
-                    });
+                let q = MediaVideoQuality {
+                    label,
+                    width,
+                    height,
+                    url: format!("https://www.youtube.com/watch?v={}", video_id),
+                    format: "ytdlp".to_string(),
+                    filesize_bytes,
+                };
+
+                if let Some(existing) = quality_map.get(&height) {
+                    let existing_has_audio = !existing.label.contains("(HD)");
+                    let replace = (!existing_has_audio && has_audio)
+                        || (filesize_bytes.is_some() && existing.filesize_bytes.is_none());
+                    if replace {
+                        quality_map.insert(height, q);
+                    }
+                } else {
+                    quality_map.insert(height, q);
                 }
             }
         }
 
-        qualities.sort_by_key(|q| std::cmp::Reverse(q.height));
+        let mut qualities: Vec<MediaVideoQuality> = quality_map.into_values().rev().collect();
 
         if qualities.is_empty() {
             qualities.push(MediaVideoQuality {
@@ -194,6 +200,8 @@ impl YouTubeDownloader {
                 height: 0,
                 url: format!("https://www.youtube.com/watch?v={}", video_id),
                 format: "ytdlp".to_string(),
+
+                filesize_bytes: None,
             });
         }
 
@@ -254,6 +262,8 @@ impl PlatformDownloader for YouTubeDownloader {
                     height: 0,
                     url: entry.url,
                     format: "ytdlp_playlist".to_string(),
+
+                    filesize_bytes: None,
                 })
                 .collect();
 
@@ -301,27 +311,15 @@ impl PlatformDownloader for YouTubeDownloader {
             .first()
             .ok_or_else(|| anyhow!("No quality available"))?;
 
-        let quality_height = if let Some(ref wanted) = opts.quality {
-            if wanted == "best" {
-                None
-            } else {
-                Self::extract_quality_height(wanted)
-            }
-        } else {
-            None
-        };
-
         let selected = if let Some(ref wanted) = opts.quality {
-            if wanted == "best" {
-                first
-            } else {
-                info.available_qualities
-                    .iter()
-                    .find(|q| q.label == *wanted)
-                    .unwrap_or(first)
-            }
+            info.get_closest_quality(wanted).unwrap_or(first)
         } else {
             first
+        };
+        let quality_height = if selected.height > 0 {
+            Some(selected.height)
+        } else {
+            None
         };
         let video_url = &selected.url;
 
@@ -332,6 +330,9 @@ impl PlatformDownloader for YouTubeDownloader {
             quality_height,
             progress,
             opts.download_mode.as_deref(),
+            opts.video_format.as_deref(),
+            opts.audio_format.as_deref(),
+            opts.audio_quality.as_deref(),
             opts.format_id.as_deref(),
             opts.filename_template.as_deref(),
             opts.referer.as_deref().or(Some("https://www.youtube.com/")),
@@ -364,7 +365,7 @@ impl YouTubeDownloader {
 
         for (i, entry) in info.available_qualities.iter().enumerate() {
             if opts.cancel_token.is_cancelled() {
-                anyhow::bail!("Download cancelado");
+                anyhow::bail!("Download cancelled");
             }
 
             let (video_tx, mut video_rx) = mpsc::channel::<f64>(16);
@@ -388,6 +389,9 @@ impl YouTubeDownloader {
                 None,
                 video_tx,
                 opts.download_mode.as_deref(),
+                opts.video_format.as_deref(),
+                opts.audio_format.as_deref(),
+                opts.audio_quality.as_deref(),
                 None,
                 opts.filename_template.as_deref(),
                 opts.referer.as_deref().or(Some("https://www.youtube.com/")),
@@ -429,11 +433,11 @@ mod tests {
 
     #[test]
     fn test_parse_video_info_basic() {
-        let json = json!({
-            "id": "abc123",
-            "title": "Test Video",
-            "uploader": "Test Uploader",
-            "duration": 120.0,
+        let js = json!({
+            "id": "dQw4w9WgXcQ",
+            "title": "Never Gonna Give You Up",
+            "uploader": "Rick Astley",
+            "duration": 212.5,
             "thumbnail": "https://example.com/thumb.jpg",
             "is_live": false,
             "formats": [
@@ -447,126 +451,101 @@ mod tests {
                     "height": 720,
                     "width": 1280,
                     "vcodec": "avc1",
-                    "acodec": "mp4a"
-                }
-            ]
-        });
-
-        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
-        assert_eq!(info.title, "Test Video");
-        assert_eq!(info.author, "Test Uploader");
-        assert_eq!(info.platform, "youtube");
-        assert_eq!(info.duration_seconds, Some(120.0));
-        assert_eq!(info.thumbnail_url, Some("https://example.com/thumb.jpg".to_string()));
-        assert_eq!(info.available_qualities.len(), 2);
-        assert_eq!(info.available_qualities[0].height, 1080);
-        assert_eq!(info.available_qualities[1].height, 720);
-    }
-
-    #[test]
-    fn test_parse_video_info_livestream() {
-        let json = json!({
-            "id": "abc123",
-            "title": "Live Video",
-            "is_live": true
-        });
-
-        let result = YouTubeDownloader::parse_video_info(&json);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Livestreams not supported");
-    }
-
-    #[test]
-    fn test_parse_video_info_uploader_fallback() {
-        let json = json!({
-            "id": "abc123",
-            "title": "Test Video",
-            "channel": "Test Channel",
-            "is_live": false
-        });
-
-        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
-        assert_eq!(info.author, "Test Channel");
-    }
-
-    #[test]
-    fn test_parse_video_info_format_filtering() {
-        let json = json!({
-            "id": "abc123",
-            "title": "Test Video",
-            "is_live": false,
-            "formats": [
-                {
-                    "height": 1080,
-                    "width": 1920,
-                    "vcodec": "avc1",
-                    "acodec": "mp4a"
-                },
-                {
-                    "height": 0,
-                    "width": 0,
-                    "vcodec": "avc1",
-                    "acodec": "mp4a"
-                },
-                {
-                    "height": 720,
-                    "width": 1280,
-                    "vcodec": "none",
-                    "acodec": "mp4a"
-                }
-            ]
-        });
-
-        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
-        assert_eq!(info.available_qualities.len(), 1);
-        assert_eq!(info.available_qualities[0].height, 1080);
-    }
-
-    #[test]
-    fn test_parse_video_info_deduplication_and_sorting() {
-        let json = json!({
-            "id": "abc123",
-            "title": "Test Video",
-            "is_live": false,
-            "formats": [
-                {
-                    "height": 720,
-                    "width": 1280,
-                    "vcodec": "avc1",
-                    "acodec": "mp4a"
-                },
-                {
-                    "height": 1080,
-                    "width": 1920,
-                    "vcodec": "avc1",
-                    "acodec": "mp4a"
-                },
-                {
-                    "height": 720,
-                    "width": 1280,
-                    "vcodec": "vp9",
                     "acodec": "none"
                 }
             ]
         });
 
-        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+
+        assert_eq!(info.title, "Never Gonna Give You Up");
+        assert_eq!(info.author, "Rick Astley");
+        assert_eq!(info.platform, "youtube");
+        assert_eq!(info.duration_seconds, Some(212.5));
+        assert_eq!(
+            info.thumbnail_url,
+            Some("https://example.com/thumb.jpg".to_string())
+        );
+        assert_eq!(info.media_type, MediaType::Video);
+
         assert_eq!(info.available_qualities.len(), 2);
+        // Qualities should be sorted by height descending
         assert_eq!(info.available_qualities[0].height, 1080);
+        assert_eq!(info.available_qualities[0].label, "1080p"); // has audio
         assert_eq!(info.available_qualities[1].height, 720);
+        assert_eq!(info.available_qualities[1].label, "720p (HD)"); // no audio
     }
 
     #[test]
-    fn test_parse_video_info_empty_formats() {
-        let json = json!({
-            "id": "abc123",
-            "title": "Test Video",
-            "is_live": false,
-            "formats": []
-        });
+    fn test_parse_video_info_missing_fields() {
+        let js = json!({});
 
-        let info = YouTubeDownloader::parse_video_info(&json).unwrap();
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+
+        assert_eq!(info.title, "unknown");
+        assert_eq!(info.author, "unknown");
+        assert_eq!(info.duration_seconds, None);
+        assert_eq!(info.thumbnail_url, None);
+
+        // Should fallback to best format
         assert_eq!(info.available_qualities.len(), 1);
         assert_eq!(info.available_qualities[0].label, "best");
+        assert_eq!(info.available_qualities[0].height, 0);
+    }
+
+    #[test]
+    fn test_parse_video_info_livestream() {
+        let js = json!({
+            "id": "live_id",
+            "is_live": true
+        });
+
+        let err = YouTubeDownloader::parse_video_info(&js).unwrap_err();
+        assert_eq!(err.to_string(), "Livestreams not supported");
+    }
+
+    #[test]
+    fn test_parse_video_info_fallback_author() {
+        let js = json!({
+            "id": "vid",
+            "channel": "Awesome Channel"
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+        assert_eq!(info.author, "Awesome Channel");
+    }
+
+    #[test]
+    fn test_parse_video_info_filter_formats() {
+        let js = json!({
+            "id": "vid",
+            "formats": [
+                {
+                    "height": 1080,
+                    "vcodec": "none", // Should be filtered out
+                    "acodec": "mp4a"
+                },
+                {
+                    "height": 0, // Should be filtered out
+                    "vcodec": "avc1",
+                    "acodec": "none"
+                },
+                {
+                    "height": 720, // Keep
+                    "vcodec": "avc1",
+                    "acodec": "none"
+                },
+                {
+                    "height": 720, // Duplicate height, should be filtered out
+                    "vcodec": "vp9",
+                    "acodec": "opus"
+                }
+            ]
+        });
+
+        let info = YouTubeDownloader::parse_video_info(&js).unwrap();
+
+        assert_eq!(info.available_qualities.len(), 1);
+        assert_eq!(info.available_qualities[0].height, 720);
     }
 }
