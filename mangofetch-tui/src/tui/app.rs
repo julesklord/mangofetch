@@ -392,8 +392,7 @@ impl App {
         let theme = Self::make_theme(&settings.appearance.tui_theme);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let mut sys_info = sysinfo::System::new();
-        let pid = sysinfo::get_current_pid().unwrap_or(sysinfo::Pid::from(0));
-        sys_info.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]));
+        sys_info.refresh_processes();
 
         Self {
             state: AppState::Splash,
@@ -878,8 +877,7 @@ impl App {
 
         // Refresh system info (Process specific, every 2 seconds)
         if self.last_sys_refresh.elapsed().as_secs() >= 2 {
-            self.sys_info
-                .refresh_processes(sysinfo::ProcessesToUpdate::Some(&[self.pid]));
+            self.sys_info.refresh_processes();
             if let Some(process) = self.sys_info.process(self.pid) {
                 self.cpu_usage = process.cpu_usage();
                 self.mem_usage = process.memory();
@@ -1214,8 +1212,11 @@ mod tests {
         assert_eq!(app.status_message, None);
         assert!(app.message_time.is_none());
     }
+<<<<<<< HEAD
 
     use super::*;
+=======
+>>>>>>> origin/add-paths-tests-340729286566546073
 
     #[test]
     fn test_downloads_category_label() {
