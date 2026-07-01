@@ -163,8 +163,8 @@ impl InstagramDownloader {
     }
 
     fn random_base64url(len: usize) -> String {
-        let mut rng = rand::thread_rng();
-        let bytes: Vec<u8> = (0..len).map(|_| rng.gen::<u8>()).collect();
+        let mut rng = rand::rng();
+        let bytes: Vec<u8> = (0..len).map(|_| rng.random::<u8>()).collect();
         let s: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
         s[0..len].to_string()
     }
@@ -175,12 +175,12 @@ impl InstagramDownloader {
     }
 
     fn random_alpha_string(len: usize) -> String {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
             .chars()
             .collect();
         (0..len)
-            .map(|_| chars[rng.gen_range(0..chars.len())])
+            .map(|_| chars[rng.random_range(0..chars.len())])
             .collect()
     }
 
@@ -333,7 +333,7 @@ impl InstagramDownloader {
             .unwrap_or_else(|| "7".to_string());
 
         let jazoest = Self::extract_number_from_query(&JAZOEST_RE, &html).unwrap_or_else(|| {
-            let val: u32 = rand::thread_rng().gen_range(1000..10000);
+            let val: u32 = rand::rng().random_range(1000..10000);
             val.to_string()
         });
 
