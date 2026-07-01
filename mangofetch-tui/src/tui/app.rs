@@ -393,7 +393,7 @@ impl App {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let mut sys_info = sysinfo::System::new();
         let pid = sysinfo::get_current_pid().unwrap_or(sysinfo::Pid::from(0));
-        sys_info.refresh_processes();
+        sys_info.refresh_processes(sysinfo::ProcessesToUpdate::All);
 
         Self {
             state: AppState::Splash,
@@ -873,7 +873,8 @@ impl App {
 
         // Refresh system info (Process specific, every 2 seconds)
         if self.last_sys_refresh.elapsed().as_secs() >= 2 {
-            self.sys_info.refresh_processes();
+            self.sys_info
+                .refresh_processes(sysinfo::ProcessesToUpdate::All);
             if let Some(process) = self.sys_info.process(self.pid) {
                 self.cpu_usage = process.cpu_usage();
                 self.mem_usage = process.memory();
@@ -893,36 +894,41 @@ impl App {
         }
 
         if let Ok(q) = self.queue.try_lock() {
-            let all = q.get_state();
-
-            // Compute aggregates from full list
-            self.active_count = all
+            // Compute aggregates from full list directly without cloning state
+            // ⚡ Bolt: Avoid calling `q.get_state()` in hot path to prevent unnecessary allocations
+            self.active_count = q
+                .items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .count();
-            self.queued_count = all
+            self.queued_count = q
+                .items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Queued))
                 .count();
-            self.completed_count = all
+            self.completed_count = q
+                .items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Complete { .. }))
                 .count();
-            self.failed_count = all
+            self.failed_count = q
+                .items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Error { .. }))
                 .count();
 
-            self.total_speed = all
+            self.total_speed = q
+                .items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .map(|i| i.speed_bytes_per_sec)
                 .sum();
 
-            // Filter per tab and category
+            // Filter per tab and category, mapping only what is displayed
             self.items = match self.active_tab {
-                Tab::Downloads => all
-                    .into_iter()
+                Tab::Downloads => q
+                    .items
+                    .iter()
                     .filter(|i| match self.download_category {
                         DownloadsCategory::All => true,
                         DownloadsCategory::Active => matches!(i.status, QueueStatus::Active),
@@ -934,6 +940,7 @@ impl App {
                             matches!(i.status, QueueStatus::Error { .. })
                         }
                     })
+                    .map(|i| i.to_info())
                     .collect(),
                 _ => Vec::new(),
             };
