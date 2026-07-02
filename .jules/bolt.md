@@ -10,3 +10,5 @@
 ## 2024-05-18 - Avoid Blocking Tokio Executor with Synchronous Filesystem Traversals
 **Learning:** `std::fs::read_dir` and iterating over files synchronously blocks the Tokio executor thread. When performing complex or unbounded directory iterations inside an async function like `cleanup_part_files`, this blocking behavior can significantly impact overall async runtime performance.
 **Action:** Wrap the entire synchronous block inside `tokio::task::spawn_blocking` and await its result. This offloads the blocking operations to a separate blocking thread pool, allowing the async executor to continue scheduling other tasks without interruption.
+## 2024-07-02 - Avoid full state clones in TUI hot paths
+**Learning:** Calling `DownloadQueue::get_state()`, which iterates over and clones all `QueueItem` instances into `QueueItemInfo` structures, on every tick inside `mangofetch-tui/src/tui/app.rs` (`refresh_data`) creates massive allocation overhead.
