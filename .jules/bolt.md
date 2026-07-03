@@ -10,6 +10,3 @@
 ## 2024-05-18 - Avoid Blocking Tokio Executor with Synchronous Filesystem Traversals
 **Learning:** `std::fs::read_dir` and iterating over files synchronously blocks the Tokio executor thread. When performing complex or unbounded directory iterations inside an async function like `cleanup_part_files`, this blocking behavior can significantly impact overall async runtime performance.
 **Action:** Wrap the entire synchronous block inside `tokio::task::spawn_blocking` and await its result. This offloads the blocking operations to a separate blocking thread pool, allowing the async executor to continue scheduling other tasks without interruption.
-## 2024-07-03 - [Avoid full state cloning in hot TUI update loop]
-**Learning:** The TUI update loop (`refresh_data`) runs very frequently. Calling a method like `get_state()` which deep clones all items (including Strings and complex structs like MediaInfo) causes a huge allocation and CPU overhead on every tick, even for elements that are hidden or not currently displayed.
-**Action:** Iterate directly over the internal items collection and calculate aggregates on the spot. Only perform the expensive `to_info()` clone mapping on the subset of items that are actually going to be displayed in the current active tab and category filter.

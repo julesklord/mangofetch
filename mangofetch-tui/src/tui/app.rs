@@ -873,8 +873,7 @@ impl App {
 
         // Refresh system info (Process specific, every 2 seconds)
         if self.last_sys_refresh.elapsed().as_secs() >= 2 {
-            self.sys_info
-                .refresh_processes(sysinfo::ProcessesToUpdate::All);
+            self.sys_info.refresh_processes(sysinfo::ProcessesToUpdate::All);
             if let Some(process) = self.sys_info.process(self.pid) {
                 self.cpu_usage = process.cpu_usage();
                 self.mem_usage = process.memory();
@@ -895,29 +894,24 @@ impl App {
 
         if let Ok(q) = self.queue.try_lock() {
             // Compute aggregates from full list
-            self.active_count = q
-                .items
+            self.active_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .count();
-            self.queued_count = q
-                .items
+            self.queued_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Queued))
                 .count();
-            self.completed_count = q
-                .items
+            self.completed_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Complete { .. }))
                 .count();
-            self.failed_count = q
-                .items
+            self.failed_count = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Error { .. }))
                 .count();
 
-            self.total_speed = q
-                .items
+            self.total_speed = q.items
                 .iter()
                 .filter(|i| matches!(i.status, QueueStatus::Active))
                 .map(|i| i.speed_bytes_per_sec)
@@ -925,8 +919,7 @@ impl App {
 
             // Filter per tab and category
             self.items = match self.active_tab {
-                Tab::Downloads => q
-                    .items
+                Tab::Downloads => q.items
                     .iter()
                     .filter(|i| match self.download_category {
                         DownloadsCategory::All => true,

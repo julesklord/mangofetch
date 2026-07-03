@@ -130,6 +130,7 @@ impl TwitchClipsDownloader {
             .map_err(|_| anyhow!("TWITCH_CLIENT_ID environment variable not set"))?;
 
         let query = format!(
+
             r#"{{ clip(slug: "{}") {{ broadcaster {{ login }} curator {{ login }} durationSeconds id medium: thumbnailURL(width: 480, height: 272) title videoQualities {{ quality sourceURL }} }} }}"#,
             slug
         );
@@ -221,6 +222,7 @@ impl TwitchClipsDownloader {
                 }
             }
         }]);
+
 
         let response = self
             .client
@@ -399,8 +401,8 @@ mod tests {
         );
     }
 
-    use std::sync::LazyLock;
     use std::sync::Mutex;
+    use std::sync::LazyLock;
 
     static TEST_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -416,10 +418,7 @@ mod tests {
         let result = downloader.fetch_clip_metadata("some_slug").await;
 
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "TWITCH_CLIENT_ID environment variable not set"
-        );
+        assert_eq!(result.unwrap_err().to_string(), "TWITCH_CLIENT_ID environment variable not set");
     }
 
     #[tokio::test]
@@ -434,18 +433,12 @@ mod tests {
         let result = downloader.fetch_access_token("some_slug").await;
 
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "TWITCH_CLIENT_ID environment variable not set"
-        );
+        assert_eq!(result.unwrap_err().to_string(), "TWITCH_CLIENT_ID environment variable not set");
 
         std::env::set_var("TWITCH_CLIENT_ID", "dummy");
         let result = downloader.fetch_access_token("some_slug").await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "TWITCH_TOKEN_HASH environment variable not set"
-        );
+        assert_eq!(result.unwrap_err().to_string(), "TWITCH_TOKEN_HASH environment variable not set");
 
         // Clean up
         std::env::remove_var("TWITCH_CLIENT_ID");
