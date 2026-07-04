@@ -237,12 +237,12 @@ impl Theme {
             background: Color::Rgb(26, 28, 32),   // Cool deep charcoal
             surface: Color::Rgb(36, 40, 48),      // Cool panel gray
             surface_dim: Color::Rgb(30, 34, 40),
-            text: Color::Rgb(236, 239, 244),      // Clean white/gray
-            text_dim: Color::Rgb(140, 150, 168),  // Muted gray
-            success: Color::Rgb(163, 190, 140),   // Nord green
-            warning: Color::Rgb(235, 203, 139),   // Nord yellow
-            error: Color::Rgb(191, 97, 106),      // Nord red
-            progress: Color::Rgb(143, 188, 187),  // Frost teal
+            text: Color::Rgb(236, 239, 244),     // Clean white/gray
+            text_dim: Color::Rgb(140, 150, 168), // Muted gray
+            success: Color::Rgb(163, 190, 140),  // Nord green
+            warning: Color::Rgb(235, 203, 139),  // Nord yellow
+            error: Color::Rgb(191, 97, 106),     // Nord red
+            progress: Color::Rgb(143, 188, 187), // Frost teal
         }
     }
 
@@ -255,12 +255,12 @@ impl Theme {
             background: Color::Rgb(12, 12, 12),   // Pitch black / deep charcoal
             surface: Color::Rgb(28, 28, 28),      // Muted surface
             surface_dim: Color::Rgb(20, 20, 20),
-            text: Color::Rgb(240, 240, 240),      // Crisp white
-            text_dim: Color::Rgb(110, 110, 110),  // Muted gray
-            success: Color::Rgb(160, 160, 160),   // Soft gray success
+            text: Color::Rgb(240, 240, 240),     // Crisp white
+            text_dim: Color::Rgb(110, 110, 110), // Muted gray
+            success: Color::Rgb(160, 160, 160),  // Soft gray success
             warning: Color::Rgb(200, 200, 200),
-            error: Color::Rgb(220, 50, 50),       // Alert red (critical only)
-            progress: Color::Rgb(220, 220, 220),  // Clean gray progress
+            error: Color::Rgb(220, 50, 50), // Alert red (critical only)
+            progress: Color::Rgb(220, 220, 220), // Clean gray progress
         }
     }
 
