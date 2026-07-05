@@ -72,7 +72,7 @@ MangoFetch runs natively on multiple architectures and operating systems.
 ___
 
 <p align="center">
-  <img src="docs/assets/mangofetch_demo.webp" alt="MangoFetch TUI demo" />
+  <img src="docs/assets/demo.gif" alt="MangoFetch TUI demo" />
 </p>
 
 ---
