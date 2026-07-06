@@ -163,7 +163,7 @@ mod tests {
         assert_eq!(entry.id, "test-plugin");
         assert_eq!(entry.homepage, None);
         assert!(entry.tags.is_empty());
-        assert_eq!(entry.official, false);
+        assert!(!entry.official);
         assert!(entry.capabilities.is_empty());
     }
 }

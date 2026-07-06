@@ -491,7 +491,7 @@ async fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifier
                     app.next_tab();
                 }
             }
-        }
+        },
         KeyCode::Char('[') => {
             if app.active_tab == Tab::Settings {
                 app.reorder_statusbar_module(true);

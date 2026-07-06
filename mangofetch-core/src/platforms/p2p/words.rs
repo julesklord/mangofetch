@@ -258,10 +258,10 @@ pub static WORDLIST: [&str; 256] = [
 ];
 
 pub fn generate_code() -> String {
+    use rand::rng;
     use rand::seq::SliceRandom;
-    use rand::thread_rng;
 
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut indices = Vec::with_capacity(4);
 
     let mut nums: Vec<usize> = (0..256).collect();

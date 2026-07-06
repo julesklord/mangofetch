@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+#![allow(clippy::await_holding_lock)]
 use std::sync::{Arc, OnceLock};
 
 pub type LogSink = Arc<dyn Fn(u64, &str) + Send + Sync + 'static>;
