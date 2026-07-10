@@ -5,7 +5,7 @@ mod reporter; // NEW: Import output formatters module
 mod tui; // NEW: Terminal User Interface module // Shared download engine logic
 
 use crate::output::{
-    format_about_changelog, format_about_info, format_about_roadmap, format_about_terms,
+    format_about_changelog, format_about_info, format_about_terms,
     format_batch_summary, format_clean_summary, format_config_display, format_dependency_check,
     format_info_card, format_queue_list,
 };
@@ -192,7 +192,6 @@ enum ConfigAction {
 #[derive(Subcommand)]
 enum AboutTopic {
     Version,
-    Roadmap,
     Changelog,
     Terms,
 }
@@ -665,9 +664,6 @@ async fn main() -> Result<()> {
                             &theme
                         )
                     );
-                }
-                AboutTopic::Roadmap => {
-                    println!("{}", format_about_roadmap(&theme));
                 }
                 AboutTopic::Changelog => {
                     println!("{}", format_about_changelog(&theme));

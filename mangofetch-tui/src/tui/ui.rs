@@ -991,7 +991,6 @@ fn render_about(f: &mut Frame, app: &App, area: Rect) {
 
     let sections = [
         (if nf { "󰋽 Info" } else { "Project Info" }),
-        (if nf { "󰄗 Roadmap" } else { "Roadmap" }),
         (if nf { "󰄗 Changelog" } else { "Changelog" }),
         (if nf { "󰄬 Terms" } else { "Terms of Use" }),
         (if nf { "󰒓 Debug" } else { "Debug Details" }),
@@ -1039,9 +1038,8 @@ fn render_about(f: &mut Frame, app: &App, area: Rect) {
             "github.com/julesklord/mangofetch-cli",
             &theme_obj,
         ),
-        1 => crate::output::format_about_roadmap(&theme_obj),
-        2 => crate::output::format_about_changelog(&theme_obj),
-        3 => crate::output::format_about_terms(&theme_obj),
+        1 => crate::output::format_about_changelog(&theme_obj),
+        2 => crate::output::format_about_terms(&theme_obj),
         _ => format!(
             "\n  MangoFetch CLI v{}\n  Target: {}\n  Data Dir: {:?}\n",
             app.version,

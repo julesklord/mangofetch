@@ -339,19 +339,6 @@ pub fn format_about_info(
     )
 }
 
-pub fn format_about_roadmap(theme: &Arc<dyn CliTheme>) -> String {
-    format!(
-        "\n{margin}{info}Roadmap{reset}  {accent}Future plans{reset}\n{margin}{bar}\n\
-         {margin}v0.6.0 - Plugin ecosystem & Community sites\n\
-         {margin}v0.7.0 - Native GUI Umbrella (Tauri v2)\n\
-         {margin}v1.0.0 - Distributed swarm downloads\n",
-        margin = MARGIN,
-        info = theme.color_info(),
-        accent = theme.color_accent(),
-        reset = theme.color_reset(),
-        bar = "—".repeat(50),
-    )
-}
 
 pub fn format_about_changelog(theme: &Arc<dyn CliTheme>) -> String {
     format!(
