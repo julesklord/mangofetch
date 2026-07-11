@@ -83,9 +83,27 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install Windows Build Tools
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install windows-build-tools -y
+
       - name: Install Cross
         if: matrix.use_cross
         uses: taiki-e/install-action@cross
+
+      - name: Install Cross-Compilation Dependencies
+        if: matrix.use_cross
+        run: |
+          sudo apt-get update
+          case "${{ matrix.target }}" in
+            armv7-unknown-linux-gnueabihf)
+              sudo apt-get install -y gcc-arm-linux-gnueabihf
+              ;;
+            x86_64-unknown-freebsd)
+              sudo apt-get install -y clang libffi-dev pkg-config
+              ;;
+          esac
 
       - name: Install Linux Dependencies (Ubuntu x64)
         if: matrix.os == 'ubuntu-latest' && !matrix.use_cross
@@ -170,7 +188,7 @@ jobs:
 
   publish-crates:
     name: Publish to Crates.io
-    needs: create-release
+    needs: [create-release, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
