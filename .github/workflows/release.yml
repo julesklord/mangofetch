@@ -136,7 +136,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
 
           # TUI
-          CLI_BINARY="mangofetch-cli-${{ matrix.target }}${{ matrix.suffix }}"
+          CLI_BINARY="mangofetch-${{ matrix.target }}${{ matrix.suffix }}"
           cp target/${{ matrix.target }}/release/mangofetch${{ matrix.suffix }} ./$CLI_BINARY
           echo "CLI_ASSET=$CLI_BINARY" >> $GITHUB_ENV
 
@@ -166,7 +166,7 @@ jobs:
             $scoop = Get-Content $scoopPath | ConvertFrom-Json
             $scoop.version = $version
             $scoop.architecture.64bit.hash = $hash
-            $scoop.architecture.64bit.url = "https://github.com/julesklord/mangofetch/releases/download/${{ github.ref_name }}/mangofetch-cli-x86_64-pc-windows-msvc.exe#/mangofetch.exe"
+            $scoop.architecture.64bit.url = "https://github.com/julesklord/mangofetch/releases/download/${{ github.ref_name }}/mangofetch-x86_64-pc-windows-msvc.exe#/mangofetch.exe"
             $scoop | ConvertTo-Json -Depth 10 | Set-Content $scoopPath
           }
 
@@ -174,7 +174,7 @@ jobs:
             $wingetPath = "installers/winget/julesklord.mangofetch.yaml"
             (Get-Content $wingetPath) -replace 'PackageVersion: .*', "PackageVersion: $version" `
                                       -replace 'InstallerSha256: .*', "InstallerSha256: $hash" `
-                                      -replace 'InstallerUrl: .*', "InstallerUrl: https://github.com/julesklord/mangofetch/releases/download/${{ github.ref_name }}/mangofetch-cli-x86_64-pc-windows-msvc.exe" | Set-Content $wingetPath
+                                      -replace 'InstallerUrl: .*', "InstallerUrl: https://github.com/julesklord/mangofetch/releases/download/${{ github.ref_name }}/mangofetch-x86_64-pc-windows-msvc.exe" | Set-Content $wingetPath
           }
 
       - name: Commit manifest updates
