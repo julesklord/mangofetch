@@ -1,6 +1,6 @@
 [package]
 name = "mangofetch"
-version = "0.7.7"
+version = "0.7.8"
 edition = "2021"
 description = "Terminal User Interface (TUI) for MangoFetch download manager"
 authors = ["Jules Martins <TU_ID+julesklord@users.noreply.github.com>"]
@@ -15,7 +15,7 @@ name = "mangofetch"
 path = "src/main.rs"
 
 [dependencies]
-mangofetch-core = { path = "../mangofetch-core", version = "0.7.7", features = [
+mangofetch-core = { path = "../mangofetch-core", version = "0.7.8", features = [
     "platforms",
 ] }
 clap = { version = "4.4", features = ["derive", "cargo"] }
