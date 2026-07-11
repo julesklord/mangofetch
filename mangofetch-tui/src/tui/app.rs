@@ -908,28 +908,25 @@ impl App {
             let items = &q.items;
 
             // Compute aggregates from full list
-            self.active_count = items
-                .iter()
-                .filter(|i| matches!(i.status, QueueStatus::Active))
-                .count();
-            self.queued_count = items
-                .iter()
-                .filter(|i| matches!(i.status, QueueStatus::Queued))
-                .count();
-            self.completed_count = items
-                .iter()
-                .filter(|i| matches!(i.status, QueueStatus::Complete { .. }))
-                .count();
-            self.failed_count = items
-                .iter()
-                .filter(|i| matches!(i.status, QueueStatus::Error { .. }))
-                .count();
+            // Optimization: Compute all aggregations in a single pass over the items vector (O(n) instead of O(5n)).
+            self.active_count = 0;
+            self.queued_count = 0;
+            self.completed_count = 0;
+            self.failed_count = 0;
+            self.total_speed = 0.0;
 
-            self.total_speed = items
-                .iter()
-                .filter(|i| matches!(i.status, QueueStatus::Active))
-                .map(|i| i.progress.speed_bytes_per_sec)
-                .sum();
+            for i in items.iter() {
+                match i.status {
+                    QueueStatus::Active => {
+                        self.active_count += 1;
+                        self.total_speed += i.progress.speed_bytes_per_sec;
+                    }
+                    QueueStatus::Queued => self.queued_count += 1,
+                    QueueStatus::Complete { .. } => self.completed_count += 1,
+                    QueueStatus::Error { .. } => self.failed_count += 1,
+                    _ => {}
+                }
+            }
 
             // Filter per tab and category
             self.items = match self.active_tab {

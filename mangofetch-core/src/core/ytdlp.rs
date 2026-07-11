@@ -140,7 +140,7 @@ fn split_chapters_enabled() -> bool {
 static EXT_UA_MAP: OnceLock<DashMap<String, String>> = OnceLock::new();
 
 fn ext_ua_map() -> &'static DashMap<String, String> {
-    EXT_UA_MAP.get_or_init(|| DashMap::new())
+    EXT_UA_MAP.get_or_init(DashMap::new)
 }
 
 pub fn register_ext_user_agent(url: String, ua: String) {
@@ -158,7 +158,7 @@ fn ext_user_agent_for_url(url: &str) -> Option<String> {
 static ETA_BY_DOWNLOAD: OnceLock<DashMap<u64, u64>> = OnceLock::new();
 
 fn eta_map() -> &'static DashMap<u64, u64> {
-    ETA_BY_DOWNLOAD.get_or_init(|| DashMap::new())
+    ETA_BY_DOWNLOAD.get_or_init(DashMap::new)
 }
 
 pub fn record_eta(download_id: u64, eta_seconds: u64) {
@@ -176,7 +176,7 @@ pub fn clear_eta(download_id: u64) {
 static EXT_HEADERS_MAP: OnceLock<DashMap<String, HashMap<String, String>>> = OnceLock::new();
 
 fn ext_headers_map() -> &'static DashMap<String, HashMap<String, String>> {
-    EXT_HEADERS_MAP.get_or_init(|| DashMap::new())
+    EXT_HEADERS_MAP.get_or_init(DashMap::new)
 }
 
 pub fn register_ext_headers(url: String, headers: HashMap<String, String>) {

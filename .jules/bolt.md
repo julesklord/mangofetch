@@ -13,3 +13,6 @@
 ## 2024-05-31 - [Avoid cloning full application state in TUI hot paths]
 **Learning:** In `mangofetch-tui`'s `refresh_data` loop, computing aggregates and filters by mapping every download item to a complete info struct via `DownloadQueue::get_state()` creates significant allocation overhead, especially when the queue grows large. This operation is called frequently (~50ms) in the hot path.
 **Action:** Iterate directly over the raw data (`q.items`) for lightweight calculations (like counting and summing), and only map the raw items to their detailed DTOs (`to_info()`) AFTER filtering them down to just the items that will be displayed in the current view.
+## 2024-05-31 - [Consolidate redundant iterations in TUI refresh_data]
+**Learning:** In `mangofetch-tui`'s `refresh_data` loop, computing active counts, queued counts, etc, was being done with multiple filter/count passes (5 passes total).
+**Action:** Always combine multiple iterations over the same collection into a single pass to save CPU overhead in hot paths like TUI ticks.
