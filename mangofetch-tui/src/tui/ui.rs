@@ -505,7 +505,13 @@ fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
         }
     };
 
-    let on_off = |b: bool| if b { "ON".to_string() } else { "OFF".to_string() };
+    let on_off = |b: bool| {
+        if b {
+            "ON".to_string()
+        } else {
+            "OFF".to_string()
+        }
+    };
 
     match kind {
         SettingKind::TuiTheme => s.appearance.tui_theme.clone(),
