@@ -1,0 +1,4 @@
+🎯 **What:** The `get_setting_value` function in `mangofetch-tui/src/tui/ui_settings.rs` was heavily bloated due to repeated explicit `if...else` patterns for boolean settings. We introduced an inline `on_off` closure that reduces this repetition.
+💡 **Why:** This drastically reduces the size of the function, changing it from 130 lines to approximately 40 lines. It improves readability and maintainability.
+✅ **Verification:** Verified by checking formatting, running clippy with warnings explicitly enforced as errors, and ensuring that all existing tests pass correctly.
+✨ **Result:** The logic correctly operates exactly as before, with significantly cleaner, DRY syntax.
