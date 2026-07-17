@@ -301,6 +301,7 @@ pub struct App {
 
     pub version: String,
     pub current_time: String,
+    pub last_time_refresh: std::time::Instant,
     pub use_nerd_fonts: bool,
     pub enable_animations: bool,
     pub layout: String,
@@ -413,6 +414,7 @@ impl App {
             settings: settings.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             current_time: Local::now().format("%H:%M").to_string(),
+            last_time_refresh: std::time::Instant::now(),
             use_nerd_fonts: settings.appearance.use_nerd_fonts,
             enable_animations: settings.appearance.enable_animations,
             layout: settings.appearance.layout.clone(),
@@ -897,10 +899,13 @@ impl App {
         }
 
         // Update clock only once per second to avoid UI churn
-        let now = Local::now();
-        let time_str = now.format("%H:%M").to_string();
-        if self.current_time != time_str {
-            self.current_time = time_str;
+        if self.last_time_refresh.elapsed().as_secs() >= 1 {
+            let now = Local::now();
+            let time_str = now.format("%H:%M").to_string();
+            if self.current_time != time_str {
+                self.current_time = time_str;
+            }
+            self.last_time_refresh = std::time::Instant::now();
         }
 
         if matches!(self.state, AppState::Splash) {

@@ -22,3 +22,6 @@
 ## 2024-07-13 - [Avoid updating all system processes in sysinfo]
 **Learning:** Calling `sys_info.refresh_processes(sysinfo::ProcessesToUpdate::All)` forces the application to iterate over and update statistics for all running processes on the system, which is highly CPU and disk I/O intensive.
 **Action:** When only the current process's statistics are needed, use `sysinfo::ProcessesToUpdate::Some(&[pid])` to narrow down the refresh and drastically reduce overhead.
+## 2024-05-31 - [Avoid unconditional allocations in TUI hot paths]
+**Learning:** In TUI update loops that run frequently (e.g., `refresh_data`), unconditionally cloning strings or structs for fields that haven't changed creates significant unnecessary memory allocation overhead.
+**Action:** When synchronizing state into view models or checking UI values like clock time, always check if the update is necessary (e.g. check `elapsed()` or diffs) before calling `.to_string()` or `.clone()`.
