@@ -256,8 +256,11 @@ fn render_terminal_output(f: &mut Frame, app: &App, area: Rect) {
 
 // ── Queue / History table ─────────────────────────────────────────────────────
 
-
-fn build_table_rows<'a>(items: &'a [mangofetch_core::models::queue::QueueItemInfo], nf: bool, t: &'a super::themes::Theme) -> Vec<Row<'a>> {
+fn build_table_rows<'a>(
+    items: &'a [mangofetch_core::models::queue::QueueItemInfo],
+    nf: bool,
+    t: &'a super::themes::Theme,
+) -> Vec<Row<'a>> {
     items
         .iter()
         .map(|item| {
