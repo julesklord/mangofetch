@@ -28,3 +28,6 @@
 ## 2024-07-13 - [Avoid allocations during UI rendering]
 **Learning:** The ratatui TUI render loop (e.g., in `ui.rs`) runs on every frame and is distinct from the application state update loop (`refresh_data`). Allocating strings on the fly inside rendering functions like `render_statusbar` using `.to_string()` or `.clone()` creates unnecessary memory overhead.
 **Action:** Prevent allocations during rendering by reading pre-formatted strings from application state via references (e.g., `app.current_time.as_str()`).
+## 2026-07-18 - [Avoid Blocking Tokio Executor with Synchronous Filesystem Operations]
+**Learning:** `std::fs::create_dir_all` and similar synchronous filesystem calls inside an `async fn` block the Tokio executor thread. This increases the wake-up latency for other async tasks, slowing down the overall async runtime during concurrent file I/O operations.
+**Action:** Replace direct calls to `std::fs` operations with their non-blocking asynchronous counterparts, such as `tokio::fs::create_dir_all`, and `.await` them to allow the executor to efficiently schedule other tasks during the I/O wait.

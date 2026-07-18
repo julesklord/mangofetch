@@ -332,7 +332,7 @@ async fn download_ffmpeg(
         ));
     }
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let ffmpeg_name = bin_name("ffmpeg");
     let ffprobe_name = bin_name("ffprobe");
@@ -632,7 +632,7 @@ async fn download_deno(
     _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let deno_name = bin_name("deno");
     let deno_target = bin_dir.join(&deno_name);
@@ -744,7 +744,7 @@ async fn download_aria2c(
     _reporter: Option<&dyn crate::core::traits::DownloadReporter>,
 ) -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
 
     let aria2c_name = bin_name("aria2c");
     let aria2c_target = bin_dir.join(&aria2c_name);
