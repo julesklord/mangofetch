@@ -1677,7 +1677,8 @@ fn render_statusbar(f: &mut Frame, app: &App, area: Rect) {
                 Style::new().fg(t.background).bold(),
             )],
             "time" => vec![Span::styled(
-                Local::now().format("%H:%M").to_string(),
+                // Optimization: Use pre-formatted current_time from app state by reference instead of allocating a new string on every render frame
+                app.current_time.as_str(),
                 Style::new().fg(t.background),
             )],
             "radar" => {

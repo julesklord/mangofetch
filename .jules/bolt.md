@@ -25,3 +25,6 @@
 ## 2024-05-31 - [Avoid unconditional allocations in TUI hot paths]
 **Learning:** In TUI update loops that run frequently (e.g., `refresh_data`), unconditionally cloning strings or structs for fields that haven't changed creates significant unnecessary memory allocation overhead.
 **Action:** When synchronizing state into view models or checking UI values like clock time, always check if the update is necessary (e.g. check `elapsed()` or diffs) before calling `.to_string()` or `.clone()`.
+## 2024-07-13 - [Avoid allocations during UI rendering]
+**Learning:** The ratatui TUI render loop (e.g., in `ui.rs`) runs on every frame and is distinct from the application state update loop (`refresh_data`). Allocating strings on the fly inside rendering functions like `render_statusbar` using `.to_string()` or `.clone()` creates unnecessary memory overhead.
+**Action:** Prevent allocations during rendering by reading pre-formatted strings from application state via references (e.g., `app.current_time.as_str()`).
