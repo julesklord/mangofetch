@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_persist_and_list() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let _env = TestEnv::new();
         clear_global_store();
 
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_remove() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let _env = TestEnv::new();
         clear_global_store();
 
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_init_from_disk() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let _env = TestEnv::new();
         clear_global_store();
 
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_clear_all() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let _env = TestEnv::new();
         clear_global_store();
 
