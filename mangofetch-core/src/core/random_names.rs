@@ -310,3 +310,31 @@ pub fn get_random_name() -> &'static str {
         .as_nanos() as usize;
     RANDOM_NAMES[seed % RANDOM_NAMES.len()]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_random_name_not_empty() {
+        let name = get_random_name();
+        assert!(!name.is_empty(), "Random name should not be empty");
+    }
+
+    #[test]
+    fn test_get_random_name_multiple_calls_no_panic() {
+        for _ in 0..100 {
+            let name = get_random_name();
+            assert!(!name.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_get_random_name_returns_valid_name() {
+        let name = get_random_name();
+        assert!(
+            RANDOM_NAMES.contains(&name),
+            "Returned name should be in the list of random names"
+        );
+    }
+}
