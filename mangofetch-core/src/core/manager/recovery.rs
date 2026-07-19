@@ -45,7 +45,22 @@ fn store() -> &'static Mutex<HashMap<u64, RecoveryItem>> {
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+#[cfg(test)]
+thread_local! {
+    static TEST_DIR: std::cell::RefCell<Option<PathBuf>> = std::cell::RefCell::new(None);
+}
+
+#[cfg(test)]
+pub fn set_test_dir(dir: PathBuf) {
+    TEST_DIR.with(|d| *d.borrow_mut() = Some(dir));
+}
+
 fn file_path() -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Some(dir) = TEST_DIR.with(|d| d.borrow().clone()) {
+        return Some(dir.join(RECOVERY_FILE));
+    }
+
     crate::core::paths::app_data_dir().map(|d| d.join(RECOVERY_FILE))
 }
 
@@ -149,7 +164,7 @@ mod tests {
             let id = uuid::Uuid::new_v4();
             let dir = std::env::temp_dir().join(format!("mangofetch_recovery_test_{}", id));
             std::fs::create_dir_all(&dir).unwrap();
-            std::env::set_var("MANGOFETCH_DATA_DIR", &dir);
+            super::set_test_dir(dir.clone());
             Self { dir }
         }
     }
@@ -157,7 +172,6 @@ mod tests {
     impl Drop for TestEnv {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.dir);
-            std::env::remove_var("MANGOFETCH_DATA_DIR");
         }
     }
 

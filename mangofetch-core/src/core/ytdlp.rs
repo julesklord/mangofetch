@@ -578,7 +578,7 @@ async fn download_ytdlp_binary(reporter: Option<&dyn DownloadReporter>) -> anyho
         managed_ytdlp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
 
     if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     let download_url = if cfg!(target_os = "windows") {
@@ -1910,7 +1910,7 @@ pub async fn download_video(
         .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
     let output_template = output_dir.join(&template).to_string_lossy().to_string();
 
-    std::fs::create_dir_all(output_dir)?;
+    tokio::fs::create_dir_all(output_dir).await?;
 
     let cookie_config = resolve_cookie_config(cookie_file, extra_flags).await;
 
