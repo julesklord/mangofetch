@@ -505,120 +505,38 @@ fn get_setting_value(kind: &SettingKind, s: &AppSettings, app: &App) -> String {
         }
     };
 
+    let on_off = |b: bool| {
+        if b {
+            "ON".to_string()
+        } else {
+            "OFF".to_string()
+        }
+    };
+
     match kind {
         SettingKind::TuiTheme => s.appearance.tui_theme.clone(),
-        SettingKind::UseNerdFonts => {
-            if app.use_nerd_fonts {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::EnableAnimations => {
-            if app.enable_animations {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
+        SettingKind::UseNerdFonts => on_off(app.use_nerd_fonts),
+        SettingKind::EnableAnimations => on_off(app.enable_animations),
         SettingKind::NavigationLayout => app.layout.to_uppercase(),
         SettingKind::MaxDownloads => s.advanced.max_concurrent_downloads.to_string(),
         SettingKind::VideoQuality => s.download.video_quality.clone(),
-        SettingKind::AlwaysAskConfirm => {
-            if s.download.always_ask_confirm {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::OrganizeByPlatform => {
-            if s.download.organize_by_platform {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::SkipExisting => {
-            if s.download.skip_existing {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::DownloadSubtitles => {
-            if s.download.download_subtitles {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::DownloadAttachments => {
-            if s.download.download_attachments {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::DownloadDescriptions => {
-            if s.download.download_descriptions {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::SponsorBlock => {
-            if s.download.youtube_sponsorblock {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::SplitByChapters => {
-            if s.download.split_by_chapters {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::EmbedMetadata => {
-            if s.download.embed_metadata {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::EmbedThumbnail => {
-            if s.download.embed_thumbnail {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
+        SettingKind::AlwaysAskConfirm => on_off(s.download.always_ask_confirm),
+        SettingKind::OrganizeByPlatform => on_off(s.download.organize_by_platform),
+        SettingKind::SkipExisting => on_off(s.download.skip_existing),
+        SettingKind::DownloadSubtitles => on_off(s.download.download_subtitles),
+        SettingKind::DownloadAttachments => on_off(s.download.download_attachments),
+        SettingKind::DownloadDescriptions => on_off(s.download.download_descriptions),
+        SettingKind::SponsorBlock => on_off(s.download.youtube_sponsorblock),
+        SettingKind::SplitByChapters => on_off(s.download.split_by_chapters),
+        SettingKind::EmbedMetadata => on_off(s.download.embed_metadata),
+        SettingKind::EmbedThumbnail => on_off(s.download.embed_thumbnail),
         SettingKind::MaxConcurrentSegments => s.advanced.max_concurrent_segments.to_string(),
         SettingKind::MaxRetries => s.advanced.max_retries.to_string(),
         SettingKind::ConcurrentFragments => s.advanced.concurrent_fragments.to_string(),
         SettingKind::StaggerDelay => format!("{}ms", s.advanced.stagger_delay_ms),
-        SettingKind::ClipboardDetection => {
-            if s.download.clipboard_detection {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::ProxyEnabled => {
-            if s.proxy.enabled {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
-        SettingKind::PortableMode => {
-            if s.portable_mode {
-                "ON".into()
-            } else {
-                "OFF".into()
-            }
-        }
+        SettingKind::ClipboardDetection => on_off(s.download.clipboard_detection),
+        SettingKind::ProxyEnabled => on_off(s.proxy.enabled),
+        SettingKind::PortableMode => on_off(s.portable_mode),
         SettingKind::StatusbarMode => get_statusbar_val("mode"),
         SettingKind::StatusbarTab => get_statusbar_val("tab"),
         SettingKind::StatusbarRadar => get_statusbar_val("radar"),

@@ -162,11 +162,17 @@ async fn copy_file_linux(path: &str) -> anyhow::Result<()> {
 
 #[cfg(target_os = "windows")]
 async fn copy_file_windows(path: &str) -> anyhow::Result<()> {
-    let ps_script = format!("Set-Clipboard -LiteralPath '{}'", path.replace('\'', "''"));
+    let path_owned = path.to_string();
 
     let output = tokio::task::spawn_blocking(move || {
         crate::core::process::std_command("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+            .env("MANGOFETCH_CLIPBOARD_PATH", &path_owned)
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Set-Clipboard -LiteralPath $env:MANGOFETCH_CLIPBOARD_PATH",
+            ])
             .output()
     })
     .await
