@@ -886,6 +886,18 @@ impl App {
     pub fn refresh_data(&mut self) {
         self.process_messages();
 
+        self.refresh_system_info();
+        self.refresh_clock();
+
+        if matches!(self.state, AppState::Splash) {
+            return;
+        }
+
+        self.refresh_queue_data();
+        self.ensure_selection_in_bounds();
+    }
+
+    fn refresh_system_info(&mut self) {
         // Refresh system info (Process specific, every 2 seconds)
         if self.last_sys_refresh.elapsed().as_secs() >= 2 {
             // Optimization: Rather than iterating over all system processes, we only need to monitor our own memory/CPU usage.
@@ -897,7 +909,9 @@ impl App {
             }
             self.last_sys_refresh = std::time::Instant::now();
         }
+    }
 
+    fn refresh_clock(&mut self) {
         // Update clock only once per second to avoid UI churn
         if self.last_time_refresh.elapsed().as_secs() >= 1 {
             let now = Local::now();
@@ -907,11 +921,9 @@ impl App {
             }
             self.last_time_refresh = std::time::Instant::now();
         }
+    }
 
-        if matches!(self.state, AppState::Splash) {
-            return;
-        }
-
+    fn refresh_queue_data(&mut self) {
         if let Ok(q) = self.queue.try_lock() {
             // Optimization: avoid mapping `to_info()` for all items on every tick (which clones many strings).
             // Compute aggregates directly from the raw `QueueItem` references.
@@ -987,7 +999,9 @@ impl App {
                 _ => Vec::new(),
             };
         }
+    }
 
+    fn ensure_selection_in_bounds(&mut self) {
         // Keep selection in-bounds
         if self.items.is_empty() {
             self.table_state.select(None);
