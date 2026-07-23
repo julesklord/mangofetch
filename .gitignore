@@ -269,3 +269,6 @@ target/
 
 .jules/
 .trunk/
+
+# Local code-graph tool data (Memgraph index, daemon, etc.) — not committed
+.codegraph/
