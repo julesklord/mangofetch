@@ -2380,7 +2380,7 @@ dependencies = [
  "librqbit",
  "m3u8-rs",
  "mangofetch-plugin-sdk",
- "rand 0.9.5",
+ "rand 0.10.2",
  "regex",
  "reqwest",
  "sanitize-filename",
