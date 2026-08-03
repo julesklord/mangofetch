@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use rand::Rng;
+use rand::RngExt;
 use regex::Regex;
 use tokio::sync::mpsc;
 
