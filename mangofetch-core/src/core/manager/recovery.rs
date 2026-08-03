@@ -45,7 +45,6 @@ fn store() -> &'static Mutex<HashMap<u64, RecoveryItem>> {
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-
 #[cfg(test)]
 thread_local! {
     static TEST_DIR: std::cell::RefCell<Option<PathBuf>> = std::cell::RefCell::new(None);
