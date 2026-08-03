@@ -206,4 +206,27 @@ mod tests {
         let saved_content = fs::read_to_string(file_path).unwrap();
         assert_eq!(saved_content, "Existing content");
     }
+
+    #[test]
+    fn test_is_course_complete() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "mangofetch_test_course_complete_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dir_str = temp_dir.to_string_lossy().to_string();
+
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        assert!(!is_course_complete(&dir_str));
+
+        let marker = temp_dir.join(".complete");
+        std::fs::write(&marker, "done").unwrap();
+
+        assert!(is_course_complete(&dir_str));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }
